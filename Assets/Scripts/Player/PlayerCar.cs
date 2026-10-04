@@ -334,7 +334,7 @@ namespace GasQueue
             crash.pitch = Random.Range(0.9f, 1.2f);
             crash.PlayOneShot(SoundFactory.Thud, 0.8f);
             visual.Bounce();
-            var report = damage.Hit(front, 0.12f, Vector3.zero) ?? damage.Wear(1.3f, Vector3.zero);
+            var report = damage.Hit(front, 0.08f, Vector3.zero); // пинок ≈ −1% прочности
             if (damage.Wrecked) ForceEngineOff();
             GameManager.Instance.OnCarKicked(report);
         }

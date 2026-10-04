@@ -8,17 +8,20 @@ namespace GasQueue
     /// </summary>
     public class MainMenu : MonoBehaviour
     {
-        public static bool IsOpen { get; private set; }
+        /// <summary>Открытое сейчас меню. Привязано к экземпляру: старое меню, которое уничтожается
+        /// при перестройке мира, не должно закрывать уже открытое новое.</summary>
+        static MainMenu open;
+        public static bool IsOpen => open != null;
 
         CameraRig rig;
         bool showHelp;
-        GUIStyle title, subtitle, text, button;
+        GUIStyle title, text, button;
         float builtForHeight;
 
         public void Open(CameraRig cameraRig)
         {
             rig = cameraRig;
-            IsOpen = true;
+            open = this;
             GameInput.Paused = true;
             Time.timeScale = 0f;
             AudioListener.pause = true;
@@ -27,31 +30,29 @@ namespace GasQueue
 
         void Close()
         {
-            IsOpen = false;
+            if (open == this) open = null;
             PauseMenu.ResetGlobalState();
             rig.SetCursorLocked(true);
         }
 
         void OnDestroy()
         {
-            if (IsOpen)
+            if (open == this)
             {
-                IsOpen = false;
+                open = null;
                 PauseMenu.ResetGlobalState();
             }
         }
 
         void OnGUI()
         {
-            if (!IsOpen) return;
+            if (open != this) return;
             float w = Screen.width, h = Screen.height, k = h / 1080f;
             if (title == null || !Mathf.Approximately(builtForHeight, h))
             {
                 builtForHeight = h;
-                title = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(72 * k), alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, wordWrap = false };
+                title = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(64 * k), alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, wordWrap = false };
                 title.normal.textColor = Color.white;
-                subtitle = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(28 * k), alignment = TextAnchor.MiddleCenter, wordWrap = true };
-                subtitle.normal.textColor = Shapes.Hex("#ffe14d");
                 text = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(22 * k), alignment = TextAnchor.UpperLeft, wordWrap = true };
                 text.normal.textColor = Color.white;
                 button = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(30 * k) };
@@ -61,15 +62,12 @@ namespace GasQueue
             GUI.color = new Color(0.04f, 0.04f, 0.06f, 0.78f);
             GUI.DrawTexture(new Rect(0, 0, w, h), Texture2D.whiteTexture);
             GUI.color = new Color(0.78f, 0.19f, 0.17f, 1f);
-            GUI.DrawTexture(new Rect(w / 2 - 330 * k, h * 0.2f, 660 * k, 6 * k), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(w / 2 - 420 * k, h * 0.2f, 840 * k, 6 * k), Texture2D.whiteTexture);
             GUI.color = old;
 
-            GUI.Label(new Rect(0, h * 0.08f, w, 100 * k), "ОЧЕРЕДЬ НА ЗАПРАВКУ", title);
-            GUI.Label(new Rect(w / 2 - 450 * k, h * 0.22f, 900 * k, 80 * k),
-                "Симулятор ожидания. Вы уже 1 ч 20 мин в очереди на «ЛУКАВОЙЛ». Впереди двадцать машин. Бензин кончится прямо перед вами.",
-                subtitle);
+            GUI.Label(new Rect(0, h * 0.08f, w, 100 * k), "СИМУЛЯТОР ОЧЕРЕДИ НА ЗАПРАВКУ", title);
 
-            float bw = 420 * k, bh = 64 * k, x = w / 2 - bw / 2, y = h * 0.36f;
+            float bw = 420 * k, bh = 64 * k, x = w / 2 - bw / 2, y = h * 0.3f;
             if (GUI.Button(new Rect(x, y, bw, bh), "Начать", button)) Close();
             y += bh + 16 * k;
             if (GUI.Button(new Rect(x, y, bw, bh), showHelp ? "Скрыть управление" : "Как играть", button)) showHelp = !showHelp;

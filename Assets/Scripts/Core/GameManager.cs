@@ -281,7 +281,7 @@ namespace GasQueue
             }
 
             // Продавец у окна (в машине) или рядом (пешком)
-            var vendor = Traffic.VendorNear(OnFoot ? Walker.transform.position : Player.DriverDoor, OnFoot ? 1.8f : 2.4f);
+            var vendor = OnFoot ? Traffic.VendorNear(Walker.transform.position, 1.8f) : Traffic.VendorAtCar(1.5f);
             VendorAtWindow = !OnFoot && vendor != null && vendor.Offering;
             if (vendor != null && (OnFoot || vendor.Offering))
             {
@@ -319,6 +319,8 @@ namespace GasQueue
             var cap = Player.transform.TransformPoint(Player.visual.fuelCapLocal);
             bool nearCap = Vector3.Distance(new Vector3(me.x, 0, me.z), new Vector3(cap.x, 0, cap.z)) < 1.8f;
             var carPump = Traffic.PumpAtPlayerCar();
+            // Пистолет можно взять и у самой колонки, и у лючка бака
+            bool nearPump = carPump != null && (nearCap || Vector3.Distance(new Vector3(me.x, 0, me.z), carPump.dispenser) < 2.3f);
             NpcCar nearNpc = null;
             foreach (var npc in Traffic.Npcs)
                 if (npc.Speed < 0.2f && npc.visual.driverHead != null && npc.visual.driverHead.gameObject.activeSelf &&
@@ -367,15 +369,19 @@ namespace GasQueue
             {
                 Prompt = "Ваша очередь в кассу! Подойдите к прилавку";
             }
+            else if (nearPump && Paid && !NozzleIn && !PlayerFueled)
+            {
+                Prompt = $"E — вставить пистолет в бак (колонка №{carPump.Number})";
+                if (GameInput.InteractPressed) StartFueling(carPump);
+            }
             else if (nearAttendant)
             {
                 Prompt = "E — поговорить с заправщиком";
                 if (GameInput.InteractPressed) OpenAttendantDialog();
             }
-            else if (nearCap && carPump != null && Paid && !NozzleIn && !PlayerFueled)
+            else if (nearPump && !Paid && !PlayerFueled)
             {
-                Prompt = "E — вставить пистолет в бак";
-                if (GameInput.InteractPressed) StartFueling(carPump);
+                Prompt = $"Колонка №{carPump.Number}: сначала оплатите на кассе в магазине";
             }
             else if (nearCar)
             {

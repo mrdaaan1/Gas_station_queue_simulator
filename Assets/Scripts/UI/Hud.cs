@@ -132,6 +132,7 @@ namespace GasQueue
         /// <summary>Полоски здоровья: во время драки и пока игрок не оправился.</summary>
         void DrawHealth(GameManager gm, float w, float h, float k)
         {
+            if (gm.DialogOpen) return; // окно диалога важнее — полоски его не закрывают
             var me = gm.Walker != null ? gm.Walker.Fighter : null;
             var enemy = Brawler.Active != null ? Brawler.Active.Fighter : null;
             bool showMe = me != null && gm.OnFoot && (me.Health < Fighter.MaxHealth - 0.5f || me.InCombat);

@@ -813,7 +813,9 @@ namespace GasQueue
         void UpdateVendors(float dt)
         {
             Vendors.RemoveAll(v => v == null);
-            if (!PlayerInQueue || Player.Position.z > CityLayout.LotMinZ - 30f) return;
+            // Продавцы ходят вдоль очереди и подходят к игроку, даже если он выехал из неё во второй ряд
+            bool onRoad = Player.Position.x < CityLayout.LotMinX && Player.Position.z < CityLayout.LotMinZ - 30f;
+            if (!onRoad || Gm == null || Gm.OnFoot) return;
             canisterTimer -= dt;
             pieTimer -= dt;
             if (canisterTimer <= 0f)
@@ -835,6 +837,15 @@ namespace GasQueue
             float z = Player.Position.z - dir * Random.Range(35f, 55f);
             if (z > CityLayout.LotMinZ - 20f) z = Player.Position.z - 45f;
             Vendors.Add(Vendor.Spawn(kind, this, z, dir));
+        }
+
+        /// <summary>Продавец у любого окна машины игрока.</summary>
+        public Vendor VendorAtCar(float radius)
+        {
+            var box = Player.Box;
+            foreach (var v in Vendors)
+                if (v != null && box.PushCircle(new Vector2(v.transform.position.x, v.transform.position.z), radius, out _)) return v;
+            return null;
         }
 
         public Vendor VendorNear(Vector3 point, float radius)

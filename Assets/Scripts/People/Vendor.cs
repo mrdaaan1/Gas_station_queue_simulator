@@ -93,8 +93,13 @@ namespace GasQueue
             if (life > 70f) visitedPlayer = true; // так и не дождался — идёт дальше
 
             // Остановились у окна игрока и предлагаем товар
-            var window = player.DriverDoor;
-            bool playerHere = Mathf.Abs(Mathf.Abs(player.Speed)) < 0.3f && !gm.OnFoot && Vector3.Distance(transform.position, window) < 2.2f;
+            // Подходим к ближнему боку машины игрока (он может стоять и в очереди, и во втором ряду)
+            var window = player.Position;
+            float side = Mathf.Sign(LaneX - player.Position.x);
+            if (side == 0f) side = 1f;
+            float sideX = player.Position.x + side * (player.Width / 2f + 0.55f);
+            bool stopped = Mathf.Abs(player.Speed) < 0.3f && !gm.OnFoot;
+            bool playerHere = stopped && player.Box.PushCircle(new Vector2(transform.position.x, transform.position.z), 1.3f, out _);
             if (!visitedPlayer && playerHere)
             {
                 Offering = true;
@@ -124,7 +129,8 @@ namespace GasQueue
             float step = Mathf.Sign(dz) * Mathf.Min(Mathf.Abs(dz), 1.1f * dt);
             if (!visitedPlayer && Mathf.Abs(dz) < 0.3f) step = 0f; // ждём, пока игрок остановится
             var pos = transform.position;
-            pos.x = Mathf.MoveTowards(pos.x, LaneX, dt);
+            bool approach = !visitedPlayer && stopped && Mathf.Abs(dz) < 1.5f && Mathf.Abs(sideX - LaneX) < 6f;
+            pos.x = Mathf.MoveTowards(pos.x, approach ? sideX : LaneX, dt * 1.2f);
             pos.z += step;
             transform.position = pos;
             if (Mathf.Abs(step) > 0.0001f) transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(Vector3.forward * Mathf.Sign(step)), dt * 6f);

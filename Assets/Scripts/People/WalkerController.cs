@@ -123,8 +123,12 @@ namespace GasQueue
             if (move.sqrMagnitude > 0.01f)
             {
                 pos += move.normalized * Speed * dt;
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(move.normalized), dt * 12f);
+                // От третьего лица разворачиваемся по ходу движения, от первого — тело смотрит туда же, куда камера
+                // (S — просто шаг назад, а не разворот к камере лицом)
+                if (!cameraRig.FootFirstPerson)
+                    transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(move.normalized), dt * 12f);
             }
+            if (cameraRig.FootFirstPerson) transform.rotation = Quaternion.Euler(0f, yaw, 0f);
             pos = Collide(pos);
             // Стоим на капоте, а впереди крыша выше нас — это стенка, туда только прыжком
             if (HitsHigherLevel(new Vector2(pos.x, pos.z))) { pos.x = before.x; pos.z = before.z; }

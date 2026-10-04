@@ -114,38 +114,38 @@ namespace GasQueue
             Health = Mathf.Max(0f, Health - amount);
             string report = null;
 
-            if (Health < 75f && Once("smoke"))
+            if (Health < 40f && Once("smoke"))
             {
                 smoke = gameObject.AddComponent<Smoke>();
                 smoke.Init(v.body, new Vector3(0f, 1.0f, v.length / 2f - 0.6f), debrisRoot);
                 report = "Из-под капота пошёл дым!";
             }
-            if (smoke != null) smoke.intensity = Mathf.Clamp01((80f - Health) / 80f);
+            if (smoke != null) smoke.intensity = Mathf.Clamp01((45f - Health) / 45f);
 
-            if (Health < 58f && v.frontPanel != null && Once("hoodOpen"))
+            if (Health < 30f && v.frontPanel != null && Once("hoodOpen"))
             {
                 // Капот приподнялся и перекосился
                 v.frontPanel.localRotation = Quaternion.Euler(-24f, Random.Range(-5f, 5f), Random.Range(-4f, 4f));
                 v.frontPanel.localPosition += new Vector3(0f, 0.18f, 0f);
                 report = "Капот задрался!";
             }
-            if (Health < 48f && v.doors.Count > 0 && Once("door1"))
+            if (Health < 22f && v.doors.Count > 0 && Once("door1"))
             {
                 Debris.Detach(v.doors[Random.Range(0, v.doors.Count)], velocity + Vector3.up, debrisRoot);
                 report = "Отвалилась дверь!";
             }
-            if (Health < 38f && v.roof != null && Once("roof"))
+            if (Health < 15f && v.roof != null && Once("roof"))
             {
                 v.roof.localPosition -= new Vector3(0f, 0.09f, 0f);
                 v.roof.localRotation = Quaternion.Euler(Random.Range(-4f, 4f), 0f, Random.Range(-5f, 5f));
                 report = "Крыша помята!";
             }
-            if (Health < 28f && v.frontPanel != null && v.frontPanel.parent == v.body && Once("hoodOff"))
+            if (Health < 9f && v.frontPanel != null && v.frontPanel.parent == v.body && Once("hoodOff"))
             {
                 Debris.Detach(v.frontPanel, velocity + Vector3.up * 2f, debrisRoot);
                 report = "Капот отлетел!";
             }
-            if (Health < 18f && Once("door2"))
+            if (Health < 4f && Once("door2"))
             {
                 foreach (var d in v.doors)
                     if (d != null && d.parent == v.body) { Debris.Detach(d, velocity, debrisRoot); break; }
