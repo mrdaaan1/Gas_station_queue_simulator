@@ -31,6 +31,7 @@ public static class Sim { public static bool Verbose; public static int HonkedAt
       var stuck=traffic.Npcs.Where(n=>n.Role!=NpcRole.Queue && n.Role!=NpcRole.Fueling && Time.time-lastMove[n].t>40).ToList();
       foreach(var n in stuck){ var f=typeof(NpcCar).GetField("targetOffset",BindingFlags.NonPublic|BindingFlags.Instance); var lb=typeof(NpcCar).GetField("laneBlockedTimer",BindingFlags.NonPublic|BindingFlags.Instance); var gu=typeof(NpcCar).GetField("giveUpTimer",BindingFlags.NonPublic|BindingFlags.Instance);
         Console.WriteLine($"   STUCK {n.gameObject.name} {n.Role} path={n.Path.name} s={n.S:F1}/{n.Path.Length:F1} pos=({n.Position.x:F1},{n.Position.z:F1}) blockedBy={(n.BlockedBy==null?"-":n.BlockedBy.gameObject.name)} cut={n.Cut} off={n.Offset:F2}->{f.GetValue(n)} target={(n.TargetPath==null?"-":n.TargetPath.name)} laneBlocked={lb.GetValue(n)} giveUp={gu.GetValue(n)}"); }
+      foreach(var v in traffic.Npcs.Where(n=>n.IsVip)) Console.WriteLine($"   VIP {v.Role} path={v.Path.name} s={v.S:F1}/{v.Path.Length:F1} blockedBy={(v.BlockedBy==null?"-":v.BlockedBy.gameObject.name)}");
       var head=traffic.Npcs.Where(n=>n.Role==NpcRole.Queue&&n.Path==traffic.QueuePath).OrderByDescending(n=>n.S).FirstOrDefault();
       if(head!=null) Console.WriteLine($"   head {head.gameObject.name} s={head.S:F2}/{traffic.QueuePath.Length:F2} speed={head.Speed:F2} blockedBy={(head.BlockedBy==null?"-":head.BlockedBy.gameObject.name)} idle={Time.time-lastMove[head].t:F0}s");
     }

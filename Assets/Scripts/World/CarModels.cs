@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace GasQueue
 {
-    public enum CarModel { Vaz2107, Rio, Niva, Gazelle }
+    public enum CarModel { Vaz2107, Rio, Niva, Gazelle, Maybach }
 
     /// <summary>
     /// Машины NPC «по мотивам» того, что стоит в российских очередях: «семёрка», «Рио»-такси, «Нива», «Газель».
@@ -65,6 +65,14 @@ namespace GasQueue
                         body = new[] { V(-1.87f, 0.42f), V(1.87f, 0.42f), V(1.88f, 0.98f), V(0.9f, 1.05f), V(-1.87f, 1.07f) },
                         cabin = new[] { V(-1.86f, 1.07f), V(0.9f, 1.05f), V(0.42f, 1.62f), V(-1.84f, 1.63f) },
                         cabinBottom = 0.8f, cabinTop = 0.72f, roofY = 1.63f, seatZ = -0.35f, dashZ = 0.6f, lightY = 0.82f, bumperY = 0.5f,
+                    };
+                case CarModel.Maybach:
+                    return new Spec
+                    {
+                        length = 5.4f, halfWidth = 0.97f, wheelR = 0.36f, axleFront = 1.75f, axleRear = -1.6f, track = 0.84f,
+                        body = new[] { V(-2.7f, 0.34f), V(2.7f, 0.34f), V(2.72f, 0.7f), V(2.5f, 0.86f), V(1.2f, 0.98f), V(-1.85f, 1.02f), V(-2.68f, 0.9f) },
+                        cabin = new[] { V(-1.95f, 1.0f), V(1.2f, 0.98f), V(0.25f, 1.48f), V(-1.2f, 1.5f) },
+                        cabinBottom = 0.9f, cabinTop = 0.74f, roofY = 1.5f, seatZ = -0.2f, dashZ = 0.8f, lightY = 0.78f, bumperY = 0.44f,
                     };
                 case CarModel.Gazelle:
                     return new Spec
@@ -160,10 +168,13 @@ namespace GasQueue
                 case CarModel.Rio: FrontRio(body, visual, spec, paint); break;
                 case CarModel.Niva: FrontNiva(body, visual, spec); break;
                 case CarModel.Gazelle: FrontGazelle(body, visual, spec); break;
+                case CarModel.Maybach: FrontMaybach(body, visual, spec); break;
             }
             Rear(body, visual, spec, model);
-            Plates(body, spec);
+            if (model == CarModel.Maybach) Plates(body, spec.length, spec.bumperY, "О001ОО 199"); // номера «для своих»
+            else Plates(body, spec);
             SideDetails(body, spec, model);
+            if (model == CarModel.Maybach) ExtrasMaybach(root, body, visual, spec);
             if (model == CarModel.Vaz2107) Extras2107(body, spec);
             if (model == CarModel.Niva) ExtrasNiva(body, spec);
             if (model == CarModel.Rio) ExtrasRio(body, spec);
@@ -356,6 +367,43 @@ namespace GasQueue
                 var front = s.cabin[1];
                 Shapes.Box(body, new Vector3(sign * (s.cabinBottom + 0.12f), front.y + 0.1f, front.x - 0.12f), new Vector3(0.14f, 0.1f, 0.06f), Black, name: "Mirror");
             }
+        }
+
+        static void FrontMaybach(Transform body, CarVisual v, Spec s)
+        {
+            float z = s.length / 2f;
+            // Высокая хромированная решётка с вертикальными планками
+            Shapes.Box(body, new Vector3(0, 0.66f, z + 0.03f), new Vector3(0.62f, 0.36f, 0.04f), Chrome, name: "Grille");
+            for (int i = 0; i < 9; i++)
+                Shapes.Box(body, new Vector3(-0.26f + i * 0.065f, 0.66f, z + 0.055f), new Vector3(0.015f, 0.32f, 0.01f), Black, name: "GrilleBar");
+            Shapes.Make(PrimitiveType.Sphere, body, new Vector3(0, 0.88f, z - 0.05f), new Vector3(0.08f, 0.08f, 0.02f), Chrome, name: "Star");
+            foreach (float x in new[] { -0.66f, 0.66f })
+                v.headlights.Add(Shapes.Box(body, new Vector3(x, s.lightY, z - 0.04f), new Vector3(0.42f, 0.1f, 0.12f), HeadLight,
+                    new Vector3(0, x > 0 ? -15f : 15f, 0), "Headlight").transform);
+            Blinkers(body, v, s, new Vector3(0.88f, s.lightY - 0.04f, z - 0.1f), new Vector3(0.85f, 0.82f, -z + 0.03f));
+            v.bumperFront = Shapes.Box(body, new Vector3(0, s.bumperY, z + 0.02f), new Vector3(1.94f, 0.2f, 0.08f), Shapes.Hex("#101012"), name: "BumperFront").transform;
+        }
+
+        /// <summary>Майбах: хром по окнам и порогам, хромированные диски, синяя мигалка на крыше и сирена.</summary>
+        static void ExtrasMaybach(Transform root, Transform body, CarVisual v, Spec s)
+        {
+            var c = s.cabin;
+            foreach (float sign in new[] { -1f, 1f })
+            {
+                Beam(body, new Vector3(sign * (s.cabinBottom + 0.015f), c[0].y + 0.01f, c[0].x), new Vector3(sign * (s.cabinBottom + 0.015f), c[1].y + 0.01f, c[1].x), 0.035f, Chrome, "WindowChrome");
+                Beam(body, new Vector3(sign * (s.cabinTop + 0.02f), c[3].y - 0.01f, c[3].x), new Vector3(sign * (s.cabinTop + 0.02f), c[2].y - 0.01f, c[2].x), 0.035f, Chrome, "WindowChrome");
+                Shapes.Box(body, new Vector3(sign * (s.halfWidth + 0.006f), 0.42f, 0), new Vector3(0.015f, 0.05f, s.length * 0.6f), Chrome, name: "SillChrome");
+            }
+            Shapes.Box(body, new Vector3(0, 0.82f, -s.length / 2f - 0.005f), new Vector3(1.5f, 0.03f, 0.02f), Chrome, name: "TrunkChrome");
+            foreach (var w in root.GetComponentsInChildren<Transform>())
+                if (w.name == "Wheel")
+                    Shapes.Make(PrimitiveType.Cylinder, w, Vector3.zero, new Vector3(s.wheelR * 1.25f, 0.118f, s.wheelR * 1.25f), Chrome, name: "ChromeRim");
+            // Мигалка
+            var lamp = Shapes.Group("Flasher", body, new Vector3(-0.35f, s.roofY + 0.06f, (s.cabin[2].x + s.cabin[3].x) / 2f + 0.2f));
+            var glass = Shapes.Make(PrimitiveType.Cylinder, lamp, Vector3.zero, new Vector3(0.18f, 0.06f, 0.18f), Shapes.Hex("#1a3a8a"), name: "Beacon");
+            Shapes.Make(PrimitiveType.Cylinder, lamp, new Vector3(0, -0.06f, 0), new Vector3(0.2f, 0.02f, 0.2f), Black, name: "Base");
+            var lights = root.gameObject.AddComponent<VipLights>();
+            lights.beacon = glass.GetComponent<Renderer>();
         }
 
         /// <summary>«Семёрка»: хромированные окантовки окон и водостоки на крыше, брызговики, хромированные колпаки.</summary>

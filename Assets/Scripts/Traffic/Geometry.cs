@@ -86,7 +86,10 @@ namespace GasQueue
                     bestD = d;
                     bestS = cumulative[i] + Mathf.Sqrt(len2) * t;
                     var right = len2 > 0.000001f ? new Vector3(ab.z, 0f, -ab.x) / Mathf.Sqrt(len2) : Vector3.right;
-                    lateral = dx * right.x + dz * right.z;
+                    // Смещение = настоящее расстояние до маршрута со знаком стороны.
+                    // (Раньше бралось только боковое: точка далеко за концом маршрута казалась «на нём».)
+                    float side = dx * right.x + dz * right.z;
+                    lateral = (side < 0f ? -1f : 1f) * Mathf.Sqrt(d);
                 }
             }
             return bestS;

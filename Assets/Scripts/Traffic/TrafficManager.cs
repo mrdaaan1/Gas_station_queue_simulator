@@ -11,6 +11,7 @@ namespace GasQueue
         public Vector3 dispenser;
         public LanePath enterPath;
         public LanePath exitPath;
+        public LanePath vipPath; // заезд депутата с обратной стороны
         public NpcCar Occupant { get; private set; }
         public bool reservedForPlayer;
 
@@ -137,11 +138,15 @@ namespace GasQueue
                     dispenser = CityLayout.P(CityLayout.IslandX[i / 2], CityLayout.IslandZ),
                     enterPath = CityLayout.PumpEnterPath(i),
                     exitPath = CityLayout.PumpExitPath(i),
+                    vipPath = CityLayout.VipToPumpPath(i),
                 };
                 Pumps.Add(pump);
                 allPaths.Add(pump.enterPath);
                 allPaths.Add(pump.exitPath);
+                allPaths.Add(pump.vipPath);
             }
+            vipPath = CityLayout.VipInPath();
+            allPaths.Add(vipPath);
             foreach (var p in allPaths) lanes[p] = new List<PathEntry>();
 
             QueueRoadEndS = QueuePath.Project(CityLayout.P(CityLayout.LaneQueue, -44f), out _);
@@ -310,6 +315,19 @@ namespace GasQueue
 
         void UpdateStation()
         {
+            // Депутату колонку дают первым — даже когда бензина «нет»
+            foreach (var npc in Npcs)
+                if (npc.IsVipWaiting)
+                {
+                    var vipPump = FreePump(preferEast: true);
+                    if (vipPump != null)
+                    {
+                        npc.GoToPumpAsVip(vipPump);
+                        if (Gm.State == GameState.OutOfFuel) Gm.ShowMessage("Для депутата бензин нашёлся. Колонка №" + vipPump.Number + ".", 7f);
+                    }
+                    return; // пока депутат ждёт, никому другому колонку не дают
+                }
+
             if (Barrier.IsDown) return;
 
             if (queue.Count > 0 && queue[0].v is NpcCar head && head.S >= QueuePath.Length - 1.5f && head.Speed < 0.2f)
@@ -347,7 +365,7 @@ namespace GasQueue
             return true;
         }
 
-        Pump FreePump()
+        Pump FreePump(bool preferEast = false)
         {
             Pump best = null;
             int seen = 0;
@@ -355,6 +373,7 @@ namespace GasQueue
             {
                 if (p.Occupant != null || p.reservedForPlayer) continue;
                 if (Vector3.Distance(Player.Position, p.spot) < 3.5f) continue;
+                if (preferEast && p.index >= 2) return p; // ближние к магазину — без пересечений с очередью
                 // Выбираем случайную свободную, чтобы машины не липли к одной колонке
                 if (Random.Range(0, ++seen) == 0) best = p;
             }
@@ -664,6 +683,7 @@ namespace GasQueue
 
             UpdateVendors(dt);
             UpdateRumor(dt);
+            UpdateVip(dt);
 
             // Кто-то в очереди не выдерживает
             giveUpTimer += dt;
@@ -672,6 +692,31 @@ namespace GasQueue
                 giveUpTimer = 0f;
                 if (Random.value < Settings.giveUpChance) TryGiveUp();
             }
+        }
+
+        // ---------- Депутат с мигалкой ----------
+
+        LanePath vipPath;
+        float vipTimer = 200f;
+
+        void UpdateVip(float dt)
+        {
+            vipTimer -= dt * (Settings.fastTestMode ? Settings.testSpeedup : 1f);
+            if (vipTimer > 0f) return;
+            vipTimer = Random.Range(650f, 850f);
+            foreach (var n in Npcs) if (n.IsVip && n.Role != NpcRole.Exiting) return; // один депутат за раз
+            float s = Random.Range(60f, 140f);
+            if (!LaneClearNear(vipPath, s, 20f)) return;
+            var visual = CarFactory.Build($"VIP {++carCounter}", new Color(0.04f, 0.04f, 0.05f), CarModel.Maybach, false);
+            visual.transform.SetParent(transform, false);
+            var npc = visual.gameObject.AddComponent<NpcCar>();
+            npc.visual = visual;
+            npc.traffic = this;
+            npc.damage = visual.gameObject.AddComponent<CarDamage>();
+            npc.damage.Init(visual, WorldRoot);
+            Npcs.Add(npc);
+            npc.SetupVip(vipPath);
+            Gm.OnVipArrived();
         }
 
         // ---------- Продавцы вдоль очереди ----------

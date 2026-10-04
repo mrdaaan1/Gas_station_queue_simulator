@@ -11,6 +11,7 @@ namespace GasQueue
         Through,   // просто едет мимо по дороге
         Cutter,    // пытается вклиниться в очередь из соседнего ряда
         GivingUp,  // не выдержал, перестраивается и уезжает
+        Vip,       // депутат с мигалкой: едет к заправке мимо очереди
     }
 
     /// <summary>
@@ -109,6 +110,7 @@ namespace GasQueue
             {
                 case NpcRole.Cutter: return Cut == CutState.Looking ? 6f : 4f;
                 case NpcRole.GivingUp: return Offset > -3f ? 3f : 10f;
+                case NpcRole.Vip: return S > Path.Length - 45f ? 5f : Path.speedLimit; // по территории — потише
                 default: return Path.speedLimit;
             }
         }
@@ -272,6 +274,8 @@ namespace GasQueue
 
             UpdateHonking(dt, blocker);
             UpdateOvertake(dt, blocker);
+            // Депутату мешают — «крякает» сиреной
+            if (IsVip && vipLights != null && blocker != null && Speed < 1f) vipLights.Whoop();
         }
 
         float stuckBehindTimer;
@@ -375,6 +379,35 @@ namespace GasQueue
         }
 
         // ---------- Заправка ----------
+
+        /// <summary>Депутат с мигалкой: по левому ряду и через выезд — к месту ожидания у магазина.</summary>
+        /// <summary>Это депутатская машина (остаётся таковой и у колонки, и на выезде).</summary>
+        public bool IsVip { get; private set; }
+        VipLights vipLights;
+
+        public void SetupVip(LanePath path)
+        {
+            IsVip = true;
+            vipLights = GetComponent<VipLights>();
+            Setup(NpcRole.Vip, path, 0f, true);
+            moving = true;
+            Speed = path.speedLimit * 0.8f;
+        }
+
+        /// <summary>Депутату дали колонку — он заезжает с другой стороны, не дожидаясь очереди.</summary>
+        public void GoToPumpAsVip(Pump pump)
+        {
+            Pump = pump;
+            pump.Occupy(this);
+            Role = NpcRole.ToPump;
+            Path = pump.vipPath;
+            S = 0f;
+            StopAtEnd = true;
+            moving = false;
+            reactTimer = 0f;
+        }
+
+        public bool IsVipWaiting => Role == NpcRole.Vip && S >= Path.Length - ArriveTolerance && !moving;
 
         public void GoToPump(Pump pump)
         {

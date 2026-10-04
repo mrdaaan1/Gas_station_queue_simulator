@@ -108,6 +108,31 @@ namespace GasQueue
             }
         }
 
+        static AudioClip siren;
+
+        /// <summary>«Кряк» спецсигнала: тон, который быстро взлетает и падает.</summary>
+        public static AudioClip Siren
+        {
+            get
+            {
+                if (siren != null) return siren;
+                int n = (int)(Rate * 1.2f);
+                var data = new float[n];
+                float phase = 0f;
+                for (int i = 0; i < n; i++)
+                {
+                    float t = (float)i / Rate;
+                    float f = 650f + 550f * Mathf.Abs(Mathf.Sin(2 * Mathf.PI * 1.6f * t));
+                    phase += 2 * Mathf.PI * f / Rate;
+                    float s = Mathf.Clamp(Mathf.Sin(phase) * 1.8f, -1f, 1f);
+                    float env = Mathf.Clamp01(t / 0.02f) * Mathf.Clamp01((1.2f - t) / 0.1f);
+                    data[i] = s * 0.28f * env;
+                }
+                siren = Create("Siren", data);
+                return siren;
+            }
+        }
+
         static AudioClip punch, thud;
 
         /// <summary>Удар кулаком: короткий глухой шлепок.</summary>

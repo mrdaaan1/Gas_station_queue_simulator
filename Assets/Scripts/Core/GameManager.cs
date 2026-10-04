@@ -68,6 +68,7 @@ namespace GasQueue
         public int FightsLost { get; private set; }
         public int CarKicks { get; private set; }
         public int CanistersBought { get; private set; }
+        public int VipsSeen { get; private set; }
         public int PiesEaten { get; private set; }
         public float LitersFilled { get; private set; }
         public float MoneySpent { get; private set; }
@@ -641,6 +642,14 @@ namespace GasQueue
                 : "Водитель вышел разбираться! Сидите в машине или выходите (F).", 8f);
         }
 
+        public void OnVipArrived()
+        {
+            VipsSeen++;
+            ShowMessage("Мигалка! Чёрный «Майбах» летит мимо очереди и заезжает через ВЫЕЗД. Ему нужнее.", 8f);
+            foreach (var npc in Traffic.Npcs)
+                if (npc.Role == NpcRole.Queue && Random.value < 0.15f) npc.Honk();
+        }
+
         public void OnCarKicked(string report)
         {
             CarKicks++;
@@ -686,6 +695,7 @@ namespace GasQueue
             if (EngineStops >= 5) list.Add("Эко-водитель");
             if (FightsWon >= 1) list.Add("Чемпион очереди");
             if (CanistersBought >= 1) list.Add("Жертва спекулянта");
+            if (VipsSeen >= 1) list.Add("Слуга народа заправился первым");
             if (PiesEaten >= 2) list.Add("Пирожковый марафон");
             if (FightsLost >= 1) list.Add("Получил за дело");
             if (CarKicks >= 5) list.Add("Машина-боксёрская груша");
