@@ -22,6 +22,7 @@ namespace GasQueue
         const float Accel = 2.6f;
         const float Decel = 5f;
         const float LaneChangeRate = 1.3f; // м/с вбок
+        const float ArriveTolerance = 0.25f; // «доехал до места», если осталось меньше
 
         static readonly string[] HonkAtPlayer =
         {
@@ -146,7 +147,14 @@ namespace GasQueue
                 Pump = null;
             }
 
-            bool atEnd = S >= Path.Length - 0.05f;
+            // Остановились в паре сантиметров от конца маршрута — считаем, что доехали
+            // (иначе машина вечно стоит у колонки, не начиная заправку)
+            bool atEnd = S >= Path.Length - (StopAtEnd ? ArriveTolerance : 0.05f);
+            if (atEnd && !moving && StopAtEnd && S < Path.Length)
+            {
+                S = Path.Length;
+                Place(Path.PointAt(S), Path.TangentAt(S));
+            }
             if (atEnd && !moving)
             {
                 if (Role == NpcRole.ToPump) StartFueling();
@@ -178,7 +186,7 @@ namespace GasQueue
 
             if (!moving)
             {
-                float startThreshold = limitedByStop ? 0.15f : Role == NpcRole.Through ? 0.5f : 1.2f;
+                float startThreshold = limitedByStop ? ArriveTolerance : Role == NpcRole.Through ? 0.5f : 1.2f;
                 if (free > startThreshold || (changingLane && free > 0.6f))
                 {
                     reactTimer += dt;

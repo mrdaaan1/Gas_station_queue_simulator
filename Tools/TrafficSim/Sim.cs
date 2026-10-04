@@ -1,7 +1,7 @@
 using System; using System.Collections.Generic; using System.Linq; using System.Reflection; using UnityEngine; using GasQueue;
 public static class Sim { public static bool Verbose; public static int HonkedAt;
  static void Main(string[] args){
-  float speedup = args.Length>0? float.Parse(args[0]) : 2f; int seed = args.Length>1? int.Parse(args[1]) : 1; float dur = args.Length>2? float.Parse(args[2]) : 1500; PlayerCar.Sneaky = args.Length>3 && args[3]=="sneaky";
+  float speedup = args.Length>0? float.Parse(args[0]) : 2f; int seed = args.Length>1? int.Parse(args[1]) : 1; float dur = args.Length>2? float.Parse(args[2]) : 1500; PlayerCar.Sneaky = args.Length>3 && args[3]=="sneaky"; if (args.Length>4) Time.deltaTime = float.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture);
   UnityEngine.Random.R=new System.Random(seed);
   var game=new GameObject("Game"); var settings=game.AddComponent<GameSettings>(); settings.testSpeedup=speedup;
   var root=new GameObject("World").transform;
