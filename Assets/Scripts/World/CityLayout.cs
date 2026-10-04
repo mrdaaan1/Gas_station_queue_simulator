@@ -97,28 +97,25 @@ namespace GasQueue
             });
         }
 
-        /// <summary>Где депутат ждёт свободную колонку — за колонками, у магазина.</summary>
-        public static readonly Vector3 VipWait = new Vector3(35.2f, 0f, 14f);
+        /// <summary>Служебная колонка «для своих» в дальнем углу заправки — бензин в ней есть всегда.</summary>
+        public static readonly Vector3 VipSpot = new Vector3(31f, 0f, 41f);
 
         /// <summary>
-        /// Депутат с мигалкой: по левому ряду мимо всей очереди, через ВЫЕЗД против движения
-        /// и вдоль задней стороны заправки — к месту ожидания у магазина.
+        /// Депутат с мигалкой: по левому ряду мимо всей очереди, через ВЫЕЗД против движения —
+        /// прямиком к служебной колонке. Очередь и обычные колонки не пересекает.
         /// </summary>
         public static LanePath VipInPath() => new LanePath("VipIn", 14f, new[]
         {
             P(LaneLeft, RoadStartZ), P(LaneLeft, 5f), P(LaneMiddle, 20f), P(8.2f, 30f), P(11.5f, 37.5f),
-            P(15f, 40f), P(24f, 40f), P(33.8f, 33f), P(35.2f, 22f), VipWait,
+            P(15f, 40.5f), P(24f, 41f), VipSpot,
         });
 
-        /// <summary>От места ожидания — вокруг колонок с юга и носом вперёд к колонке.</summary>
-        public static LanePath VipToPumpPath(int pump)
+        /// <summary>От служебной колонки — кругом по территории к обычному выезду.</summary>
+        public static LanePath VipOutPath() => new LanePath("VipOut", 6f, new[]
         {
-            var spot = PumpSpots[pump];
-            return new LanePath($"VipToPump{pump + 1}", 4f, new[]
-            {
-                VipWait, P(35.2f, 4f), P(35.2f, -6f), P(spot.x + 1.5f, -7f), P(spot.x, -4f), P(spot.x, -1f), spot,
-            });
-        }
+            VipSpot, P(37f, 41f), P(40f, 37.5f), P(39f, 31f), P(33f, 28.5f), P(24f, 28f), P(17.5f, 31f),
+            P(12.5f, 35.8f), P(9.6f, 40f), P(LaneQueue, 46f), P(LaneQueue, RoadEndZ),
+        });
 
         public static LanePath TankerArrivePath() =>
             new LanePath("TankerIn", 9f, new[] { P(TankerLaneX, 320f), TankerStop }, false);

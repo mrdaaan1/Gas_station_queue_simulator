@@ -160,6 +160,11 @@ namespace GasQueue
             if (atEnd && !moving)
             {
                 if (Role == NpcRole.ToPump) StartFueling();
+                else if (Role == NpcRole.Vip)
+                {
+                    StartFueling();
+                    traffic.OnVipFueling();
+                }
             }
             if (atEnd && !StopAtEnd) traffic.Despawn(this);
         }
@@ -394,20 +399,6 @@ namespace GasQueue
             Speed = path.speedLimit * 0.8f;
         }
 
-        /// <summary>Депутату дали колонку — он заезжает с другой стороны, не дожидаясь очереди.</summary>
-        public void GoToPumpAsVip(Pump pump)
-        {
-            Pump = pump;
-            pump.Occupy(this);
-            Role = NpcRole.ToPump;
-            Path = pump.vipPath;
-            S = 0f;
-            StopAtEnd = true;
-            moving = false;
-            reactTimer = 0f;
-        }
-
-        public bool IsVipWaiting => Role == NpcRole.Vip && S >= Path.Length - ArriveTolerance && !moving;
 
         public void GoToPump(Pump pump)
         {
@@ -441,7 +432,7 @@ namespace GasQueue
         {
             Role = NpcRole.Fueling;
             serviceDuration = traffic.Settings.PumpServiceTime * Random.Range(0.75f, 1.3f);
-            if (Random.value < traffic.Settings.slowDriverChance)
+            if (!IsVip && Random.value < traffic.Settings.slowDriverChance)
             {
                 serviceDuration *= 1.6f;
                 traffic.OnSlowDriver(this);
@@ -454,7 +445,7 @@ namespace GasQueue
         void StartExit()
         {
             Role = NpcRole.Exiting;
-            Path = Pump.exitPath;
+            Path = IsVip ? traffic.VipOutPath : Pump.exitPath;
             S = 0f;
             StopAtEnd = false;
             moving = false;

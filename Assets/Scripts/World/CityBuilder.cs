@@ -266,6 +266,15 @@ namespace GasQueue
             sold.gameObject.SetActive(false);
             var cashier = BuildShop(st);
 
+            // Служебная колонка «для своих» — в дальнем углу, чёрная с золотом
+            var vip = Shapes.Group("VipPump", st, CityLayout.VipSpot + new Vector3(0f, 0f, 2.4f));
+            Shapes.Box(vip, new Vector3(0, 0.1f, 0), new Vector3(3f, 0.2f, 1.1f), Grey, name: "Island");
+            Shapes.Box(vip, new Vector3(0, 1.05f, 0), new Vector3(1.1f, 1.7f, 0.7f), Shapes.Hex("#141416"), name: "Dispenser");
+            Shapes.Box(vip, new Vector3(0, 2.0f, 0), new Vector3(1.12f, 0.3f, 0.72f), Shapes.Hex("#c9a23a"), name: "DispenserTop");
+            var vipLabel = Fonts.WorldText(vip, new Vector3(0, 1.45f, -0.37f), "СЛУЖЕБНАЯ\nдля своих", Shapes.Hex("#c9a23a"), 0.03f);
+            vipLabel.transform.localRotation = Quaternion.Euler(0, 0, 0);
+            Obstacles.AddBox(vip.position, 3f, 1.1f, "служебная колонка");
+
             // Указатели въезда и выезда
             Sign(st, new Vector3(12.8f, 0, CityLayout.EntranceMinZ - 2f), "ВЪЕЗД", Shapes.Hex("#1f5fbf"));
             Sign(st, new Vector3(12.8f, 0, CityLayout.ExitMaxZ + 2f), "ВЫЕЗД", Shapes.Hex("#1f5fbf"));
