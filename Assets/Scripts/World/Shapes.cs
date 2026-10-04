@@ -80,9 +80,31 @@ namespace GasQueue
             }
         }
 
-        /// <summary>Текст в 3D-мире (табло, реплики водителей).</summary>
+        static Material depthTested;
+
+        /// <summary>
+        /// Материал шрифта, который прячется за стенами и крышей.
+        /// Стандартный материал шрифта Unity рисуется поверх всего — надписи просвечивали сквозь машину.
+        /// </summary>
+        public static Material DepthTested
+        {
+            get
+            {
+                if (depthTested == null)
+                {
+                    depthTested = new Material(Default.material) { name = "WorldTextDepth" };
+                    depthTested.SetFloat("unity_GUIZTestMode", (float)UnityEngine.Rendering.CompareFunction.LessEqual);
+                }
+                return depthTested;
+            }
+        }
+
+        /// <summary>
+        /// Текст в 3D-мире. Вывески и табло прячутся за предметами; реплики над машинами (onTop)
+        /// видны всегда, чтобы их можно было прочитать.
+        /// </summary>
         public static TextMesh WorldText(Transform parent, Vector3 localPos, string text, Color color, float size = 0.05f,
-            TextAnchor anchor = TextAnchor.MiddleCenter)
+            TextAnchor anchor = TextAnchor.MiddleCenter, bool onTop = false)
         {
             var go = new GameObject("Text");
             go.transform.SetParent(parent, false);
@@ -95,7 +117,7 @@ namespace GasQueue
             tm.alignment = TextAlignment.Center;
             tm.color = color;
             tm.text = text;
-            go.GetComponent<MeshRenderer>().sharedMaterial = Default.material;
+            go.GetComponent<MeshRenderer>().sharedMaterial = onTop ? Default.material : DepthTested;
             return tm;
         }
     }

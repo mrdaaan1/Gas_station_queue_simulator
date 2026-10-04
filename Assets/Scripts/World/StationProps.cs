@@ -80,8 +80,8 @@ namespace GasQueue
             go.transform.localPosition = new Vector3(0, height + 0.9f, 0);
             go.AddComponent<Billboard>();
             var bubble = go.AddComponent<SpeechBubble>();
-            bubble.shadow = Fonts.WorldText(go.transform, new Vector3(0.02f, -0.02f, 0.01f), phrase, Color.black, 0.035f);
-            bubble.text = Fonts.WorldText(go.transform, Vector3.zero, phrase, Shapes.Hex("#ffe14d"), 0.035f);
+            bubble.shadow = Fonts.WorldText(go.transform, new Vector3(0.02f, -0.02f, 0.01f), phrase, Color.black, 0.035f, onTop: true);
+            bubble.text = Fonts.WorldText(go.transform, Vector3.zero, phrase, Shapes.Hex("#ffe14d"), 0.035f, onTop: true);
         }
 
         void Update()
