@@ -135,8 +135,24 @@ namespace GasQueue
             if (gm.DialogOpen) return; // окно диалога важнее — полоски его не закрывают
             var me = gm.Walker != null ? gm.Walker.Fighter : null;
             var enemy = Brawler.Active != null ? Brawler.Active.Fighter : null;
-            bool showMe = me != null && gm.OnFoot && (me.Health < Fighter.MaxHealth - 0.5f || me.InCombat);
             bool showEnemy = enemy != null && (Brawler.Active.Fighting || enemy.InCombat);
+            if (!showEnemy && gm.OnFoot && gm.Walker != null)
+            {
+                // Драка с водителем у колонки или в очереди в кассу
+                float best = 6f;
+                foreach (var c in PumpCustomer.All)
+                {
+                    if (c == null || !c.Fighter.InCombat) continue;
+                    float d = Vector3.Distance(c.transform.position, gm.Walker.transform.position);
+                    if (d < best)
+                    {
+                        best = d;
+                        enemy = c.Fighter;
+                        showEnemy = true;
+                    }
+                }
+            }
+            bool showMe = me != null && gm.OnFoot && (me.Health < Fighter.MaxHealth - 0.5f || me.InCombat);
             float y = h * 0.74f;
             if (showMe) Bar(new Rect(w / 2 - 330 * k, y, 300 * k, 22 * k), me.Health / Fighter.MaxHealth, me.Down ? "Вы (лежите)" : "Вы", Shapes.Hex("#4caf50"), k);
             if (showEnemy) Bar(new Rect(w / 2 + 30 * k, y, 300 * k, 22 * k), enemy.Health / Fighter.MaxHealth, enemy.Down ? "Водитель (лежит)" : "Водитель", Shapes.Hex("#e04a3c"), k);

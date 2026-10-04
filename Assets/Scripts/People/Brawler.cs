@@ -30,6 +30,8 @@ namespace GasQueue
         static readonly string[] FightLines = { "Ну давай, давай!", "Получай!", "Я тебе покажу очередь!", "На!" };
         static readonly string[] WinLines = { "Будешь знать!", "Вот так-то.", "Ещё раз влезешь — получишь!" };
         static readonly string[] LoseLines = { "Ладно-ладно, всё...", "Я тебя запомнил!", "Ну ты псих..." };
+        static readonly string[] ChaseLines = { "Стой! Куда?!", "А ну стоять!", "Я номер запомнил!", "Догоню — хуже будет!" };
+        static readonly string[] GiveUpLines = { "Ну и вали!", "Тьфу... Ещё встретимся.", "Номер я записал!", "Беги-беги, трус!" };
 
         NpcCar car;
         TrafficManager traffic;
@@ -40,6 +42,8 @@ namespace GasQueue
         float timer;
         float lineTimer;
         float kickTimer;
+        bool chasing;      // машина игрока уехала — бежим следом
+        float chaseTimer;
         bool lost;
         bool announcedFight;
 
@@ -120,9 +124,35 @@ namespace GasQueue
                         break;
                     }
                     var goal = gm.Player.DriverDoor;
-                    speed = MoveTo(goal, phase == Phase.Approach ? 2.4f : 0f, 1.0f, dt);
-                    if (phase == Phase.Approach && speed == 0f) { phase = Phase.RantAtCar; timer = 0f; }
-                    if (lineTimer <= 0f) Say(reason == BrawlReason.CutIn ? CutInLines : reason == BrawlReason.Roof ? RoofLines : CrashLines, 3f);
+                    var toCar = goal - transform.position;
+                    toCar.y = 0f;
+                    float distToCar = toCar.magnitude;
+
+                    // Пока пинал — машина отъехала: бежим догонять
+                    if (phase == Phase.RantAtCar && distToCar > 1.8f)
+                    {
+                        phase = Phase.Approach;
+                        chasing = true;
+                        chaseTimer = 0f;
+                    }
+                    speed = MoveTo(goal, phase == Phase.Approach ? (chasing ? 4.2f : 2.4f) : 0f, 1.0f, dt);
+                    if (phase == Phase.Approach && speed == 0f) { phase = Phase.RantAtCar; timer = 0f; chasing = false; }
+
+                    if (phase == Phase.Approach && chasing)
+                    {
+                        // Бежит, пока есть надежда. Отстал — машет рукой и идёт к своей машине
+                        chaseTimer += dt;
+                        bool hopeless = distToCar > 30f || chaseTimer > 12f || (chaseTimer > 3f && Random.value < dt * 0.35f);
+                        if (hopeless)
+                        {
+                            Say(GiveUpLines, 99f);
+                            BeginReturn(false);
+                            break;
+                        }
+                        if (lineTimer <= 0f) Say(ChaseLines, 2.5f);
+                    }
+                    else if (lineTimer <= 0f) Say(reason == BrawlReason.CutIn ? CutInLines : reason == BrawlReason.Roof ? RoofLines : CrashLines, 3f);
+                    if (phase == Phase.Approach && distToCar > 40f) { BeginReturn(false); break; }
 
                     if (phase == Phase.RantAtCar)
                     {
