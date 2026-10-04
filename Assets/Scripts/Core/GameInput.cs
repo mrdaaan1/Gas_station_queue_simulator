@@ -20,6 +20,21 @@ namespace GasQueue
         public static bool RestartPressed => Pressed(KeyCode.Return);
         public static bool HelpPressed => Pressed(KeyCode.F1);
         public static bool IgnitionPressed => Pressed(KeyCode.I);
+        public static bool CarDoorPressed => Pressed(KeyCode.F);
+        public static bool Run => Held(KeyCode.LeftShift) || Held(KeyCode.RightShift);
+
+        /// <summary>Руль: −1 влево, +1 вправо.</summary>
+        public static float Steer =>
+            ((Held(KeyCode.D) || Held(KeyCode.RightArrow)) ? 1f : 0f) - ((Held(KeyCode.A) || Held(KeyCode.LeftArrow)) ? 1f : 0f);
+
+        /// <summary>Ходьба пешком: x — вбок, y — вперёд.</summary>
+        public static Vector2 Move => new Vector2(Steer, (Gas ? 1f : 0f) - (Brake ? 1f : 0f));
+
+        /// <summary>Выбор варианта в диалоге: 1, 2, 3 (или 0, если ничего не нажато).</summary>
+        public static int DialogChoice =>
+            Pressed(KeyCode.Alpha1) || Pressed(KeyCode.Keypad1) ? 1 :
+            Pressed(KeyCode.Alpha2) || Pressed(KeyCode.Keypad2) ? 2 :
+            Pressed(KeyCode.Alpha3) || Pressed(KeyCode.Keypad3) ? 3 : 0;
 
         /// <summary>Пока открыта пауза, игра не получает нажатий (кроме Esc и мыши для меню).</summary>
         public static bool Paused;
@@ -70,6 +85,19 @@ namespace GasQueue
                 case KeyCode.Escape: return kb.escapeKey;
                 case KeyCode.F1: return kb.f1Key;
                 case KeyCode.I: return kb.iKey;
+                case KeyCode.A: return kb.aKey;
+                case KeyCode.D: return kb.dKey;
+                case KeyCode.F: return kb.fKey;
+                case KeyCode.LeftArrow: return kb.leftArrowKey;
+                case KeyCode.RightArrow: return kb.rightArrowKey;
+                case KeyCode.LeftShift: return kb.leftShiftKey;
+                case KeyCode.RightShift: return kb.rightShiftKey;
+                case KeyCode.Alpha1: return kb.digit1Key;
+                case KeyCode.Alpha2: return kb.digit2Key;
+                case KeyCode.Alpha3: return kb.digit3Key;
+                case KeyCode.Keypad1: return kb.numpad1Key;
+                case KeyCode.Keypad2: return kb.numpad2Key;
+                case KeyCode.Keypad3: return kb.numpad3Key;
                 default: return null;
             }
         }

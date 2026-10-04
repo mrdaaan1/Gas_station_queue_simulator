@@ -97,27 +97,42 @@ namespace GasQueue
             }
 
             // Заправка — компактная плашка под таймером
-            if (gm.State == GameState.Fueling)
+            if (gm.NozzleIn)
             {
                 var r = new Rect(w / 2 - 300 * k, 150 * k, 600 * k, 80 * k);
                 Panel(r, new Color(0, 0, 0, 0.55f));
-                GUI.Label(new Rect(r.x, r.y + 4 * k, r.width, 40 * k), $"Залито: {gm.LitersFilled:0.0} л", timerStyle);
+                GUI.Label(new Rect(r.x, r.y + 4 * k, r.width, 40 * k), $"Залито: {gm.LitersFilled:0.0} из {gm.PaidLiters:0} л", timerStyle);
                 GUI.Label(new Rect(r.x, r.y + 44 * k, r.width, 30 * k),
-                    $"АИ-95: {gm.PriceBoard.CurrentPrice:0.00} руб/л     Сумма: {gm.MoneySpent:0} руб.", accentStyle);
+                    $"На стеле уже {gm.PriceBoard.CurrentPrice:0.00} руб/л — а вы заплатили раньше!", accentStyle);
             }
 
-            // Подсказка действия — снизу по центру, над краем экрана
-            string prompt = null;
-            if (gm.PlayerAtPump)
-                prompt = gm.Player.Engine == EngineState.Off ? "E — заправиться" : "Заглушите мотор (I), затем E — заправиться";
-            else if (!gm.CameraRig.CursorLocked)
-                prompt = "Кликните, чтобы осмотреться мышью";
+            DrawDialog(gm, w, h, k);
+
+            // Подсказка действия — снизу по центру
+            string prompt = gm.Prompt;
+            if (prompt == null && !gm.CameraRig.CursorLocked) prompt = "Кликните, чтобы осмотреться мышью";
             if (prompt != null)
             {
-                var r = new Rect(w / 2 - 320 * k, h - 120 * k, 640 * k, 46 * k);
+                var r = new Rect(w / 2 - 360 * k, h - 120 * k, 720 * k, 46 * k);
                 Panel(r, new Color(0.08f, 0.3f, 0.12f, 0.75f));
                 GUI.Label(r, prompt, promptStyle);
             }
+        }
+
+        void DrawDialog(GameManager gm, float w, float h, float k)
+        {
+            if (!gm.DialogOpen) return;
+            float pw = 760 * k, lineH = 36 * k;
+            float ph = 70 * k + gm.DialogOptions.Count * lineH + 40 * k;
+            var r = new Rect(w / 2 - pw / 2, h - 140 * k - ph, pw, ph);
+            Panel(r, new Color(0.05f, 0.05f, 0.07f, 0.85f));
+            Panel(new Rect(r.x, r.y, 5 * k, ph), new Color(0.78f, 0.19f, 0.17f, 1f));
+            feedStyle.normal.textColor = Color.white; // лента уведомлений могла сделать цвет прозрачным
+            GUI.Label(new Rect(r.x + 20 * k, r.y + 12 * k, pw - 40 * k, 56 * k), gm.DialogTitle, feedStyle);
+            for (int i = 0; i < gm.DialogOptions.Count; i++)
+                GUI.Label(new Rect(r.x + 20 * k, r.y + 70 * k + i * lineH, pw - 40 * k, lineH),
+                    $"<b>{i + 1}</b> — {gm.DialogOptions[i]}", smallStyle);
+            GUI.Label(new Rect(r.x + 20 * k, r.yMax - 34 * k, pw - 40 * k, 30 * k), "Нажмите 1, 2 или 3. E — закрыть.", unitStyle);
         }
 
         void DrawTimer(GameManager gm, float w, float k)
@@ -126,12 +141,15 @@ namespace GasQueue
             Panel(timerRect, new Color(0, 0, 0, 0.5f));
             GUI.Label(timerRect, "Вы в очереди: " + GameManager.FormatQueueTime(gm.QueueSeconds), timerStyle);
 
-            int p = gm.Queue.PlayerIndex;
-            string place = gm.State == GameState.DrivingAway ? "Свобода!"
-                : p == 0 ? "Вы первый у колонки!"
-                : $"Машин впереди: {p}";
-            var placeRect = new Rect(w / 2 - 160 * k, 76 * k, 320 * k, 36 * k);
-            Panel(placeRect, new Color(0, 0, 0, 0.4f));
+            var t = gm.Traffic;
+            string place;
+            bool bad = false;
+            if (gm.State == GameState.DrivingAway || gm.PlayerFueled) place = "Свобода!";
+            else if (t.PlayerPump != null) place = $"Ваша колонка: №{t.PlayerPump.Number}";
+            else if (t.PlayerInQueue) place = t.PlayerQueueIndex == 0 ? "Вы первый в очереди!" : $"Машин впереди: {t.PlayerQueueIndex}";
+            else { place = "Вы вне очереди!"; bad = true; }
+            var placeRect = new Rect(w / 2 - 180 * k, 76 * k, 360 * k, 36 * k);
+            Panel(placeRect, bad ? new Color(0.6f, 0.1f, 0.1f, 0.6f) : new Color(0, 0, 0, 0.4f));
             GUI.Label(placeRect, place, accentStyle);
         }
 
@@ -158,6 +176,15 @@ namespace GasQueue
         void DrawGauges(GameManager gm, float w, float h, float k)
         {
             var player = gm.Player;
+            if (gm.OnFoot)
+            {
+                var fr = new Rect(w - 350 * k, h - 120 * k, 330 * k, 100 * k);
+                Panel(fr, new Color(0, 0, 0, 0.5f));
+                GUI.Label(new Rect(fr.x + 18 * k, fr.y + 10 * k, 300 * k, 30 * k), "ПЕШКОМ", accentStyle);
+                GUI.Label(new Rect(fr.x + 18 * k, fr.y + 44 * k, 300 * k, 26 * k), $"В кошельке: {gm.Money:0} руб.", smallStyle);
+                GUI.Label(new Rect(fr.x + 18 * k, fr.y + 68 * k, 300 * k, 26 * k), $"В баке: {player.FuelLiters:0.0} л", smallStyle);
+                return;
+            }
             float pw = 330 * k, ph = 175 * k;
             var r = new Rect(w - pw - 20 * k, h - ph - 20 * k, pw, ph);
             Panel(r, new Color(0, 0, 0, 0.5f));
@@ -197,7 +224,8 @@ namespace GasQueue
             // Радио
             var radio = gm.Radio;
             string radioText = radio != null && radio.StationName != null ? radio.StationName : "Радио выкл (R)";
-            GUI.Label(new Rect(x, y, inner, 26 * k), radioText, smallStyle);
+            GUI.Label(new Rect(x, y, inner * 0.62f, 26 * k), radioText, smallStyle);
+            GUI.Label(new Rect(x + inner * 0.62f, y, inner * 0.38f, 26 * k), $"{gm.Money:0} руб.", smallStyle);
             if (radio != null && radio.CurrentLine != null)
             {
                 var lineRect = new Rect(r.x, r.y - 70 * k, pw, 62 * k);
@@ -213,39 +241,40 @@ namespace GasQueue
                 GUI.Label(new Rect(20 * k, h - 40 * k, 300 * k, 30 * k), "F1 — управление", smallStyle);
                 return;
             }
-            var r = new Rect(20 * k, h - 250 * k, 360 * k, 230 * k);
+            var r = new Rect(20 * k, h - 270 * k, 380 * k, 250 * k);
             Panel(r, new Color(0, 0, 0, 0.45f));
             GUI.Label(new Rect(r.x + 14 * k, r.y + 10 * k, r.width - 28 * k, r.height),
-                "W / S — газ / тормоз\n" +
+                "W / S — газ / тормоз, задний ход\n" +
+                "A / D — руль (пешком — шаги вбок)\n" +
                 "I — заглушить / завести мотор\n" +
-                "H / Пробел — бибикнуть\n" +
+                "F — выйти из машины / сесть\n" +
+                "E — касса, заправка, поговорить\n" +
+                "H / Пробел — бибикнуть, R — радио\n" +
                 $"C — камера ({gm.CameraRig.ModeName})\n" +
-                "R — радио\n" +
-                "E — заправиться (у колонки)\n" +
-                "Мышь — оглядеться, Esc — пауза\n" +
+                "Shift — бежать, Esc — пауза\n" +
                 "F1 — скрыть подсказки", smallStyle);
         }
 
         void DrawFinal(GameManager gm, float w, float h, float k)
         {
             Panel(new Rect(0, 0, w, h), new Color(0.05f, 0.06f, 0.08f, 0.88f));
-            GUI.Label(new Rect(0, h * 0.1f, w, 90 * k), "ВЫ ЗАПРАВИЛИСЬ!", bannerStyle);
+            GUI.Label(new Rect(0, h * 0.06f, w, 90 * k), gm.GaveUp ? "ВЫ СДАЛИСЬ" : "ВЫ ЗАПРАВИЛИСЬ!", bannerStyle);
 
+            int repair = gm.Player.damage.RepairCost;
             string stats =
                 $"Простояли в очереди: {GameManager.FormatQueueTime(gm.QueueSeconds)}\n" +
-                $"Бибикнули: {gm.Honks} раз\n" +
-                $"Бибикали на вас: {gm.HonkedAt} раз\n" +
-                $"Видели, как сдались и уехали: {gm.GiveUpsSeen}\n" +
-                $"Поцеловали бампер: {gm.Bumps} раз\n" +
-                $"Глушили мотор: {gm.EngineStops} раз\n" +
-                $"Переключали радио: {gm.RadioSwitches} раз\n" +
-                $"Залили: {gm.LitersFilled:0.0} л на {gm.MoneySpent:0} руб.";
-            GUI.Label(new Rect(w / 2 - 450 * k, h * 0.22f, 900 * k, 360 * k), stats, bigStyle);
+                $"Бибикнули: {gm.Honks}   ·   Бибикали на вас: {gm.HonkedAt}\n" +
+                $"Вас подрезали: {gm.CutInsSuffered}   ·   Не пустили наглецов: {gm.CutInsBlocked}\n" +
+                $"Аварий: {gm.Crashes}" + (repair > 0 ? $"   ·   Ремонт: ~{repair} руб." : "") + "\n" +
+                $"Поругались с кассиром: {gm.Arguments}   ·   Поболтали с водителями: {gm.Talks}\n" +
+                $"Видели, как сдались и уехали: {gm.GiveUpsSeen}   ·   Глушили мотор: {gm.EngineStops}\n" +
+                $"Залили: {gm.LitersFilled:0.0} л на {gm.MoneySpent:0} руб.   ·   Осталось: {gm.Money:0} руб.";
+            GUI.Label(new Rect(w / 2 - 520 * k, h * 0.17f, 1040 * k, 300 * k), stats, bigStyle);
 
             string ach = "Достижения:\n" + string.Join("\n", gm.Achievements().ConvertAll(a => "• " + a));
-            GUI.Label(new Rect(w / 2 - 450 * k, h * 0.58f, 900 * k, 300 * k), ach, bigStyle);
+            GUI.Label(new Rect(w / 2 - 450 * k, h * 0.5f, 900 * k, h * 0.4f), ach, bigStyle);
 
-            GUI.Label(new Rect(0, h - 90 * k, w, 60 * k),
+            GUI.Label(new Rect(0, h - 80 * k, w, 60 * k),
                 "А через километр — пустая заправка без очереди...     Enter — сыграть ещё раз", accentStyle);
         }
 

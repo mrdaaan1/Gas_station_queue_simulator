@@ -23,9 +23,9 @@ namespace GasQueue
         public float drivingLitersPer100Km = 9f;
 
         [Header("Очередь")]
-        public int carsAhead = 22;
+        public int carsAhead = 20;
         public int carsBehind = 14;
-        public int maxCarsBehind = 30;
+        public int maxCarsBehind = 26;
         [Tooltip("Расстояние между машинами в очереди, метры.")]
         public float carSpacing = 6.5f;
 
@@ -42,6 +42,15 @@ namespace GasQueue
         [Tooltip("Литров в секунду при заправке. Мучительно медленно — так задумано.")]
         public float litersPerSecond = 0.5f;
         public float tankLiters = 40f;
+        [Tooltip("Как часто кто-то пытается влезть в очередь из соседнего ряда.")]
+        public float cutterInterval = 40f;
+
+        [Header("Деньги")]
+        public float startMoney = 3000f;
+
+        [Header("Поток машин по дороге (секунды между машинами, без ускорения)")]
+        public float trafficIntervalMin = 3f;
+        public float trafficIntervalMax = 9f;
 
         [Header("Часы в очереди")]
         [Tooltip("Таймер стартует не с нуля: игрок уже давно стоит.")]
@@ -51,7 +60,7 @@ namespace GasQueue
 
         // Номер версии настроек: когда меняем значения по умолчанию, старая сцена обновляется сама
         [SerializeField, HideInInspector] int settingsVersion;
-        const int CurrentVersion = 2;
+        const int CurrentVersion = 3;
 
         void Awake() => Migrate();
         void OnValidate() => Migrate();
@@ -60,12 +69,21 @@ namespace GasQueue
         {
             if (settingsVersion >= CurrentVersion) return;
             if (settingsVersion < 2) testSpeedup = 2f; // было 6 — игроку показалось слишком быстро
+            if (settingsVersion < 3)
+            {
+                // Город и 4 колонки: очередь чуть короче, хвост не бесконечный
+                carsAhead = 20;
+                maxCarsBehind = 26;
+            }
             settingsVersion = CurrentVersion;
         }
 
         float Speed => fastTestMode ? Mathf.Max(1f, testSpeedup) : 1f;
 
         public float ServiceTime => serviceTime / Speed;
+        /// <summary>Сколько одна машина стоит у колонки: колонок 4, поэтому каждая в 4 раза дольше, а очередь движется в прежнем темпе.</summary>
+        public float PumpServiceTime => ServiceTime * 4f;
+        public float CutterInterval => cutterInterval / Speed;
         public float GiveUpCheckInterval => giveUpCheckInterval / Speed;
         public float DeliveryDuration => deliveryDuration / Speed;
         public float LitersPerSecond => litersPerSecond * Speed;

@@ -4,7 +4,7 @@ namespace GasQueue
 {
     /// <summary>
     /// Точка входа. Висит на объекте "Game" в сцене Prototype и при запуске строит весь мир кодом:
-    /// дорогу, заправку, очередь, машину игрока, камеру и интерфейс.
+    /// город, заправку, очередь и поток машин, машину игрока, человечка, камеру и интерфейс.
     /// Поэтому в сцене почти ничего нет — всё создаётся при нажатии Play.
     /// </summary>
     [RequireComponent(typeof(GameSettings))]
@@ -23,20 +23,25 @@ namespace GasQueue
             world = new GameObject("World (создаётся при запуске)");
             var root = world.transform;
 
-            var station = WorldBuilder.Build(root, settings.carSpacing);
+            var city = CityBuilder.Build(root);
+            var debris = Shapes.Group("Debris", root);
 
             var playerVisual = CarFactory.Build("PlayerCar", Shapes.Hex("#d8c25a"), CarShape.Sedan, true);
             playerVisual.transform.SetParent(root, false);
             var player = playerVisual.gameObject.AddComponent<PlayerCar>();
-            player.Init(playerVisual, settings);
+            player.Init(playerVisual, settings, debris);
 
-            var queue = new GameObject("Queue").AddComponent<QueueManager>();
-            queue.transform.SetParent(root, false);
-            queue.Init(settings, station.barrier, station.barrierZ, player);
+            var traffic = new GameObject("Traffic").AddComponent<TrafficManager>();
+            traffic.transform.SetParent(root, false);
+            player.traffic = traffic;
+            traffic.Init(settings, player, city.barrier, debris);
 
             var rig = new GameObject("Camera").AddComponent<CameraRig>();
             rig.transform.SetParent(root, false);
             rig.Init(player);
+
+            var walker = WalkerController.Create(root, traffic, rig);
+            rig.SetWalker(walker);
 
             var systems = new GameObject("Systems");
             systems.transform.SetParent(root, false);
@@ -46,7 +51,7 @@ namespace GasQueue
             pause.Init(settings, rig, Restart);
             systems.AddComponent<Hud>().Init(pause);
             var gm = systems.AddComponent<GameManager>();
-            gm.Init(settings, queue, player, rig, radio, station.barrier, station.priceBoard, Restart);
+            gm.Init(settings, traffic, player, walker, rig, radio, city.barrier, city.priceBoard, city.cashier, Restart);
         }
 
         void Restart()

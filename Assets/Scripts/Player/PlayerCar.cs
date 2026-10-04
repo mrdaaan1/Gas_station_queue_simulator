@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace GasQueue
@@ -5,48 +6,53 @@ namespace GasQueue
     public enum EngineState { Off, Starting, Running }
 
     /// <summary>
-    /// Машина игрока. Игрок сам жмёт газ (W) и тормоз (S), чтобы подъехать в очереди,
-    /// глушит и заводит мотор (I). Мотор на холостых жжёт бензин, которого и так почти нет.
-    /// Пока без руля: машина едет только вперёд по своей полосе (руль — следующий этап).
+    /// Машина игрока со свободной ездой: газ/тормоз (W/S), задний ход (S, когда стоим), руль (A/D).
+    /// Мотор глушится и заводится (I) и на холостых жжёт бензин. Врезается во всё твёрдое и мнётся.
     /// </summary>
-    public class PlayerCar : QueueCar
+    public class PlayerCar : Vehicle
     {
-        const float Accel = 4f;
-        const float BrakeDecel = 10f;
-        const float CoastDecel = 1.5f;
-        const float MaxSpeed = 9f;
+        const float Accel = 3.6f;
+        const float ReverseAccel = 2.5f;
+        const float BrakeDecel = 9f;
+        const float CoastDecel = 1.2f;
+        const float MaxSpeed = 16f;
+        const float MaxReverse = 4f;
+        const float Wheelbase = 2.6f;
+        const float MaxSteer = 34f;
+        const float SteerSpeed = 110f;
         const float StartDuration = 1.1f;
 
         static readonly Color LampOff = Shapes.Hex("#3a2a10");
         static readonly Color LampFuel = Shapes.Hex("#ffb000");
         static readonly Color LampEngine = Shapes.Hex("#ff3020");
 
+        public override bool IsPlayer => true;
+
         /// <summary>Уровень топлива от 0 до 1.</summary>
         [Range(0f, 1f)] public float fuel = 0.12f;
 
-        /// <summary>Можно ли сейчас управлять (во время заправки и на финальном экране — нельзя).</summary>
+        /// <summary>Сидит ли игрок за рулём и можно ли управлять.</summary>
         public bool controlsEnabled = true;
-
-        public override bool IsPlayer => true;
 
         public EngineState Engine { get; private set; } = EngineState.Running;
         public float FuelLiters => fuel * settings.tankLiters;
-        public float SpeedKmh => Speed * 3.6f;
+        public float SpeedKmh => Mathf.Abs(Speed) * 3.6f;
+        public float SteerAngle { get; private set; }
 
         GameSettings settings;
-        AudioSource horn;
-        AudioSource engine;
-        AudioSource starter;
+        AudioSource horn, engine, starter, crash;
         float startTimer;
-        float steerWobble;
         float lampBlink;
         bool warnedEngineOff;
+        readonly Dictionary<object, float> lastHit = new Dictionary<object, float>();
 
-        public void Init(CarVisual v, GameSettings s)
+        public void Init(CarVisual v, GameSettings s, Transform worldRoot)
         {
             visual = v;
             settings = s;
             fuel = Mathf.Clamp01(s.startFuelLiters / s.tankLiters);
+            damage = gameObject.AddComponent<CarDamage>();
+            damage.Init(v, worldRoot);
 
             horn = SoundFactory.Source3D(gameObject, 1f);
             horn.spatialBlend = 0.3f;
@@ -56,12 +62,17 @@ namespace GasQueue
             starter.spatialBlend = 0f;
             starter.clip = SoundFactory.Starter;
 
+            crash = SoundFactory.Source3D(gameObject, 1f);
+            crash.spatialBlend = 0.2f;
+
             engine = SoundFactory.Source3D(gameObject, 0.18f);
-            engine.spatialBlend = 0f;
+            engine.spatialBlend = 0.4f;
             engine.clip = SoundFactory.Engine;
             engine.loop = true;
             engine.Play();
         }
+
+        public void PlaceOnPath(LanePath path, float s) => Place(path.PointAt(s), path.TangentAt(s));
 
         void Update()
         {
@@ -73,29 +84,44 @@ namespace GasQueue
 
             bool running = Engine == EngineState.Running;
             bool gas = controlsEnabled && GameInput.Gas;
-            bool brake = controlsEnabled && GameInput.Brake;
+            bool back = controlsEnabled && GameInput.Brake;
+            float steerInput = controlsEnabled ? GameInput.Steer : 0f;
 
-            if (gas && !running && !warnedEngineOff)
+            if ((gas || back) && !running && !warnedEngineOff && Mathf.Abs(Speed) < 0.5f)
             {
                 warnedEngineOff = true;
                 GameManager.Instance.ShowMessage("Двигатель заглушен. Нажмите I, чтобы завести.");
             }
-            if (!gas) warnedEngineOff = false;
+            if (!gas && !back) warnedEngineOff = false;
 
-            if (gas && running) Speed = Mathf.Min(MaxSpeed, Speed + Accel * dt);
-            else if (brake) Speed = Mathf.Max(0f, Speed - BrakeDecel * dt);
-            else Speed = Mathf.Max(0f, Speed - CoastDecel * dt);
-
-            float z = Z + Speed * dt;
-            float limit = queue.HardLimitZ(this);
-            if (z > limit)
+            // Газ, тормоз, задний ход
+            if (gas)
             {
-                z = Mathf.Max(Z, limit);
-                if (Speed > 2.5f) GameManager.Instance.OnPlayerBump();
-                Speed = 0f;
+                if (Speed < -0.1f) Speed = Mathf.Min(0f, Speed + BrakeDecel * dt);
+                else if (running) Speed = Mathf.Min(MaxSpeed, Speed + Accel * (1f - Speed / (MaxSpeed * 1.2f)) * dt);
             }
-            BurnFuel(dt, z - Z);
-            MoveTo(z);
+            else if (back)
+            {
+                if (Speed > 0.1f) Speed = Mathf.Max(0f, Speed - BrakeDecel * dt);
+                else if (running) Speed = Mathf.Max(-MaxReverse, Speed - ReverseAccel * dt);
+            }
+            else Speed = Mathf.MoveTowards(Speed, 0f, CoastDecel * dt);
+
+            // Руль: быстрее возвращается в ноль, на скорости поворачивается меньше
+            float maxSteer = Mathf.Lerp(MaxSteer, 14f, Mathf.Clamp01(Mathf.Abs(Speed) / MaxSpeed));
+            float targetSteer = steerInput * maxSteer;
+            float rate = Mathf.Abs(targetSteer) < Mathf.Abs(SteerAngle) ? SteerSpeed * 1.6f : SteerSpeed;
+            SteerAngle = Mathf.MoveTowards(SteerAngle, targetSteer, rate * dt);
+            visual.Steer(SteerAngle);
+
+            // Кинематика «велосипеда»: поворот зависит от скорости и угла колёс
+            float yawRate = Speed / Wheelbase * Mathf.Tan(SteerAngle * Mathf.Deg2Rad) * Mathf.Rad2Deg;
+            var fwd = Quaternion.Euler(0f, yawRate * dt, 0f) * transform.forward;
+            var pos = transform.position + fwd * Speed * dt;
+
+            ResolveCollisions(ref pos, fwd);
+            BurnFuel(dt, (pos - transform.position).magnitude);
+            Place(pos, fwd);
 
             if (controlsEnabled && GameInput.HornPressed)
             {
@@ -104,26 +130,112 @@ namespace GasQueue
             }
 
             UpdateDashboard(dt);
-            engine.pitch = 0.8f + Speed / MaxSpeed * 0.9f + (gas && running ? 0.15f : 0f);
+            engine.pitch = 0.8f + Mathf.Abs(Speed) / MaxSpeed * 1.1f + (gas && running ? 0.15f : 0f);
         }
+
+        // ---------- Столкновения ----------
+
+        void ResolveCollisions(ref Vector3 pos, Vector3 fwd)
+        {
+            for (int iter = 0; iter < 3; iter++)
+            {
+                bool any = false;
+                var box = new Obb(pos, fwd, Width, Length);
+
+                foreach (var o in Obstacles.All)
+                {
+                    var d = new Vector2(o.box.center.x - pos.x, o.box.center.y - pos.z);
+                    float reach = o.box.half.magnitude + 3f;
+                    if (d.sqrMagnitude > reach * reach) continue;
+                    if (Obb.Overlap(box, o.box, out var mtv))
+                    {
+                        Push(ref pos, ref box, fwd, mtv, o.name, null);
+                        any = true;
+                    }
+                }
+
+                if (traffic.Barrier.IsDown && Obb.Overlap(box, traffic.Barrier.Box, out var bm))
+                {
+                    Push(ref pos, ref box, fwd, bm, "шлагбаум", null);
+                    any = true;
+                }
+
+                foreach (var npc in traffic.Npcs)
+                {
+                    var d = npc.Position - pos;
+                    if (d.x * d.x + d.z * d.z > 64f) continue;
+                    if (Obb.Overlap(box, npc.Box, out var mtv))
+                    {
+                        Push(ref pos, ref box, fwd, mtv, npc, npc);
+                        any = true;
+                    }
+                }
+                if (!any) break;
+            }
+        }
+
+        void Push(ref Vector3 pos, ref Obb box, Vector3 fwd, Vector2 mtv, object what, NpcCar npc)
+        {
+            pos += new Vector3(mtv.x, 0f, mtv.y);
+            box = new Obb(pos, fwd, Width, Length);
+
+            var n = mtv.normalized;
+            var fwd2 = new Vector2(fwd.x, fwd.z);
+            float impact = -Vector2.Dot(fwd2 * Speed, n); // скорость сближения с препятствием
+            if (impact <= 0.05f) return;
+
+            // Удар носом или задом
+            bool ourFront = Vector2.Dot(fwd2, n) < 0f;
+            // Гасим скорость и слегка отскакиваем
+            Speed = -Speed * 0.12f;
+
+            if (impact < 0.9f) return;
+            float now = Time.time;
+            if (lastHit.TryGetValue(what, out float t) && now - t < 0.8f) return;
+            lastHit[what] = now;
+
+            float severity = impact / 3f;
+            var velocity = fwd * (ourFront ? impact : -impact);
+            string report = damage.Hit(ourFront, severity, velocity);
+
+            crash.pitch = Random.Range(0.85f, 1.1f);
+            crash.PlayOneShot(SoundFactory.Crash, Mathf.Clamp01(0.3f + impact / 6f));
+
+            if (npc != null)
+            {
+                bool theirFront = Vector3.Dot(transform.position - npc.Position, npc.Forward) > 0f;
+                npc.damage.Hit(theirFront, severity, -velocity);
+                npc.OnHitByPlayer(impact);
+            }
+            GameManager.Instance.OnPlayerCrash(impact, npc != null, what as string, report);
+        }
+
+        // ---------- Двигатель и топливо ----------
 
         void ToggleEngine()
         {
             if (Engine == EngineState.Off)
             {
+                if (GameManager.Instance.NozzleIn)
+                {
+                    GameManager.Instance.ShowMessage("Сначала закончите заправку — пистолет ещё в баке!");
+                    return;
+                }
                 Engine = EngineState.Starting;
                 startTimer = 0f;
                 starter.Play();
             }
             else if (Engine == EngineState.Running)
             {
-                StopEngine();
+                Engine = EngineState.Off;
+                starter.Stop();
                 GameManager.Instance.OnEngineToggled(false);
             }
         }
 
-        void StopEngine()
+        public void ForceEngineOff()
         {
+            if (Engine == EngineState.Off) return;
             Engine = EngineState.Off;
             starter.Stop();
         }
@@ -148,7 +260,6 @@ namespace GasQueue
                 }
             }
 
-            // Мотор работает — гул слышен, заглушили — тишина
             float targetVolume = Engine == EngineState.Running ? 0.18f : 0f;
             engine.volume = Mathf.MoveTowards(engine.volume, targetVolume, dt * 0.4f);
         }
@@ -157,12 +268,11 @@ namespace GasQueue
         {
             if (Engine != EngineState.Running) return;
             float gameHours = dt * GameManager.Instance.ClockRate / 3600f;
-            float liters = settings.idleLitersPerHour * gameHours
-                           + Mathf.Abs(distance) / 1000f * settings.drivingLitersPer100Km / 100f;
+            float liters = settings.idleLitersPerHour * gameHours + distance / 1000f * settings.drivingLitersPer100Km / 100f;
             fuel = Mathf.Max(0f, fuel - liters / settings.tankLiters);
             if (fuel <= 0f)
             {
-                StopEngine();
+                ForceEngineOff();
                 GameManager.Instance.OnPlayerRanDry();
             }
         }
@@ -171,7 +281,6 @@ namespace GasQueue
 
         void UpdateDashboard(float dt)
         {
-            // Пустой бак — стрелка слева (+60°), полный — справа (-60°). Без зажигания стрелки падают.
             bool ignition = Engine != EngineState.Off;
             if (visual.fuelNeedle != null)
             {
@@ -183,19 +292,14 @@ namespace GasQueue
             if (visual.speedNeedle != null)
                 visual.speedNeedle.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(120f, -120f, SpeedKmh / 120f));
 
-            // Лампа резерва мигает, когда бензина меньше 10%; лампа двигателя горит, пока он не работает
             lampBlink += dt;
             bool reserve = ignition && fuel < 0.1f && Mathf.Repeat(lampBlink, 1f) < 0.6f;
-            if (visual.fuelLamp != null)
-                visual.fuelLamp.sharedMaterial = Shapes.Mat(reserve ? LampFuel : LampOff);
-            if (visual.engineLamp != null)
-                visual.engineLamp.sharedMaterial = Shapes.Mat(Engine == EngineState.Starting ? LampEngine : LampOff);
+            if (visual.fuelLamp != null) visual.fuelLamp.sharedMaterial = Shapes.Mat(reserve ? LampFuel : LampOff);
+            if (visual.engineLamp != null) visual.engineLamp.sharedMaterial = Shapes.Mat(Engine == EngineState.Starting ? LampEngine : LampOff);
 
-            // Руль слегка подрагивает в руках, когда едем
-            steerWobble += dt * (0.5f + Speed);
+            // Руль в салоне крутится вместе с колёсами (в 8 раз сильнее, как у настоящей машины)
             if (visual.steeringWheel != null)
-                visual.steeringWheel.localRotation = Quaternion.Euler(-65f, 0, 0) *
-                                                     Quaternion.Euler(0, Mathf.Sin(steerWobble) * Speed * 1.5f, 0);
+                visual.steeringWheel.localRotation = Quaternion.Euler(-65f, 0, 0) * Quaternion.Euler(0, SteerAngle * 8f, 0);
         }
     }
 }

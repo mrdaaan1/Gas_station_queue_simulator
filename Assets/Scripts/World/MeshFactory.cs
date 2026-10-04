@@ -47,6 +47,70 @@ namespace GasQueue
             return mesh;
         }
 
+        /// <summary>Горизонтальный прямоугольник (смотрит вверх) с UV в метрах / uvMeters.</summary>
+        public static Mesh Quad(float sizeX, float sizeZ, Vector2 uvMeters)
+        {
+            float hx = sizeX / 2f, hz = sizeZ / 2f;
+            var mesh = new Mesh { name = "Quad" };
+            mesh.vertices = new[] { new Vector3(-hx, 0, -hz), new Vector3(-hx, 0, hz), new Vector3(hx, 0, hz), new Vector3(hx, 0, -hz) };
+            mesh.uv = new[]
+            {
+                new Vector2(0, 0), new Vector2(0, sizeZ / uvMeters.y),
+                new Vector2(sizeX / uvMeters.x, sizeZ / uvMeters.y), new Vector2(sizeX / uvMeters.x, 0),
+            };
+            mesh.normals = new[] { Vector3.up, Vector3.up, Vector3.up, Vector3.up };
+            mesh.triangles = new[] { 0, 1, 2, 0, 2, 3 };
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        /// <summary>Коробка, у которой текстура на каждой грани повторяется каждые uvMeters метров (для фасадов).</summary>
+        public static Mesh BoxUV(Vector3 size, float uvMeters)
+        {
+            var h = size / 2f;
+            var verts = new List<Vector3>();
+            var uvs = new List<Vector2>();
+            var normals = new List<Vector3>();
+            var tris = new List<int>();
+
+            void Face(Vector3 n, Vector3 u, Vector3 v, float w, float hgt)
+            {
+                var c = Vector3.Scale(n, h);
+                int start = verts.Count;
+                verts.Add(c - u * (w / 2f) - v * (hgt / 2f));
+                verts.Add(c - u * (w / 2f) + v * (hgt / 2f));
+                verts.Add(c + u * (w / 2f) + v * (hgt / 2f));
+                verts.Add(c + u * (w / 2f) - v * (hgt / 2f));
+                uvs.Add(new Vector2(0, 0));
+                uvs.Add(new Vector2(0, hgt / uvMeters));
+                uvs.Add(new Vector2(w / uvMeters, hgt / uvMeters));
+                uvs.Add(new Vector2(w / uvMeters, 0));
+                for (int i = 0; i < 4; i++) normals.Add(n);
+                tris.AddRange(new[] { start, start + 1, start + 2, start, start + 2, start + 3 });
+            }
+
+            // v × u смотрит наружу (по нормали) — так грань видна снаружи
+            Face(Vector3.forward, Vector3.left, Vector3.up, size.x, size.y);
+            Face(Vector3.back, Vector3.right, Vector3.up, size.x, size.y);
+            Face(Vector3.right, Vector3.forward, Vector3.up, size.z, size.y);
+            Face(Vector3.left, Vector3.back, Vector3.up, size.z, size.y);
+            Face(Vector3.up, Vector3.right, Vector3.forward, size.x, size.z);
+
+            var mesh = new Mesh { name = "BoxUV" };
+            mesh.SetVertices(verts);
+            mesh.SetUVs(0, uvs);
+            mesh.SetNormals(normals);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        public static Material Textured(Texture2D tex, string name)
+        {
+            var m = new Material(Shapes.Mat(Color.white)) { name = name, mainTexture = tex, color = Color.white };
+            return m;
+        }
+
         public static GameObject MeshObject(string name, Transform parent, Mesh mesh, Vector3 pos, Vector3 euler, Material mat)
         {
             var go = new GameObject(name);

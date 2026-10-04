@@ -2,16 +2,20 @@ using UnityEngine;
 
 namespace GasQueue
 {
-    /// <summary>Шлагбаум перед колонкой. Опускается ровно перед игроком.</summary>
+    /// <summary>Шлагбаум перед колонками. Опускается ровно перед игроком.</summary>
     public class Barrier : MonoBehaviour
     {
         public Transform arm;
+        public float armLength = 6.8f;
         public bool IsDown { get; private set; }
 
         const float UpAngle = -85f;
         float angle = UpAngle;
 
         public void SetDown(bool down) => IsDown = down;
+
+        /// <summary>Габарит опущенной стрелы (стрела идёт от стойки в сторону −X).</summary>
+        public Obb Box => Obb.Axis(transform.position + Vector3.left * (armLength / 2f), armLength, 0.3f);
 
         void Update()
         {
@@ -21,21 +25,31 @@ namespace GasQueue
         }
     }
 
-    /// <summary>Табло с ценами на топливо.</summary>
+    /// <summary>Цены на стеле у дороги (как на настоящих заправках: 95 / 92 / ДТ / газ).</summary>
     public class PriceBoard : MonoBehaviour
     {
-        public TextMesh text;
-        public float price92 = 57.4f;
-        public float price95 = 62.9f;
+        public TextMesh[] rows;
+        public float price92 = 61.7f;
+        public float price95 = 69.7f;
+        public float priceDiesel = 69.7f;
         public bool soldOut;
 
         public float CurrentPrice => price95;
 
         void Update()
         {
-            text.text = soldOut
-                ? "АИ-92   НЕТ\nАИ-95   НЕТ\nДТ      НЕТ"
-                : $"АИ-92  {price92:0.0}\nАИ-95  {price95:0.0}\nДТ      НЕТ";
+            if (rows == null || rows.Length < 4) return;
+            rows[0].text = soldOut ? "95  --.--" : $"95  {price95:00.00}";
+            rows[1].text = soldOut ? "92  --.--" : $"92  {price92:00.00}";
+            rows[2].text = soldOut ? "ДТ  --.--" : $"ДТ  {priceDiesel:00.00}";
+            rows[3].text = "ГАЗ 00.00";
+        }
+
+        public void RaisePrices(float amount)
+        {
+            price92 += amount;
+            price95 += amount;
+            priceDiesel += amount;
         }
     }
 

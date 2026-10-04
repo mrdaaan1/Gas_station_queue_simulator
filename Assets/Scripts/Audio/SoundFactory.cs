@@ -81,6 +81,33 @@ namespace GasQueue
             }
         }
 
+        static AudioClip crash;
+
+        /// <summary>Удар: глухой «бум» + скрежет металла + звон стекла.</summary>
+        public static AudioClip Crash
+        {
+            get
+            {
+                if (crash != null) return crash;
+                int n = (int)(Rate * 0.9f);
+                var data = new float[n];
+                var rnd = new System.Random(21);
+                float lp = 0f;
+                for (int i = 0; i < n; i++)
+                {
+                    float t = (float)i / Rate;
+                    float noiseS = (float)rnd.NextDouble() * 2f - 1f;
+                    lp = Mathf.Lerp(lp, noiseS, 0.15f);
+                    float thump = Mathf.Sin(2 * Mathf.PI * (70f - 30f * t) * t) * Mathf.Exp(-t * 9f);
+                    float metal = (Mathf.Sin(2 * Mathf.PI * 820f * t) * 0.4f + Mathf.Sin(2 * Mathf.PI * 1310f * t) * 0.3f + lp) * Mathf.Exp(-t * 6f);
+                    float glass = t > 0.05f ? Mathf.Sin(2 * Mathf.PI * 3900f * t) * Mathf.Exp(-(t - 0.05f) * 14f) * (rnd.NextDouble() < 0.3 ? 1f : 0.2f) : 0f;
+                    data[i] = Mathf.Clamp(thump * 0.9f + metal * 0.35f + glass * 0.15f, -1f, 1f) * Mathf.Clamp01(t / 0.004f);
+                }
+                crash = Create("Crash", data);
+                return crash;
+            }
+        }
+
         /// <summary>Радиопомехи при переключении станций.</summary>
         public static AudioClip Noise
         {

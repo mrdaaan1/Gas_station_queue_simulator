@@ -5,23 +5,48 @@ namespace GasQueue
 {
     public enum CarShape { Sedan, Hatchback, Van }
 
-    /// <summary>Ссылки на подвижные части собранной машины.</summary>
+    /// <summary>Ссылки на подвижные и ломающиеся части собранной машины.</summary>
     public class CarVisual : MonoBehaviour
     {
         public float length;
+        public float width = 1.86f;
         public float height;
         public readonly List<Transform> wheels = new List<Transform>();
+        public readonly List<Transform> frontSteer = new List<Transform>();
         public Transform body;
         public Transform fuelNeedle;
         public Transform speedNeedle;
         public Transform steeringWheel;
         public Transform driverEyes;
         public Transform driverHead;
+        public Transform driverTorso;
         public Renderer fuelLamp;
         public Renderer engineLamp;
         public TextMesh radioDisplay;
 
+        // Части, которые мнутся и отваливаются при ударах
+        public Transform bumperFront, bumperRear;
+        public readonly List<Transform> headlights = new List<Transform>();
+        public readonly List<Transform> taillights = new List<Transform>();
+        public Transform frontPanel, rearPanel;
+
+        public readonly List<Renderer> leftBlinkers = new List<Renderer>();
+        public readonly List<Renderer> rightBlinkers = new List<Renderer>();
+
+        /// <summary>Где водитель выходит из машины (в локальных координатах, слева).</summary>
+        public Vector3 driverDoorLocal = new Vector3(-1.45f, 0f, -0.45f);
+        /// <summary>Лючок бензобака — справа сзади.</summary>
+        public Vector3 fuelCapLocal = new Vector3(0.93f, 0.85f, -1.3f);
+
+        /// <summary>Поворотник: −1 левый, +1 правый, 0 выключен.</summary>
+        public int blinker;
+
         float bounce;
+        int shownBlinker;
+        bool blinkOn;
+
+        static readonly Color BlinkOff = Shapes.Hex("#7a4a10");
+        static readonly Color BlinkOn = Shapes.Hex("#ffa500");
 
         /// <summary>Крутим колёса по пройденному пути.</summary>
         public void Roll(float distance)
@@ -31,14 +56,28 @@ namespace GasQueue
             foreach (var w in wheels) w.Rotate(Vector3.up, deg, Space.Self);
         }
 
+        public void Steer(float angle)
+        {
+            foreach (var s in frontSteer) s.localRotation = Quaternion.Euler(0f, angle, 0f);
+        }
+
         /// <summary>Машина «подпрыгивает» — водитель возмущается.</summary>
         public void Bounce() => bounce = 1f;
 
         void Update()
         {
-            if (bounce <= 0f || body == null) return;
-            bounce = Mathf.Max(0f, bounce - Time.deltaTime * 2.5f);
-            body.localPosition = new Vector3(0f, Mathf.Abs(Mathf.Sin(bounce * Mathf.PI * 3f)) * 0.12f * bounce, 0f);
+            if (bounce > 0f && body != null)
+            {
+                bounce = Mathf.Max(0f, bounce - Time.deltaTime * 2.5f);
+                body.localPosition = new Vector3(0f, Mathf.Abs(Mathf.Sin(bounce * Mathf.PI * 3f)) * 0.12f * bounce, 0f);
+            }
+
+            bool on = blinker != 0 && Mathf.Repeat(Time.time, 0.8f) < 0.45f;
+            if (on == blinkOn && blinker == shownBlinker) return;
+            blinkOn = on;
+            shownBlinker = blinker;
+            foreach (var r in leftBlinkers) if (r != null) r.sharedMaterial = Shapes.Mat(on && blinker < 0 ? BlinkOn : BlinkOff);
+            foreach (var r in rightBlinkers) if (r != null) r.sharedMaterial = Shapes.Mat(on && blinker > 0 ? BlinkOn : BlinkOff);
         }
     }
 
@@ -82,7 +121,7 @@ namespace GasQueue
             // Кузов
             float bodyH = bodyTop - 0.3f;
             Shapes.Box(body, new Vector3(0, 0.3f + bodyH / 2f, 0), new Vector3(1.8f, bodyH, length), paint, name: "Shell");
-            AddBumpersAndLights(body, half);
+            AddBumpersAndLights(body, visual, half);
             AddWheels(root, visual, half);
 
             // Салон: открытый каркас, чтобы было видно водителя и чтобы игрок видел мир из машины
@@ -106,6 +145,7 @@ namespace GasQueue
             Shapes.Box(body, new Vector3(0, bodyTop + 0.06f, dashZ), new Vector3(1.6f, 0.22f, 0.4f), Dark, name: "Dashboard");
             Shapes.Box(body, new Vector3(0, roofY - 0.12f, cabFront - 0.25f), new Vector3(0.24f, 0.07f, 0.03f), Dark, name: "Mirror");
             float seatZ = cabFront - 1.25f;
+            visual.driverDoorLocal = new Vector3(-1.45f, 0f, seatZ);
             foreach (float x in new[] { -0.4f, 0.4f })
             {
                 Shapes.Box(body, new Vector3(x, bodyTop - 0.2f, seatZ), new Vector3(0.55f, 0.14f, 0.55f), Seat);
@@ -117,7 +157,7 @@ namespace GasQueue
             {
                 // Водитель: голова и туловище — чтобы было видно, что в машине кто-то сидит
                 var shirt = Shirts[Random.Range(0, Shirts.Length)];
-                Shapes.Box(body, new Vector3(-0.4f, bodyTop - 0.02f, seatZ - 0.08f), new Vector3(0.46f, 0.5f, 0.28f), shirt, name: "Torso");
+                visual.driverTorso = Shapes.Box(body, new Vector3(-0.4f, bodyTop - 0.02f, seatZ - 0.08f), new Vector3(0.46f, 0.5f, 0.28f), shirt, name: "Torso").transform;
                 visual.driverHead = Shapes.Make(PrimitiveType.Sphere, body, new Vector3(-0.4f, bodyTop + 0.36f, seatZ - 0.05f),
                     Vector3.one * 0.27f, Skin, name: "Head").transform;
             }
@@ -125,14 +165,22 @@ namespace GasQueue
             return visual;
         }
 
-        static void AddBumpersAndLights(Transform body, float half)
+        static void AddBumpersAndLights(Transform body, CarVisual visual, float half)
         {
-            Shapes.Box(body, new Vector3(0, 0.42f, half + 0.03f), new Vector3(1.86f, 0.22f, 0.12f), Chrome, name: "BumperFront");
-            Shapes.Box(body, new Vector3(0, 0.42f, -half - 0.03f), new Vector3(1.86f, 0.22f, 0.12f), Chrome, name: "BumperRear");
+            visual.bumperFront = Shapes.Box(body, new Vector3(0, 0.42f, half + 0.03f), new Vector3(1.86f, 0.22f, 0.12f), Chrome, name: "BumperFront").transform;
+            visual.bumperRear = Shapes.Box(body, new Vector3(0, 0.42f, -half - 0.03f), new Vector3(1.86f, 0.22f, 0.12f), Chrome, name: "BumperRear").transform;
             foreach (float x in new[] { -0.6f, 0.6f })
             {
-                Shapes.Box(body, new Vector3(x, 0.72f, half + 0.01f), new Vector3(0.36f, 0.14f, 0.04f), Shapes.Hex("#fff3c4"), name: "Headlight");
-                Shapes.Box(body, new Vector3(x, 0.72f, -half - 0.01f), new Vector3(0.36f, 0.12f, 0.04f), Shapes.Hex("#c0201a"), name: "Taillight");
+                visual.headlights.Add(Shapes.Box(body, new Vector3(x, 0.72f, half + 0.01f), new Vector3(0.36f, 0.14f, 0.04f), Shapes.Hex("#fff3c4"), name: "Headlight").transform);
+                visual.taillights.Add(Shapes.Box(body, new Vector3(x, 0.72f, -half - 0.01f), new Vector3(0.36f, 0.12f, 0.04f), Shapes.Hex("#c0201a"), name: "Taillight").transform);
+            }
+            // Поворотники по углам
+            foreach (float side in new[] { -1f, 1f })
+            foreach (float end in new[] { -1f, 1f })
+            {
+                var r = Shapes.Box(body, new Vector3(0.86f * side, 0.72f, (half + 0.02f) * end), new Vector3(0.12f, 0.1f, 0.04f),
+                    Shapes.Hex("#7a4a10"), name: "Blinker").GetComponent<Renderer>();
+                (side < 0 ? visual.leftBlinkers : visual.rightBlinkers).Add(r);
             }
         }
 
@@ -141,7 +189,16 @@ namespace GasQueue
             foreach (float x in new[] { -0.86f, 0.86f })
             foreach (float z in new[] { -half + 0.85f, half - 0.85f })
             {
-                var pivot = Shapes.Group("Wheel", root, new Vector3(x, 0.33f, z), new Vector3(0, 0, 90));
+                // Передние колёса висят на отдельном шарнире, чтобы поворачиваться
+                Transform mount = root;
+                var pos = new Vector3(x, 0.33f, z);
+                if (z > 0f)
+                {
+                    mount = Shapes.Group("SteerPivot", root, pos);
+                    visual.frontSteer.Add(mount);
+                    pos = Vector3.zero;
+                }
+                var pivot = Shapes.Group("Wheel", mount, pos, new Vector3(0, 0, 90));
                 Shapes.Make(PrimitiveType.Cylinder, pivot, Vector3.zero, new Vector3(0.66f, 0.12f, 0.66f), Tire);
                 Shapes.Make(PrimitiveType.Cylinder, pivot, Vector3.zero, new Vector3(0.36f, 0.125f, 0.36f), Chrome);
                 Shapes.Box(pivot, Vector3.zero, new Vector3(0.08f, 0.13f, 0.5f), Dark); // спица, чтобы было видно вращение
@@ -187,8 +244,8 @@ namespace GasQueue
             // Низ кузова, капот, багажник, двери
             Shapes.Box(body, new Vector3(0, (0.3f + floorY) / 2f, 0), new Vector3(1.8f, floorY - 0.3f, length), paint, name: "Underbody");
             Shapes.Box(body, new Vector3(0, floorY + 0.01f, (cabFront + cabRear) / 2f), new Vector3(1.62f, 0.02f, cabFront - cabRear), trim, name: "Floor");
-            Shapes.Box(body, new Vector3(0, (floorY + 0.95f) / 2f, (cabFront + half) / 2f), new Vector3(1.8f, 0.95f - floorY, half - cabFront), paint, name: "Hood");
-            Shapes.Box(body, new Vector3(0, (floorY + 0.98f) / 2f, (cabRear - half) / 2f), new Vector3(1.8f, 0.98f - floorY, half + cabRear), paint, name: "Trunk");
+            visual.frontPanel = Shapes.Box(body, new Vector3(0, (floorY + 0.95f) / 2f, (cabFront + half) / 2f), new Vector3(1.8f, 0.95f - floorY, half - cabFront), paint, name: "Hood").transform;
+            visual.rearPanel = Shapes.Box(body, new Vector3(0, (floorY + 0.98f) / 2f, (cabRear - half) / 2f), new Vector3(1.8f, 0.98f - floorY, half + cabRear), paint, name: "Trunk").transform;
             foreach (float side in new[] { -1f, 1f })
             {
                 float x = 0.86f * side;
@@ -267,7 +324,7 @@ namespace GasQueue
             Shapes.Box(body, new Vector3(0, roofY - 0.14f, windTopZ + 0.02f), new Vector3(0.26f, 0.07f, 0.03f), trim, name: "Mirror");
             Shapes.Box(body, new Vector3(0, roofY - 0.14f, windTopZ + 0.004f), new Vector3(0.24f, 0.055f, 0.003f), Chrome, name: "MirrorGlass");
 
-            AddBumpersAndLights(body, half);
+            AddBumpersAndLights(body, visual, half);
             AddWheels(root, visual, half);
 
             visual.driverEyes = Shapes.Group("DriverEyes", root, new Vector3(-0.38f, 1.37f, -0.5f));
