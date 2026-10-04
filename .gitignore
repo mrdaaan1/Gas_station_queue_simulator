@@ -43,3 +43,7 @@ desktop.ini
 Tools/**/bin/
 Tools/**/obj/
 !Tools/**/*.csproj
+
+# Материалы, которые редактор сохраняет перед сборкой (свои для каждого проекта)
+/Assets/Resources/GasQueueGenerated/
+/Assets/Resources/GasQueueGenerated.meta

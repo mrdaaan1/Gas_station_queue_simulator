@@ -16,6 +16,8 @@ namespace GasQueue
         {
             if (cache.TryGetValue(color, out var m) && m != null) return m;
             if (baseMaterial == null)
+                baseMaterial = Resources.Load<Material>("GasQueueGenerated/Base"); // сохраняет редактор перед сборкой
+            if (baseMaterial == null)
             {
                 // Берём материал по умолчанию у примитива: так он подходит под любой рендер-пайплайн.
                 var probe = GameObject.CreatePrimitive(PrimitiveType.Cube);

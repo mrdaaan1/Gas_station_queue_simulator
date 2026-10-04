@@ -45,6 +45,8 @@ namespace GasQueue
             sun.color = Shapes.Hex("#fff1dc");
             sun.shadows = LightShadows.Soft;
             RenderSettings.sun = sun;
+            var sky = Resources.Load<Material>("GasQueueGenerated/Sky");
+            if (sky != null) RenderSettings.skybox = sky; // небо, которое точно есть в сборке
 
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
             RenderSettings.ambientSkyColor = Shapes.Hex("#b4c8de");

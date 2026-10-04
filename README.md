@@ -97,6 +97,10 @@ Assets/
 
 - **Mac:** меню **Gas Queue → Собрать для Mac (.app)**. Через пару минут откроется папка `Builds/Mac` с `GasQueue.app`.
   Сожмите её (правый клик → «Сжать») и отправьте zip.
+- **Mac из Терминала** (Unity должна быть закрыта): `cd ~/Gas_station_queue_simulator && bash Tools/build_mac.sh`.
+  Готовый архив для друзей — `Builds/Mac/GasQueue-Mac.zip`.
+- Перед любой сборкой (и при открытии проекта) редактор сохраняет материалы в `Assets/Resources/GasQueueGenerated` —
+  без них Unity вырезает шейдеры, и в собранной игре всё розовое.
 - **Windows:** **Gas Queue → Собрать для Windows (.exe)**. Нужен модуль *Windows Build Support (Mono)*
   (Unity Hub → Installs → ⚙ → Add modules). Отправляйте всю папку `Builds/Windows` в zip, не только `.exe`.
 - Игра не подписана Apple, поэтому друзьям на Mac при первом запуске нужно:

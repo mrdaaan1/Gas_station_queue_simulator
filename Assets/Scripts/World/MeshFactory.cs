@@ -204,22 +204,30 @@ namespace GasQueue
             get
             {
                 if (glass != null) return glass;
-                glass = new Material(Shapes.Mat(Color.white)) { name = "Glass", color = new Color(0.65f, 0.8f, 0.9f, 0.16f) };
-                if (glass.HasProperty("_Mode")) glass.SetFloat("_Mode", 3f);       // Built-in Standard: Transparent
-                if (glass.HasProperty("_Surface")) glass.SetFloat("_Surface", 1f); // URP Lit: Transparent
-                glass.SetOverrideTag("RenderType", "Transparent");
-                glass.SetInt("_SrcBlend", (int)BlendMode.One);
-                glass.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
-                glass.SetInt("_ZWrite", 0);
-                glass.DisableKeyword("_ALPHATEST_ON");
-                glass.DisableKeyword("_ALPHABLEND_ON");
-                glass.EnableKeyword("_ALPHAPREMULTIPLY_ON");
-                glass.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-                if (glass.HasProperty("_Glossiness")) glass.SetFloat("_Glossiness", 0.9f);
-                if (glass.HasProperty("_Smoothness")) glass.SetFloat("_Smoothness", 0.9f);
-                glass.renderQueue = (int)RenderQueue.Transparent;
+                // В сборке берём готовый материал из Resources (его сохраняет редактор), иначе шейдер вырежут
+                var saved = Resources.Load<Material>("GasQueueGenerated/Glass");
+                glass = new Material(saved != null ? saved : Shapes.Mat(Color.white)) { name = "Glass", color = new Color(0.65f, 0.8f, 0.9f, 0.16f) };
+                MakeTransparent(glass);
                 return glass;
             }
+        }
+
+        /// <summary>Перевести материал в режим прозрачности (Built-in Standard или URP Lit).</summary>
+        public static void MakeTransparent(Material glass)
+        {
+            if (glass.HasProperty("_Mode")) glass.SetFloat("_Mode", 3f);       // Built-in Standard: Transparent
+            if (glass.HasProperty("_Surface")) glass.SetFloat("_Surface", 1f); // URP Lit: Transparent
+            glass.SetOverrideTag("RenderType", "Transparent");
+            glass.SetInt("_SrcBlend", (int)BlendMode.One);
+            glass.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
+            glass.SetInt("_ZWrite", 0);
+            glass.DisableKeyword("_ALPHATEST_ON");
+            glass.DisableKeyword("_ALPHABLEND_ON");
+            glass.EnableKeyword("_ALPHAPREMULTIPLY_ON");
+            glass.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            if (glass.HasProperty("_Glossiness")) glass.SetFloat("_Glossiness", 0.9f);
+            if (glass.HasProperty("_Smoothness")) glass.SetFloat("_Smoothness", 0.9f);
+            glass.renderQueue = (int)RenderQueue.Transparent;
         }
     }
 }

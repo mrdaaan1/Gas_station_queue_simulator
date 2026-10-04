@@ -18,12 +18,19 @@ public static class GameBuilder
     [MenuItem("Gas Queue/Собрать для Windows (.exe)")]
     static void BuildWindows() => Build(BuildTarget.StandaloneWindows64, "Builds/Windows/GasQueue.exe", "Windows");
 
-    static void Build(BuildTarget target, string output, string platform)
+    /// <summary>Сборка из Терминала (Tools/build_mac.sh): Unity без окна собирает игру и закрывается.</summary>
+    public static void BuildMacBatch()
+    {
+        bool ok = Build(BuildTarget.StandaloneOSX, "Builds/Mac/GasQueue.app", "Mac");
+        EditorApplication.Exit(ok ? 0 : 1);
+    }
+
+    static bool Build(BuildTarget target, string output, string platform)
     {
         if (!File.Exists(ScenePath))
         {
             EditorUtility.DisplayDialog("Сборка", "Нет сцены " + ScenePath + ". Сначала: Gas Queue → Create Prototype Scene.", "OK");
-            return;
+            return false;
         }
         if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Standalone, target))
         {
@@ -31,9 +38,10 @@ public static class GameBuilder
                 "В Unity не установлен модуль сборки для " + platform + ".\n\n" +
                 "Unity Hub → Installs → у вашей версии ⚙ → Add modules → «" + platform + " Build Support (Mono)». " +
                 "После установки перезапустите Unity.", "OK");
-            return;
+            return false;
         }
 
+        BuildMaterials.Generate(); // материалы для шейдеров — иначе в сборке всё розовое
         PlayerSettings.productName = ProductName;
         if (string.IsNullOrEmpty(PlayerSettings.companyName) || PlayerSettings.companyName == "DefaultCompany")
             PlayerSettings.companyName = "GasQueue";
@@ -50,12 +58,14 @@ public static class GameBuilder
         if (report.summary.result == BuildResult.Succeeded)
         {
             Debug.Log($"[Gas Queue] Сборка для {platform} готова: {output} ({report.summary.totalSize / (1024 * 1024)} МБ)");
-            EditorUtility.RevealInFinder(output);
+            if (!Application.isBatchMode) EditorUtility.RevealInFinder(output);
+            return true;
         }
         else
         {
             EditorUtility.DisplayDialog("Сборка",
                 $"Сборка для {platform} не удалась ({report.summary.result}). Красные ошибки — в окне Console, пришлите их Claude.", "OK");
+            return false;
         }
     }
 }
