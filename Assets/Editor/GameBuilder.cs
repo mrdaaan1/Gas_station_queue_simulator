@@ -1,0 +1,61 @@
+using System.IO;
+using UnityEditor;
+using UnityEditor.Build.Reporting;
+using UnityEngine;
+
+/// <summary>
+/// Сборка игры одной кнопкой: меню Gas Queue → «Собрать для Mac» / «Собрать для Windows».
+/// Готовая игра появляется в папке Builds рядом с Assets (в Git она не попадает).
+/// </summary>
+public static class GameBuilder
+{
+    const string ScenePath = "Assets/Scenes/Prototype.unity";
+    const string ProductName = "Симулятор очереди на заправку";
+
+    [MenuItem("Gas Queue/Собрать для Mac (.app)")]
+    static void BuildMac() => Build(BuildTarget.StandaloneOSX, "Builds/Mac/GasQueue.app", "Mac");
+
+    [MenuItem("Gas Queue/Собрать для Windows (.exe)")]
+    static void BuildWindows() => Build(BuildTarget.StandaloneWindows64, "Builds/Windows/GasQueue.exe", "Windows");
+
+    static void Build(BuildTarget target, string output, string platform)
+    {
+        if (!File.Exists(ScenePath))
+        {
+            EditorUtility.DisplayDialog("Сборка", "Нет сцены " + ScenePath + ". Сначала: Gas Queue → Create Prototype Scene.", "OK");
+            return;
+        }
+        if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Standalone, target))
+        {
+            EditorUtility.DisplayDialog("Сборка",
+                "В Unity не установлен модуль сборки для " + platform + ".\n\n" +
+                "Unity Hub → Installs → у вашей версии ⚙ → Add modules → «" + platform + " Build Support (Mono)». " +
+                "После установки перезапустите Unity.", "OK");
+            return;
+        }
+
+        PlayerSettings.productName = ProductName;
+        if (string.IsNullOrEmpty(PlayerSettings.companyName) || PlayerSettings.companyName == "DefaultCompany")
+            PlayerSettings.companyName = "GasQueue";
+
+        Directory.CreateDirectory(Path.GetDirectoryName(output));
+        var options = new BuildPlayerOptions
+        {
+            scenes = new[] { ScenePath },
+            locationPathName = output,
+            target = target,
+            options = BuildOptions.None,
+        };
+        BuildReport report = BuildPipeline.BuildPlayer(options);
+        if (report.summary.result == BuildResult.Succeeded)
+        {
+            Debug.Log($"[Gas Queue] Сборка для {platform} готова: {output} ({report.summary.totalSize / (1024 * 1024)} МБ)");
+            EditorUtility.RevealInFinder(output);
+        }
+        else
+        {
+            EditorUtility.DisplayDialog("Сборка",
+                $"Сборка для {platform} не удалась ({report.summary.result}). Красные ошибки — в окне Console, пришлите их Claude.", "OK");
+        }
+    }
+}
