@@ -8,6 +8,7 @@ namespace GasQueue
         class Station
         {
             public string name;
+            public string shortName;
             public string[] lines;
             public AudioClip music;
         }
@@ -18,6 +19,9 @@ namespace GasQueue
         float lineTimer;
         AudioSource music;
         AudioSource fx;
+
+        /// <summary>Экран магнитолы на торпеде машины игрока.</summary>
+        public TextMesh display;
 
         public string StationName => current == 0 ? null : stations[current - 1].name;
         public string CurrentLine { get; private set; }
@@ -37,6 +41,7 @@ namespace GasQueue
                 new Station
                 {
                     name = "Радио «Ожидание FM»",
+                    shortName = "101.7 ОЖИДАНИЕ",
                     music = SoundFactory.Melody("Lullaby", new[] { 0, 4, 7, 4, 2, 5, 9, 5, -3, 0, 4, 0, -5, -1, 2, -1 }, 0.42f, 1f),
                     lines = new[]
                     {
@@ -48,6 +53,7 @@ namespace GasQueue
                 new Station
                 {
                     name = "Топливо-Инфо",
+                    shortName = "95.2 ТОПЛИВО",
                     lines = new[]
                     {
                         "«Ситуация с топливом стабильная. Очередей нет.»",
@@ -60,6 +66,7 @@ namespace GasQueue
                 new Station
                 {
                     name = "Шансон у колонки",
+                    shortName = "92.0 ШАНСОН",
                     music = SoundFactory.Melody("Chanson", new[] { -3, 0, 4, 0, -3, 0, 5, 4, -5, -1, 2, -1, -3, -100, -3, -100 }, 0.3f, 0.3f),
                     lines = new[]
                     {
@@ -73,6 +80,7 @@ namespace GasQueue
         void Update()
         {
             if (GameInput.RadioPressed) Next();
+            if (display != null) display.text = current == 0 ? "--:--" : stations[current - 1].shortName;
 
             if (current == 0) return;
             lineTimer += Time.deltaTime;

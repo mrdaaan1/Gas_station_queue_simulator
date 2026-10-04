@@ -41,12 +41,25 @@ namespace GasQueue
         public float LitersFilled { get; private set; }
         public float MoneySpent { get; private set; }
 
-        public string Message { get; private set; }
-        public float MessageAlpha => Mathf.Clamp01(messageTimer / 0.5f);
+        public int EngineStops { get; private set; }
+
+        /// <summary>Уведомление в ленте сбоку экрана.</summary>
+        public class FeedItem
+        {
+            public string text;
+            public float shownAt;
+            public float duration;
+        }
+
+        /// <summary>Последние уведомления, новые — в конце.</summary>
+        public readonly List<FeedItem> Feed = new List<FeedItem>();
+
+        /// <summary>Сколько игровых секунд проходит за одну реальную прямо сейчас.</summary>
+        public float ClockRate => State == GameState.OutOfFuel ? 3600f / Settings.DeliveryDuration : Settings.ClockScale;
 
         Barrier barrier;
         System.Action restart;
-        float messageTimer;
+        float dryTimer = -1f;
         float deliveryTimer;
         float priceTimer;
         bool priceWarned;
@@ -83,7 +96,6 @@ namespace GasQueue
         void Update()
         {
             float dt = Time.deltaTime;
-            messageTimer -= dt;
 
             if (State == GameState.Finished)
             {
@@ -92,13 +104,18 @@ namespace GasQueue
             }
 
             // Часы идут всегда. Пока ждём завоз — «час» пролетает за время ожидания.
-            float rate = State == GameState.OutOfFuel ? 3600f / Settings.DeliveryDuration : Settings.ClockScale;
-            if (State != GameState.DrivingAway) QueueSeconds += dt * rate;
+            if (State != GameState.DrivingAway) QueueSeconds += dt * ClockRate;
+            UpdateDryTank(dt);
 
             switch (State)
             {
                 case GameState.Queueing:
-                    if (PlayerAtPump && GameInput.InteractPressed) StartFueling();
+                    if (PlayerAtPump && GameInput.InteractPressed)
+                    {
+                        if (Player.Engine != EngineState.Off)
+                            ShowMessage("На заправке мотор глушат! Нажмите I, потом E.");
+                        else StartFueling();
+                    }
                     break;
                 case GameState.OutOfFuel:
                     UpdateDelivery(dt);
@@ -114,10 +131,44 @@ namespace GasQueue
             UpdateTanker(dt);
         }
 
-        public void ShowMessage(string text, float seconds = 3.5f)
+        public void ShowMessage(string text, float seconds = 6f)
         {
-            Message = text;
-            messageTimer = seconds;
+            // Одинаковые сообщения подряд не дублируем, а продлеваем
+            if (Feed.Count > 0 && Feed[Feed.Count - 1].text == text)
+            {
+                Feed[Feed.Count - 1].shownAt = Time.time;
+                return;
+            }
+            Feed.Add(new FeedItem { text = text, shownAt = Time.time, duration = seconds });
+            if (Feed.Count > 5) Feed.RemoveAt(0);
+        }
+
+        // ---------- Свой бак пустой ----------
+
+        public void OnPlayerRanDry()
+        {
+            ShowMessage("Бензин кончился прямо в очереди! Мотор заглох.", 8f);
+            dryTimer = 0f;
+        }
+
+        /// <summary>
+        /// Пока толкать машину нельзя (будет позже), выручает сосед: через несколько секунд
+        /// приносит литр из канистры, чтобы игра не застряла.
+        /// </summary>
+        void UpdateDryTank(float dt)
+        {
+            if (dryTimer < 0f) return;
+            dryTimer += dt;
+            if (dryTimer < 10f) return;
+            dryTimer = -1f;
+            Player.AddFuelLiters(1f);
+            ShowMessage("Сосед по очереди поделился литром из канистры. Заводите (I) и больше не жгите зря!", 8f);
+        }
+
+        public void OnEngineToggled(bool running)
+        {
+            if (!running) EngineStops++;
+            ShowMessage(running ? "Двигатель заведён." : "Двигатель заглушен. Экономим бензин. I — завести.");
         }
 
         // ---------- Бензин закончился и завоз ----------
@@ -222,7 +273,7 @@ namespace GasQueue
                 Queue.RemovePlayer();
                 Player.controlsEnabled = true;
                 State = GameState.DrivingAway;
-                ShowMessage("Полный бак! Жмите W и уезжайте отсюда.", 6f);
+                ShowMessage("Полный бак! Заводите (I) и уезжайте отсюда (W).", 8f);
             }
         }
 
@@ -279,6 +330,7 @@ namespace GasQueue
             if (Bumps >= 1) list.Add("Поцеловал бампер");
             if (GiveUpsSeen >= 3) list.Add("Свидетель отчаяния");
             if (RadioSwitches >= 10) list.Add("Меломан поневоле");
+            if (EngineStops >= 5) list.Add("Эко-водитель");
             return list;
         }
     }

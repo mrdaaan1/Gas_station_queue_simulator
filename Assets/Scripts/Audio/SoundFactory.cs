@@ -56,6 +56,31 @@ namespace GasQueue
             }
         }
 
+        static AudioClip starter;
+
+        /// <summary>Стартер: «вжик-вжик-вжик», чтобы было слышно, что машина заводится.</summary>
+        public static AudioClip Starter
+        {
+            get
+            {
+                if (starter != null) return starter;
+                int n = (int)(Rate * 1.1f);
+                var data = new float[n];
+                var rnd = new System.Random(11);
+                for (int i = 0; i < n; i++)
+                {
+                    float t = (float)i / Rate;
+                    float pulse = 0.55f + 0.45f * Mathf.Sin(2 * Mathf.PI * 9f * t);
+                    float whine = Mathf.Sin(2 * Mathf.PI * (180f + 40f * Mathf.Sin(2 * Mathf.PI * 9f * t)) * t);
+                    float noiseS = (float)rnd.NextDouble() * 2f - 1f;
+                    float env = Mathf.Clamp01(t / 0.05f) * Mathf.Clamp01((1.1f - t) / 0.1f);
+                    data[i] = (whine * 0.25f + noiseS * 0.25f) * pulse * env;
+                }
+                starter = Create("Starter", data);
+                return starter;
+            }
+        }
+
         /// <summary>Радиопомехи при переключении станций.</summary>
         public static AudioClip Noise
         {

@@ -17,6 +17,7 @@ namespace GasQueue
         void Build()
         {
             var settings = GetComponent<GameSettings>();
+            PauseMenu.ResetGlobalState();
             DisableForeignCameras();
 
             world = new GameObject("World (создаётся при запуске)");
@@ -27,7 +28,7 @@ namespace GasQueue
             var playerVisual = CarFactory.Build("PlayerCar", Shapes.Hex("#d8c25a"), CarShape.Sedan, true);
             playerVisual.transform.SetParent(root, false);
             var player = playerVisual.gameObject.AddComponent<PlayerCar>();
-            player.Init(playerVisual);
+            player.Init(playerVisual, settings);
 
             var queue = new GameObject("Queue").AddComponent<QueueManager>();
             queue.transform.SetParent(root, false);
@@ -40,13 +41,17 @@ namespace GasQueue
             var systems = new GameObject("Systems");
             systems.transform.SetParent(root, false);
             var radio = systems.AddComponent<Radio>();
-            systems.AddComponent<Hud>();
+            radio.display = playerVisual.radioDisplay;
+            var pause = systems.AddComponent<PauseMenu>();
+            pause.Init(settings, rig, Restart);
+            systems.AddComponent<Hud>().Init(pause);
             var gm = systems.AddComponent<GameManager>();
             gm.Init(settings, queue, player, rig, radio, station.barrier, station.priceBoard, Restart);
         }
 
         void Restart()
         {
+            PauseMenu.ResetGlobalState();
             Destroy(world);
             Build();
         }

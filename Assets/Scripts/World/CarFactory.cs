@@ -17,6 +17,9 @@ namespace GasQueue
         public Transform steeringWheel;
         public Transform driverEyes;
         public Transform driverHead;
+        public Renderer fuelLamp;
+        public Renderer engineLamp;
+        public TextMesh radioDisplay;
 
         float bounce;
 
@@ -63,6 +66,7 @@ namespace GasQueue
 
         public static CarVisual Build(string name, Color paint, CarShape shape, bool isPlayer)
         {
+            if (isPlayer) return BuildPlayer(name, paint);
             var root = new GameObject(name).transform;
             var visual = root.gameObject.AddComponent<CarVisual>();
             var body = Shapes.Group("Body", root);
@@ -78,24 +82,8 @@ namespace GasQueue
             // Кузов
             float bodyH = bodyTop - 0.3f;
             Shapes.Box(body, new Vector3(0, 0.3f + bodyH / 2f, 0), new Vector3(1.8f, bodyH, length), paint, name: "Shell");
-            Shapes.Box(body, new Vector3(0, 0.42f, half + 0.03f), new Vector3(1.86f, 0.22f, 0.12f), Chrome, name: "BumperFront");
-            Shapes.Box(body, new Vector3(0, 0.42f, -half - 0.03f), new Vector3(1.86f, 0.22f, 0.12f), Chrome, name: "BumperRear");
-            foreach (float x in new[] { -0.6f, 0.6f })
-            {
-                Shapes.Box(body, new Vector3(x, 0.72f, half + 0.01f), new Vector3(0.36f, 0.14f, 0.04f), Shapes.Hex("#fff3c4"));
-                Shapes.Box(body, new Vector3(x, 0.72f, -half - 0.01f), new Vector3(0.36f, 0.12f, 0.04f), Shapes.Hex("#c0201a"));
-            }
-
-            // Колёса
-            foreach (float x in new[] { -0.86f, 0.86f })
-            foreach (float z in new[] { -half + 0.85f, half - 0.85f })
-            {
-                var pivot = Shapes.Group("Wheel", root, new Vector3(x, 0.33f, z), new Vector3(0, 0, 90));
-                Shapes.Make(PrimitiveType.Cylinder, pivot, Vector3.zero, new Vector3(0.66f, 0.12f, 0.66f), Tire);
-                Shapes.Make(PrimitiveType.Cylinder, pivot, Vector3.zero, new Vector3(0.36f, 0.125f, 0.36f), Chrome);
-                Shapes.Box(pivot, Vector3.zero, new Vector3(0.08f, 0.13f, 0.5f), Dark); // спица, чтобы было видно вращение
-                visual.wheels.Add(pivot);
-            }
+            AddBumpersAndLights(body, half);
+            AddWheels(root, visual, half);
 
             // Салон: открытый каркас, чтобы было видно водителя и чтобы игрок видел мир из машины
             float cabFront = shape == CarShape.Van ? half - 1.0f : 0.7f;
@@ -124,28 +112,8 @@ namespace GasQueue
                 Shapes.Box(body, new Vector3(x, bodyTop + 0.12f, seatZ - 0.3f), new Vector3(0.55f, 0.65f, 0.12f), Seat, new Vector3(-10, 0, 0));
             }
 
-            // Руль
-            var wheelPivot = Shapes.Group("SteeringWheel", body, new Vector3(-0.4f, bodyTop + 0.2f, dashZ - 0.3f), new Vector3(60, 0, 0));
-            Shapes.Make(PrimitiveType.Cylinder, wheelPivot, Vector3.zero, new Vector3(0.38f, 0.015f, 0.38f), Tire);
-            Shapes.Make(PrimitiveType.Cylinder, wheelPivot, new Vector3(0, 0.01f, 0), new Vector3(0.3f, 0.015f, 0.3f), Dark);
-            Shapes.Box(wheelPivot, new Vector3(0, 0.02f, 0), new Vector3(0.34f, 0.02f, 0.04f), Tire);
-            Shapes.Make(PrimitiveType.Cylinder, wheelPivot, new Vector3(0, -0.15f, 0), new Vector3(0.05f, 0.15f, 0.05f), Tire);
-            visual.steeringWheel = wheelPivot;
+            visual.steeringWheel = SteeringWheel(body, new Vector3(-0.4f, bodyTop + 0.08f, dashZ - 0.3f));
 
-            if (isPlayer)
-            {
-                // Приборы: спидометр и датчик топлива, повёрнуты к водителю
-                var face = new Vector3(-90, 0, 0);
-                float gy = bodyTop + 0.12f, gz = dashZ - 0.21f;
-                Shapes.Make(PrimitiveType.Cylinder, body, new Vector3(-0.08f, gy, gz), new Vector3(0.17f, 0.01f, 0.17f), Shapes.Hex("#f2efe6"), face, "Speedometer");
-                Shapes.Make(PrimitiveType.Cylinder, body, new Vector3(0.16f, gy, gz), new Vector3(0.13f, 0.01f, 0.13f), Shapes.Hex("#f2efe6"), face, "FuelGauge");
-                // Красная зона «пусто» на датчике топлива
-                Shapes.Box(body, new Vector3(0.16f - 0.045f, gy + 0.03f, gz - 0.012f), new Vector3(0.02f, 0.02f, 0.003f), Shapes.Hex("#d02020"));
-                visual.speedNeedle = Needle(body, new Vector3(-0.08f, gy, gz - 0.015f), 0.07f);
-                visual.fuelNeedle = Needle(body, new Vector3(0.16f, gy, gz - 0.015f), 0.055f);
-                visual.driverEyes = Shapes.Group("DriverEyes", root, new Vector3(-0.4f, bodyTop + 0.4f, seatZ - 0.05f));
-            }
-            else
             {
                 // Водитель: голова и туловище — чтобы было видно, что в машине кто-то сидит
                 var shirt = Shirts[Random.Range(0, Shirts.Length)];
@@ -154,6 +122,155 @@ namespace GasQueue
                     Vector3.one * 0.27f, Skin, name: "Head").transform;
             }
 
+            return visual;
+        }
+
+        static void AddBumpersAndLights(Transform body, float half)
+        {
+            Shapes.Box(body, new Vector3(0, 0.42f, half + 0.03f), new Vector3(1.86f, 0.22f, 0.12f), Chrome, name: "BumperFront");
+            Shapes.Box(body, new Vector3(0, 0.42f, -half - 0.03f), new Vector3(1.86f, 0.22f, 0.12f), Chrome, name: "BumperRear");
+            foreach (float x in new[] { -0.6f, 0.6f })
+            {
+                Shapes.Box(body, new Vector3(x, 0.72f, half + 0.01f), new Vector3(0.36f, 0.14f, 0.04f), Shapes.Hex("#fff3c4"), name: "Headlight");
+                Shapes.Box(body, new Vector3(x, 0.72f, -half - 0.01f), new Vector3(0.36f, 0.12f, 0.04f), Shapes.Hex("#c0201a"), name: "Taillight");
+            }
+        }
+
+        static void AddWheels(Transform root, CarVisual visual, float half)
+        {
+            foreach (float x in new[] { -0.86f, 0.86f })
+            foreach (float z in new[] { -half + 0.85f, half - 0.85f })
+            {
+                var pivot = Shapes.Group("Wheel", root, new Vector3(x, 0.33f, z), new Vector3(0, 0, 90));
+                Shapes.Make(PrimitiveType.Cylinder, pivot, Vector3.zero, new Vector3(0.66f, 0.12f, 0.66f), Tire);
+                Shapes.Make(PrimitiveType.Cylinder, pivot, Vector3.zero, new Vector3(0.36f, 0.125f, 0.36f), Chrome);
+                Shapes.Box(pivot, Vector3.zero, new Vector3(0.08f, 0.13f, 0.5f), Dark); // спица, чтобы было видно вращение
+                visual.wheels.Add(pivot);
+            }
+        }
+
+        /// <summary>Руль: обод-кольцо, три спицы и колонка, уходящая в торпеду. Наклонён к водителю.</summary>
+        static Transform SteeringWheel(Transform parent, Vector3 pos)
+        {
+            var pivot = Shapes.Group("SteeringWheel", parent, pos, new Vector3(-65f, 0, 0));
+            MeshFactory.MeshObject("Rim", pivot, MeshFactory.Torus(0.18f, 0.018f), Vector3.zero, Vector3.zero, Shapes.Mat(Tire));
+            Shapes.Box(pivot, Vector3.zero, new Vector3(0.34f, 0.015f, 0.035f), Dark, name: "Spoke");
+            Shapes.Box(pivot, new Vector3(0, 0, -0.085f), new Vector3(0.035f, 0.015f, 0.17f), Dark, name: "Spoke");
+            Shapes.Make(PrimitiveType.Cylinder, pivot, new Vector3(0, 0.005f, 0), new Vector3(0.09f, 0.015f, 0.09f), Dark, name: "Hub");
+            Shapes.Make(PrimitiveType.Cylinder, pivot, new Vector3(0, -0.14f, 0), new Vector3(0.05f, 0.13f, 0.05f), Tire, name: "Column");
+            return pivot;
+        }
+
+        /// <summary>
+        /// Машина игрока: кузов собран из отдельных панелей, чтобы внутри был настоящий салон —
+        /// пол, двери, стёкла, торпеда с приборами, руль, сиденья, магнитола, зеркала.
+        /// </summary>
+        static CarVisual BuildPlayer(string name, Color paint)
+        {
+            var root = new GameObject(name).transform;
+            var visual = root.gameObject.AddComponent<CarVisual>();
+            var body = Shapes.Group("Body", root);
+            visual.body = body;
+
+            const float length = 4.3f, half = length / 2f;
+            const float floorY = 0.6f, beltY = 1.0f, roofY = 1.6f;
+            const float cabFront = 0.95f, cabRear = -1.75f; // от основания лобового стекла до заднего стекла
+            const float windTopZ = 0.3f;                    // где лобовое стекло упирается в крышу
+            visual.length = length;
+            visual.height = roofY;
+
+            var trim = Shapes.Hex("#26262a");
+            var plastic = Shapes.Hex("#3a3a40");
+            var seat = Shapes.Hex("#5c4c3e");
+            var headliner = Shapes.Hex("#b9b3a6");
+
+            // Низ кузова, капот, багажник, двери
+            Shapes.Box(body, new Vector3(0, (0.3f + floorY) / 2f, 0), new Vector3(1.8f, floorY - 0.3f, length), paint, name: "Underbody");
+            Shapes.Box(body, new Vector3(0, floorY + 0.01f, (cabFront + cabRear) / 2f), new Vector3(1.62f, 0.02f, cabFront - cabRear), trim, name: "Floor");
+            Shapes.Box(body, new Vector3(0, (floorY + 0.95f) / 2f, (cabFront + half) / 2f), new Vector3(1.8f, 0.95f - floorY, half - cabFront), paint, name: "Hood");
+            Shapes.Box(body, new Vector3(0, (floorY + 0.98f) / 2f, (cabRear - half) / 2f), new Vector3(1.8f, 0.98f - floorY, half + cabRear), paint, name: "Trunk");
+            foreach (float side in new[] { -1f, 1f })
+            {
+                float x = 0.86f * side;
+                Shapes.Box(body, new Vector3(x, (floorY + beltY) / 2f, (cabFront + cabRear) / 2f), new Vector3(0.08f, beltY - floorY, cabFront - cabRear), paint, name: "Door");
+                Shapes.Box(body, new Vector3(x - 0.05f * side, beltY - 0.02f, (cabFront + cabRear) / 2f), new Vector3(0.06f, 0.05f, cabFront - cabRear), trim, name: "DoorTrim");
+                Shapes.Box(body, new Vector3(x - 0.05f * side, floorY + 0.25f, -0.4f), new Vector3(0.04f, 0.3f, 1.4f), plastic, name: "DoorCard");
+                // Боковые стёкла и стойки
+                var sideGlass = Shapes.Box(body, new Vector3(x, (beltY + roofY) / 2f, (windTopZ + cabRear) / 2f), new Vector3(0.02f, roofY - beltY, windTopZ - cabRear), Color.white, name: "SideGlass");
+                sideGlass.GetComponent<Renderer>().sharedMaterial = MeshFactory.Glass;
+                Shapes.Box(body, new Vector3(x, (beltY + roofY) / 2f, -0.75f), new Vector3(0.08f, roofY - beltY, 0.1f), paint, name: "BPillar");
+                Shapes.Box(body, new Vector3(x, (beltY + roofY) / 2f, cabRear + 0.08f), new Vector3(0.08f, roofY - beltY, 0.16f), paint, name: "CPillar");
+                // Боковое зеркало снаружи
+                Shapes.Box(body, new Vector3(0.98f * side, beltY + 0.08f, cabFront - 0.15f), new Vector3(0.1f, 0.13f, 0.2f), paint, name: "SideMirror");
+                Shapes.Box(body, new Vector3(0.98f * side, beltY + 0.08f, cabFront - 0.255f), new Vector3(0.08f, 0.11f, 0.01f), Chrome, name: "SideMirrorGlass");
+            }
+
+            // Лобовое стекло и передние стойки — под наклоном
+            float rise = roofY - 0.95f, run = cabFront - windTopZ;
+            float tilt = Mathf.Atan2(run, rise) * Mathf.Rad2Deg;
+            float windLen = Mathf.Sqrt(rise * rise + run * run);
+            var windPos = new Vector3(0, (0.95f + roofY) / 2f, (cabFront + windTopZ) / 2f);
+            var windshield = Shapes.Box(body, windPos, new Vector3(1.62f, windLen, 0.02f), Color.white, new Vector3(-tilt, 0, 0), "Windshield");
+            windshield.GetComponent<Renderer>().sharedMaterial = MeshFactory.Glass;
+            foreach (float side in new[] { -1f, 1f })
+                Shapes.Box(body, new Vector3(0.84f * side, windPos.y, windPos.z), new Vector3(0.07f, windLen, 0.07f), paint, new Vector3(-tilt, 0, 0), "APillar");
+            var rearGlass = Shapes.Box(body, new Vector3(0, (0.98f + roofY) / 2f, cabRear - 0.1f), new Vector3(1.62f, roofY - 0.98f, 0.02f), Color.white, new Vector3(20f, 0, 0), "RearGlass");
+            rearGlass.GetComponent<Renderer>().sharedMaterial = MeshFactory.Glass;
+
+            // Крыша и потолок
+            Shapes.Box(body, new Vector3(0, roofY, (windTopZ + cabRear) / 2f - 0.05f), new Vector3(1.74f, 0.06f, windTopZ - cabRear + 0.1f), paint, name: "Roof");
+            Shapes.Box(body, new Vector3(0, roofY - 0.035f, (windTopZ + cabRear) / 2f - 0.05f), new Vector3(1.62f, 0.01f, windTopZ - cabRear), headliner, name: "Headliner");
+            foreach (float x in new[] { -0.4f, 0.4f })
+                Shapes.Box(body, new Vector3(x, roofY - 0.06f, windTopZ - 0.08f), new Vector3(0.42f, 0.02f, 0.16f), headliner, new Vector3(-8, 0, 0), "SunVisor");
+
+            // Торпеда
+            Shapes.Box(body, new Vector3(0, 0.88f, 0.6f), new Vector3(1.64f, 0.36f, 0.5f), plastic, name: "Dashboard");
+            Shapes.Box(body, new Vector3(0, 1.07f, 0.62f), new Vector3(1.64f, 0.04f, 0.46f), trim, name: "DashTop");
+            Shapes.Box(body, new Vector3(0.45f, 0.86f, 0.355f), new Vector3(0.5f, 0.16f, 0.02f), trim, name: "Glovebox");
+
+            // Щиток приборов за рулём: козырёк, спидометр, датчик топлива, лампы
+            const float gx = -0.38f, gy = 1.0f, gz = 0.35f;
+            Shapes.Box(body, new Vector3(gx, gy, gz + 0.005f), new Vector3(0.5f, 0.17f, 0.02f), Shapes.Hex("#111114"), name: "Cluster");
+            Shapes.Box(body, new Vector3(gx, gy + 0.1f, gz + 0.04f), new Vector3(0.54f, 0.04f, 0.14f), plastic, new Vector3(-12, 0, 0), "ClusterVisor");
+            var face = new Vector3(-90, 0, 0);
+            var dial = Shapes.Hex("#f2efe6");
+            Shapes.Make(PrimitiveType.Cylinder, body, new Vector3(gx - 0.1f, gy, gz - 0.01f), new Vector3(0.15f, 0.006f, 0.15f), dial, face, "Speedometer");
+            Shapes.Make(PrimitiveType.Cylinder, body, new Vector3(gx + 0.12f, gy, gz - 0.01f), new Vector3(0.11f, 0.006f, 0.11f), dial, face, "FuelGauge");
+            Shapes.Box(body, new Vector3(gx + 0.12f - 0.035f, gy + 0.03f, gz - 0.019f), new Vector3(0.016f, 0.016f, 0.003f), Shapes.Hex("#d02020"), name: "EmptyMark");
+            visual.speedNeedle = Needle(body, new Vector3(gx - 0.1f, gy, gz - 0.022f), 0.06f);
+            visual.fuelNeedle = Needle(body, new Vector3(gx + 0.12f, gy, gz - 0.022f), 0.045f);
+            visual.fuelLamp = Shapes.Box(body, new Vector3(gx + 0.12f, gy - 0.045f, gz - 0.019f), new Vector3(0.025f, 0.012f, 0.003f), Shapes.Hex("#3a2a10"), name: "FuelLamp").GetComponent<Renderer>();
+            visual.engineLamp = Shapes.Box(body, new Vector3(gx - 0.1f, gy - 0.055f, gz - 0.019f), new Vector3(0.025f, 0.012f, 0.003f), Shapes.Hex("#3a2a10"), name: "EngineLamp").GetComponent<Renderer>();
+
+            visual.steeringWheel = SteeringWheel(body, new Vector3(gx, 0.98f, 0.1f));
+
+            // Центральная консоль с магнитолой и рычаг КПП
+            Shapes.Box(body, new Vector3(0, 0.78f, 0.25f), new Vector3(0.32f, 0.36f, 0.2f), plastic, name: "Console");
+            Shapes.Box(body, new Vector3(0, 0.92f, 0.145f), new Vector3(0.26f, 0.07f, 0.01f), Shapes.Hex("#0c1a12"), name: "RadioScreen");
+            visual.radioDisplay = Fonts.WorldText(body, new Vector3(0, 0.92f, 0.138f), "", Shapes.Hex("#7dffa8"), 0.0042f);
+            Shapes.Box(body, new Vector3(0, 0.66f, -0.3f), new Vector3(0.22f, 0.12f, 0.7f), plastic, name: "Tunnel");
+            Shapes.Make(PrimitiveType.Cylinder, body, new Vector3(0, 0.8f, -0.05f), new Vector3(0.025f, 0.12f, 0.025f), trim, new Vector3(-10, 0, 0), "GearStick");
+            Shapes.Make(PrimitiveType.Sphere, body, new Vector3(0, 0.93f, -0.07f), Vector3.one * 0.06f, trim, name: "GearKnob");
+
+            // Сиденья: два передних и задний диван
+            foreach (float x in new[] { -0.38f, 0.38f })
+            {
+                Shapes.Box(body, new Vector3(x, floorY + 0.14f, -0.55f), new Vector3(0.52f, 0.14f, 0.52f), seat, name: "Seat");
+                Shapes.Box(body, new Vector3(x, floorY + 0.45f, -0.85f), new Vector3(0.52f, 0.7f, 0.12f), seat, new Vector3(-12, 0, 0), "SeatBack");
+                Shapes.Box(body, new Vector3(x, floorY + 0.86f, -0.94f), new Vector3(0.28f, 0.18f, 0.1f), seat, new Vector3(-12, 0, 0), "Headrest");
+            }
+            Shapes.Box(body, new Vector3(0, floorY + 0.14f, -1.4f), new Vector3(1.5f, 0.14f, 0.5f), seat, name: "RearSeat");
+            Shapes.Box(body, new Vector3(0, floorY + 0.45f, -1.66f), new Vector3(1.5f, 0.62f, 0.12f), seat, new Vector3(-10, 0, 0), "RearSeatBack");
+
+            // Салонное зеркало
+            Shapes.Make(PrimitiveType.Cylinder, body, new Vector3(0, roofY - 0.08f, windTopZ + 0.02f), new Vector3(0.02f, 0.04f, 0.02f), trim, name: "MirrorMount");
+            Shapes.Box(body, new Vector3(0, roofY - 0.14f, windTopZ + 0.02f), new Vector3(0.26f, 0.07f, 0.03f), trim, name: "Mirror");
+            Shapes.Box(body, new Vector3(0, roofY - 0.14f, windTopZ + 0.004f), new Vector3(0.24f, 0.055f, 0.003f), Chrome, name: "MirrorGlass");
+
+            AddBumpersAndLights(body, half);
+            AddWheels(root, visual, half);
+
+            visual.driverEyes = Shapes.Group("DriverEyes", root, new Vector3(-0.38f, 1.37f, -0.5f));
             return visual;
         }
 

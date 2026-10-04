@@ -6,16 +6,26 @@ namespace GasQueue
 
     /// <summary>
     /// Камера: вид из салона (основной), сверху-сзади (виден масштаб очереди) и назад (виден хвост).
-    /// C — переключить вид. Клик — осмотреться мышью, Esc — вернуть курсор.
+    /// C — переключить вид. Мышью можно обернуться почти на 180°, чтобы посмотреть в заднее стекло.
     /// </summary>
     public class CameraRig : MonoBehaviour
     {
+        const string SensitivityKey = "GasQueue.MouseSensitivity";
+
+        /// <summary>Чувствительность мыши, меняется в меню паузы и запоминается.</summary>
+        public static float Sensitivity
+        {
+            get => PlayerPrefs.GetFloat(SensitivityKey, 2f);
+            set => PlayerPrefs.SetFloat(SensitivityKey, value);
+        }
+
         public CameraMode Mode { get; private set; } = CameraMode.Cabin;
         public bool CursorLocked => Cursor.lockState == CursorLockMode.Locked;
 
         PlayerCar player;
         Camera cam;
         float yaw, pitch;
+        float sensitivity;
 
         public void Init(PlayerCar player)
         {
@@ -23,7 +33,7 @@ namespace GasQueue
             cam = gameObject.AddComponent<Camera>();
             cam.nearClipPlane = 0.03f;
             cam.farClipPlane = 700f;
-            cam.fieldOfView = 70f;
+            cam.fieldOfView = 72f;
             if (RenderSettings.skybox != null) cam.clearFlags = CameraClearFlags.Skybox;
             else
             {
@@ -32,7 +42,11 @@ namespace GasQueue
             }
             gameObject.AddComponent<AudioListener>();
             gameObject.tag = "MainCamera";
+            sensitivity = Sensitivity;
+            SetCursorLocked(true);
         }
+
+        public void ReloadSensitivity() => sensitivity = Sensitivity;
 
         void Update()
         {
@@ -42,14 +56,15 @@ namespace GasQueue
                 yaw = pitch = 0f;
             }
 
-            if (GameInput.EscapePressed) SetCursorLocked(false);
-            else if (GameInput.ClickPressed && GameManager.Instance.State != GameState.Finished) SetCursorLocked(true);
+            // Курсор захватывается обратно кликом (например, после того как его отпустил редактор Unity)
+            if (GameInput.ClickPressed && GameManager.Instance.State != GameState.Finished) SetCursorLocked(true);
 
-            if (CursorLocked)
+            if (CursorLocked && !GameInput.Paused)
             {
-                var d = GameInput.MouseDelta * 2f;
-                yaw = Mathf.Clamp(yaw + d.x, -120f, 120f);
-                pitch = Mathf.Clamp(pitch - d.y, -50f, 60f);
+                var d = GameInput.MouseDelta * sensitivity;
+                if (Mode == CameraMode.ThirdPerson) yaw = Mathf.Repeat(yaw + d.x + 180f, 360f) - 180f;
+                else yaw = Mathf.Clamp(yaw + d.x, -175f, 175f);
+                pitch = Mathf.Clamp(pitch - d.y, -55f, 65f);
             }
         }
 
@@ -67,16 +82,19 @@ namespace GasQueue
             {
                 case CameraMode.Cabin:
                 {
-                    var eyes = player.visual.driverEyes;
-                    transform.position = eyes.position;
-                    transform.rotation = car.rotation * Quaternion.Euler(pitch + 6f, yaw, 0f);
+                    // Оборачиваясь назад, водитель немного наклоняется к центру салона
+                    float turn = Mathf.Clamp01((Mathf.Abs(yaw) - 60f) / 100f);
+                    var lean = new Vector3(turn * 0.2f, 0f, -turn * 0.05f);
+                    transform.position = player.visual.driverEyes.TransformPoint(lean);
+                    transform.rotation = car.rotation * Quaternion.Euler(pitch + 4f, yaw, 0f);
                     break;
                 }
                 case CameraMode.ThirdPerson:
                 {
                     var offset = Quaternion.Euler(0f, yaw, 0f) * new Vector3(0f, 9f, -15f);
                     transform.position = car.position + car.rotation * offset;
-                    transform.LookAt(car.position + car.forward * 12f + Vector3.up * (1f - pitch * 0.1f));
+                    transform.LookAt(car.position + Vector3.up * (1f - pitch * 0.1f));
+                    transform.rotation *= Quaternion.Euler(-12f, 0f, 0f);
                     break;
                 }
                 case CameraMode.Rear:

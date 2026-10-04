@@ -9,10 +9,18 @@ namespace GasQueue
     public class GameSettings : MonoBehaviour
     {
         [Header("Режим для тестов")]
-        [Tooltip("Ускоряет все ожидания, чтобы пройти игру за 3–4 минуты, а не за 20.")]
+        [Tooltip("Ускоряет все ожидания, чтобы пройти игру быстрее, чем за 20 минут.")]
         public bool fastTestMode = true;
-        [Tooltip("Во сколько раз быстрее идёт всё в тестовом режиме.")]
-        public float testSpeedup = 6f;
+        [Tooltip("Во сколько раз быстрее идёт всё в тестовом режиме. 2 — около 10 минут на всю игру.")]
+        public float testSpeedup = 2f;
+
+        [Header("Топливо игрока")]
+        [Tooltip("Сколько литров в баке в начале. Бак почти пустой — так задумано.")]
+        public float startFuelLiters = 4.8f;
+        [Tooltip("Расход на холостых, литров в игровой час. Повод заглушить мотор (I).")]
+        public float idleLitersPerHour = 0.9f;
+        [Tooltip("Расход при движении, литров на 100 км.")]
+        public float drivingLitersPer100Km = 9f;
 
         [Header("Очередь")]
         public int carsAhead = 22;
@@ -40,6 +48,20 @@ namespace GasQueue
         public int startMinutes = 80;
         [Tooltip("Сколько игровых секунд проходит за одну реальную.")]
         public float clockScale = 6f;
+
+        // Номер версии настроек: когда меняем значения по умолчанию, старая сцена обновляется сама
+        [SerializeField, HideInInspector] int settingsVersion;
+        const int CurrentVersion = 2;
+
+        void Awake() => Migrate();
+        void OnValidate() => Migrate();
+
+        void Migrate()
+        {
+            if (settingsVersion >= CurrentVersion) return;
+            if (settingsVersion < 2) testSpeedup = 2f; // было 6 — игроку показалось слишком быстро
+            settingsVersion = CurrentVersion;
+        }
 
         float Speed => fastTestMode ? Mathf.Max(1f, testSpeedup) : 1f;
 

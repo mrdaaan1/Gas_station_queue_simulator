@@ -18,31 +18,38 @@ namespace GasQueue
         public static bool RadioPressed => Pressed(KeyCode.R);
         public static bool InteractPressed => Pressed(KeyCode.E);
         public static bool RestartPressed => Pressed(KeyCode.Return);
-        public static bool EscapePressed => Pressed(KeyCode.Escape);
         public static bool HelpPressed => Pressed(KeyCode.F1);
+        public static bool IgnitionPressed => Pressed(KeyCode.I);
+
+        /// <summary>Пока открыта пауза, игра не получает нажатий (кроме Esc и мыши для меню).</summary>
+        public static bool Paused;
+        public static bool PausePressed => RawPressed(KeyCode.Escape);
 
 #if ENABLE_LEGACY_INPUT_MANAGER
-        static bool Held(KeyCode key) => Input.GetKey(key);
-        static bool Pressed(KeyCode key) => Input.GetKeyDown(key);
+        static bool Held(KeyCode key) => !Paused && Input.GetKey(key);
+        static bool Pressed(KeyCode key) => !Paused && Input.GetKeyDown(key);
+        static bool RawPressed(KeyCode key) => Input.GetKeyDown(key);
 
-        public static Vector2 MouseDelta => new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"));
-        public static bool ClickPressed => Input.GetMouseButtonDown(0);
+        public static Vector2 MouseDelta => Paused ? Vector2.zero : new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"));
+        public static bool ClickPressed => !Paused && Input.GetMouseButtonDown(0);
 #elif ENABLE_INPUT_SYSTEM
         static bool Held(KeyCode key)
         {
             var control = ToControl(key);
-            return control != null && control.isPressed;
+            return !Paused && control != null && control.isPressed;
         }
 
-        static bool Pressed(KeyCode key)
+        static bool Pressed(KeyCode key) => !Paused && RawPressed(key);
+
+        static bool RawPressed(KeyCode key)
         {
             var control = ToControl(key);
             return control != null && control.wasPressedThisFrame;
         }
 
         // Масштаб подобран так, чтобы чувствительность совпадала со старым Input Manager.
-        public static Vector2 MouseDelta => Mouse.current != null ? Mouse.current.delta.ReadValue() * 0.05f : Vector2.zero;
-        public static bool ClickPressed => Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
+        public static Vector2 MouseDelta => !Paused && Mouse.current != null ? Mouse.current.delta.ReadValue() * 0.05f : Vector2.zero;
+        public static bool ClickPressed => !Paused && Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
 
         static UnityEngine.InputSystem.Controls.KeyControl ToControl(KeyCode key)
         {
@@ -62,12 +69,14 @@ namespace GasQueue
                 case KeyCode.Return: return kb.enterKey;
                 case KeyCode.Escape: return kb.escapeKey;
                 case KeyCode.F1: return kb.f1Key;
+                case KeyCode.I: return kb.iKey;
                 default: return null;
             }
         }
 #else
         static bool Held(KeyCode key) => false;
         static bool Pressed(KeyCode key) => false;
+        static bool RawPressed(KeyCode key) => false;
         public static Vector2 MouseDelta => Vector2.zero;
         public static bool ClickPressed => false;
 #endif
