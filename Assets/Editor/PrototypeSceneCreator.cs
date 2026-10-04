@@ -20,11 +20,22 @@ public static class PrototypeSceneCreator
     {
         EditorApplication.delayCall += () =>
         {
+            UsePrototypeForPlay();
             if (EditorApplication.isPlayingOrWillChangePlaymode) return;
             if (File.Exists(ScenePath) || SessionState.GetBool(AutoCreatedKey, false)) return;
             SessionState.SetBool(AutoCreatedKey, true);
             CreateScene();
         };
+    }
+
+    /// <summary>
+    /// Play всегда запускает игру со сцены Prototype — даже если в редакторе случайно открыта
+    /// пустая сцена «Untitled» (иначе видно только небо и землю, а мира нет).
+    /// </summary>
+    static void UsePrototypeForPlay()
+    {
+        var scene = AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath);
+        if (scene != null) EditorSceneManager.playModeStartScene = scene;
     }
 
     [MenuItem("Gas Queue/Create Prototype Scene")]
@@ -40,6 +51,7 @@ public static class PrototypeSceneCreator
         game.AddComponent<GameBootstrap>();
 
         EditorSceneManager.SaveScene(scene, ScenePath);
+        UsePrototypeForPlay();
         AddToBuildSettings();
         Debug.Log("[Gas Queue] Сцена создана: " + ScenePath + ". Нажмите Play ▶");
     }
