@@ -108,6 +108,50 @@ namespace GasQueue
             }
         }
 
+        static AudioClip punch, thud;
+
+        /// <summary>Удар кулаком: короткий глухой шлепок.</summary>
+        public static AudioClip Punch
+        {
+            get
+            {
+                if (punch != null) return punch;
+                int n = (int)(Rate * 0.18f);
+                var data = new float[n];
+                var rnd = new System.Random(31);
+                for (int i = 0; i < n; i++)
+                {
+                    float t = (float)i / Rate;
+                    float slap = ((float)rnd.NextDouble() * 2f - 1f) * Mathf.Exp(-t * 60f);
+                    float body = Mathf.Sin(2 * Mathf.PI * (120f - 200f * t) * t) * Mathf.Exp(-t * 25f);
+                    data[i] = Mathf.Clamp(slap * 0.6f + body * 0.8f, -1f, 1f);
+                }
+                punch = Create("Punch", data);
+                return punch;
+            }
+        }
+
+        /// <summary>Пинок по машине: жестяной «бдыщ».</summary>
+        public static AudioClip Thud
+        {
+            get
+            {
+                if (thud != null) return thud;
+                int n = (int)(Rate * 0.35f);
+                var data = new float[n];
+                var rnd = new System.Random(41);
+                for (int i = 0; i < n; i++)
+                {
+                    float t = (float)i / Rate;
+                    float tin = (Mathf.Sin(2 * Mathf.PI * 430f * t) + Mathf.Sin(2 * Mathf.PI * 690f * t) * 0.6f) * Mathf.Exp(-t * 12f);
+                    float knock = ((float)rnd.NextDouble() * 2f - 1f) * Mathf.Exp(-t * 40f);
+                    data[i] = Mathf.Clamp(tin * 0.35f + knock * 0.5f, -1f, 1f);
+                }
+                thud = Create("Thud", data);
+                return thud;
+            }
+        }
+
         /// <summary>Радиопомехи при переключении станций.</summary>
         public static AudioClip Noise
         {

@@ -1,11 +1,15 @@
 using System; using System.Collections.Generic; using UnityEngine;
 namespace GasQueue {
-public enum CarShape { Sedan, Hatchback, Van }
+public enum CarModel { Vaz2107, Rio, Niva, Gazelle }
+public enum BrawlReason { Crash, CutIn }
+public enum VendorKind { Canister, Pies }
+public static class CarModels { public static CarModel Random(out bool taxi){ taxi=UnityEngine.Random.value<0.2f; return (CarModel)UnityEngine.Random.Range(0,4);} public static Color RandomPaint(CarModel m,bool t)=>Color.white; }
+public class Brawler : MonoBehaviour { public static Brawler Active; public static Brawler Spawn(NpcCar c,TrafficManager t,BrawlReason r){ GameManager.Log($"brawler out ({r})"); return null; } }
+public class Vendor : MonoBehaviour { public VendorKind Kind; float life; void Update(){ life+=Time.deltaTime; transform.position+=Vector3.forward*1.1f*Time.deltaTime; if(life>60){ UnityEngine.Object.Destroy(gameObject);} } public static Vendor Spawn(VendorKind k,TrafficManager t,float z,float d){ var go=new GameObject("Vendor"); var v=go.AddComponent<Vendor>(); v.Kind=k; go.transform.position=new Vector3(7.25f,0,z); t.Pedestrians.Add(go.transform); return v; } }
 public enum GameState { Queueing, OutOfFuel, DrivingAway, Finished }
 public class CarVisual : MonoBehaviour { public float length, width=1.86f, height=1.5f; public Vector3 driverDoorLocal=new Vector3(-1.45f,0,-0.45f); public int blinker; public Transform driverHead, driverTorso; public void Roll(float d){} public void Bounce(){} }
-public static class CarFactory { public static readonly Color[] Paints={Color.white,Color.white};
- public static CarShape RandomShape(){float r=UnityEngine.Random.value; return r<0.6f?CarShape.Sedan:r<0.85f?CarShape.Hatchback:CarShape.Van;}
- public static CarVisual Build(string name,Color c,CarShape s,bool p){ var go=new GameObject(name); var v=go.AddComponent<CarVisual>(); v.length= s==CarShape.Van?4.7f:s==CarShape.Hatchback?3.8f:4.3f; return v; } }
+public static class CarFactory {
+ public static CarVisual Build(string name,Color c,CarModel m,bool p,bool taxi=false){ var go=new GameObject(name); var v=go.AddComponent<CarVisual>(); v.length= m==CarModel.Gazelle?5.5f:m==CarModel.Niva?3.74f:m==CarModel.Rio?4.4f:4.14f; v.width=m==CarModel.Gazelle?2.06f:1.8f; return v; } }
 public class CarDamage : MonoBehaviour { public float Front,Rear; public void Init(CarVisual v,Transform t){} public string Hit(bool f,float s,Vector3 v)=>null; }
 public static class SoundFactory { public static AudioClip Horn=new AudioClip(); public static AudioSource Source3D(GameObject g,float v=1,float m=120)=>g.AddComponent<AudioSource>(); }
 public static class SpeechBubble { public static int Count; public static void Show(Transform t,string p,float h){Count++; if (Sim.Verbose) Console.WriteLine($"  [{Time.time:F0}] {t.gameObject.name}: {p}");} }
@@ -17,7 +21,7 @@ public class GameManager : MonoBehaviour { public static GameManager Instance; p
  void Update(){ if(State==GameState.OutOfFuel){ t+=Time.deltaTime; if(t>delivery){barrier.SetDown(false); State=GameState.Queueing; Log("DELIVERY");} } }
  public static void Log(string s)=>Console.WriteLine($"[{Time.time:F0}s] {s}");
  public void OnPlayerGranted(Pump p)=>Log($"player granted pump {p.Number}"); public void ShowMessage(string s,float d=6){ if(Sim.Verbose) Log("MSG "+s);}
- public void OnSomeoneGaveUp(bool a)=>Log("gave up"); public void OnPlayerHonkedAt(){Sim.HonkedAt++;} public void OnCutInBlocked()=>Log("cut-in blocked"); public void OnPlayerCutIn()=>Log("player cut-in!"); public void OnPlayerSqueezedIn()=>Log("player squeezed"); }
+ public void OnSomeoneGaveUp(bool a)=>Log("gave up"); public void ShowMessage(string s)=>ShowMessage(s,6); public void OnPlayerHonkedAt(){Sim.HonkedAt++;} public void OnCutInBlocked()=>Log("cut-in blocked"); public void OnPlayerCutIn()=>Log("player cut-in!"); public void OnPlayerSqueezedIn()=>Log("player squeezed"); }
 // Игрок-бот: стоит в очереди как человек, заезжает на выданную колонку, «заправляется», уезжает
 public class PlayerCar : Vehicle { public override bool IsPlayer=>true; LanePath path; float s; int phase; float wait; public bool done; public static bool Sneaky; float lat; bool snuck;
  public void PlaceOnPath(LanePath p,float s0){path=p;s=s0;Place(p.PointAt(s0),p.TangentAt(s0));}

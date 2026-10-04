@@ -43,7 +43,7 @@ namespace GasQueue
         public float litersPerSecond = 0.5f;
         public float tankLiters = 40f;
         [Tooltip("Как часто кто-то пытается влезть в очередь из соседнего ряда.")]
-        public float cutterInterval = 40f;
+        public float cutterInterval = 22f;
 
         [Header("Деньги")]
         public float startMoney = 3000f;
@@ -60,7 +60,7 @@ namespace GasQueue
 
         // Номер версии настроек: когда меняем значения по умолчанию, старая сцена обновляется сама
         [SerializeField, HideInInspector] int settingsVersion;
-        const int CurrentVersion = 3;
+        const int CurrentVersion = 4;
 
         void Awake() => Migrate();
         void OnValidate() => Migrate();
@@ -75,6 +75,7 @@ namespace GasQueue
                 carsAhead = 20;
                 maxCarsBehind = 26;
             }
+            if (settingsVersion < 4) cutterInterval = 22f; // наглецов вторым рядом стало больше
             settingsVersion = CurrentVersion;
         }
 

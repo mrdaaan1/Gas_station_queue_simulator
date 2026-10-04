@@ -277,6 +277,17 @@ namespace GasQueue
             }
         }
 
+        /// <summary>Возмущённый водитель пинает или колотит нашу машину.</summary>
+        public void OnKickedByNpc(Vector3 from)
+        {
+            bool front = Vector3.Dot(from - transform.position, transform.forward) > 0f;
+            crash.pitch = Random.Range(0.9f, 1.2f);
+            crash.PlayOneShot(SoundFactory.Thud, 0.8f);
+            visual.Bounce();
+            var report = damage.Hit(front, 0.12f, Vector3.zero);
+            GameManager.Instance.OnCarKicked(report);
+        }
+
         public void AddFuelLiters(float liters) => fuel = Mathf.Clamp01(fuel + liters / settings.tankLiters);
 
         void UpdateDashboard(float dt)
@@ -300,6 +311,7 @@ namespace GasQueue
             // Руль в салоне крутится вместе с колёсами (в 8 раз сильнее, как у настоящей машины)
             if (visual.steeringWheel != null)
                 visual.steeringWheel.localRotation = Quaternion.Euler(-65f, 0, 0) * Quaternion.Euler(0, SteerAngle * 8f, 0);
+            visual.UpdateArms();
         }
     }
 }

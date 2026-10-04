@@ -21,6 +21,8 @@ namespace GasQueue
         public static bool HelpPressed => Pressed(KeyCode.F1);
         public static bool IgnitionPressed => Pressed(KeyCode.I);
         public static bool CarDoorPressed => Pressed(KeyCode.F);
+        /// <summary>Удар в драке — левая кнопка мыши.</summary>
+        public static bool AttackPressed => ClickPressed;
         public static bool Run => Held(KeyCode.LeftShift) || Held(KeyCode.RightShift);
 
         /// <summary>Руль: −1 влево, +1 вправо.</summary>

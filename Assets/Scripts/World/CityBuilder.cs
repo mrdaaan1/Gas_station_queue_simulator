@@ -16,7 +16,7 @@ namespace GasQueue
             public HumanRig cashier;
         }
 
-        public const string Brand = "ГОРТОПЛИВО";
+        public const string Brand = "ЛУКАВОЙЛ";
 
         static readonly Color Red = Shapes.Hex("#c8312b");
         static readonly Color White = Shapes.Hex("#f1f0ea");
@@ -245,13 +245,25 @@ namespace GasQueue
             Shapes.Box(canopy, Vector3.zero, new Vector3(18f, 0.4f, 13f), White, name: "Roof");
             Shapes.Box(canopy, new Vector3(0, 0.05f, 0), new Vector3(18.3f, 0.75f, 13.3f), Red, name: "Fascia");
             Shapes.Box(canopy, new Vector3(0, -0.25f, 0), new Vector3(18.35f, 0.12f, 13.35f), White, name: "FasciaStripe");
-            var front = Fonts.WorldText(canopy, new Vector3(0, 0.1f, -6.7f), Brand, White, 0.11f);
+            var front = Fonts.WorldText(canopy, new Vector3(-1.2f, 0.1f, -6.7f), Brand, White, 0.11f);
             front.fontStyle = FontStyle.Bold;
-            var side1 = Fonts.WorldText(canopy, new Vector3(-9.2f, 0.1f, 0), Brand, White, 0.11f);
+            Chevrons(canopy, new Vector3(3.6f, 0.1f, -6.68f), 0f, 0.55f);
+            var side1 = Fonts.WorldText(canopy, new Vector3(-9.2f, 0.1f, 1.2f), Brand, White, 0.11f);
             side1.fontStyle = FontStyle.Bold;
             side1.transform.localRotation = Quaternion.Euler(0, 90, 0);
+            Chevrons(canopy, new Vector3(-9.18f, 0.1f, -3.6f), 90f, 0.55f);
 
             var board = BuildStela(st);
+
+            // Картонка «БЕНЗИНА НЕТ» у шлагбаума — появляется, когда бензин кончился
+            var sold = Shapes.Group("SoldOutSign", st, new Vector3(20.8f, 0f, CityLayout.BarrierZ - 2.6f));
+            Shapes.Box(sold, new Vector3(-0.6f, 0.6f, 0), new Vector3(0.05f, 1.2f, 0.05f), Shapes.Hex("#6b4a2f"));
+            Shapes.Box(sold, new Vector3(0.6f, 0.6f, 0), new Vector3(0.05f, 1.2f, 0.05f), Shapes.Hex("#6b4a2f"));
+            Shapes.Box(sold, new Vector3(0, 1.25f, 0), new Vector3(1.6f, 0.7f, 0.03f), Shapes.Hex("#c9a46a"), new Vector3(0, 0, 3f));
+            var soldText = Fonts.WorldText(sold, new Vector3(0, 1.25f, -0.03f), "БЕНЗИНА\nНЕТ!!!", Shapes.Hex("#1a1a1a"), 0.045f);
+            soldText.transform.localRotation = Quaternion.Euler(0, 0, 3f);
+            board.soldOutSign = sold.gameObject;
+            sold.gameObject.SetActive(false);
             var cashier = BuildShop(st);
 
             // Указатели въезда и выезда
@@ -320,8 +332,13 @@ namespace GasQueue
             Shapes.Box(s, new Vector3(0, 0.3f, 0), new Vector3(2.6f, 0.6f, 0.9f), Grey, name: "Base");
             Shapes.Box(s, new Vector3(0, 4.6f, 0), new Vector3(2.2f, 8f, 0.5f), White, name: "Body");
             Shapes.Box(s, new Vector3(0, 7.3f, 0), new Vector3(2.24f, 2.6f, 0.54f), Red, name: "Top");
-            var title = Fonts.WorldText(s, new Vector3(0, 7.3f, -0.29f), "ГОР\nТОП\nЛИВО", White, 0.08f);
+            var title = Fonts.WorldText(s, new Vector3(0, 7.55f, -0.29f), "ЛУКА\nВОЙЛ", White, 0.09f);
             title.fontStyle = FontStyle.Bold;
+            Chevrons(s, new Vector3(0, 6.45f, -0.28f), 0f, 0.35f);
+            // Сзади — только логотип, без цен
+            var back = Fonts.WorldText(s, new Vector3(0, 7.55f, 0.29f), "ЛУКА\nВОЙЛ", White, 0.09f);
+            back.fontStyle = FontStyle.Bold;
+            back.transform.localRotation = Quaternion.Euler(0, 180, 0);
             Obstacles.AddBox(at, 2.6f, 0.9f, "стела");
 
             var rows = new TextMesh[4];
@@ -334,6 +351,18 @@ namespace GasQueue
             var board = s.gameObject.AddComponent<PriceBoard>();
             board.rows = rows;
             return board;
+        }
+
+        /// <summary>Три белых «шеврона» — фирменный знак ЛУКАВОЙЛа (на красном фоне).</summary>
+        static void Chevrons(Transform parent, Vector3 at, float yaw, float size)
+        {
+            var g = Shapes.Group("Chevrons", parent, at, new Vector3(0, yaw, 0));
+            for (int i = 0; i < 3; i++)
+            {
+                float x = (i - 1) * size * 0.55f;
+                Shapes.Box(g, new Vector3(x, size * 0.22f, 0), new Vector3(size * 0.14f, size * 0.55f, 0.02f), White, new Vector3(0, 0, -35f), "Chevron");
+                Shapes.Box(g, new Vector3(x, -size * 0.22f, 0), new Vector3(size * 0.14f, size * 0.55f, 0.02f), White, new Vector3(0, 0, 35f), "Chevron");
+            }
         }
 
         static void Sign(Transform parent, Vector3 at, string text, Color color)

@@ -105,6 +105,79 @@ namespace GasQueue
             return mesh;
         }
 
+        /// <summary>
+        /// Призма по выпуклому силуэту сбоку: profile — точки (z, y), ширина плавно меняется
+        /// от halfWidthBottom внизу до halfWidthTop вверху (так кузов «заваливается» к крыше).
+        /// Плоское затенение — каждая грань со своими нормалями.
+        /// </summary>
+        public static Mesh Prism(IList<Vector2> profile, float halfWidthBottom, float halfWidthTop)
+        {
+            float yMin = float.MaxValue, yMax = float.MinValue;
+            var center = Vector3.zero;
+            foreach (var p in profile)
+            {
+                yMin = Mathf.Min(yMin, p.y);
+                yMax = Mathf.Max(yMax, p.y);
+                center += new Vector3(0f, p.y, p.x);
+            }
+            center /= profile.Count;
+            float W(float y) => Mathf.Lerp(halfWidthBottom, halfWidthTop, (y - yMin) / Mathf.Max(0.001f, yMax - yMin));
+            Vector3 L(int i) => new Vector3(-W(profile[i].y), profile[i].y, profile[i].x);
+            Vector3 R(int i) => new Vector3(W(profile[i].y), profile[i].y, profile[i].x);
+
+            var verts = new List<Vector3>();
+            var normals = new List<Vector3>();
+            var tris = new List<int>();
+            void Tri(Vector3 a, Vector3 b, Vector3 c)
+            {
+                var n = Vector3.Cross(b - a, c - a);
+                if (n.sqrMagnitude < 1e-10f) return;
+                n.Normalize();
+                if (Vector3.Dot(n, (a + b + c) / 3f - center) < 0f)
+                {
+                    (b, c) = (c, b);
+                    n = -n;
+                }
+                int i0 = verts.Count;
+                verts.Add(a); verts.Add(b); verts.Add(c);
+                normals.Add(n); normals.Add(n); normals.Add(n);
+                tris.Add(i0); tris.Add(i0 + 1); tris.Add(i0 + 2);
+            }
+
+            int count = profile.Count;
+            for (int i = 1; i < count - 1; i++)
+            {
+                Tri(L(0), L(i), L(i + 1));
+                Tri(R(0), R(i), R(i + 1));
+            }
+            for (int i = 0; i < count; i++)
+            {
+                int j = (i + 1) % count;
+                Tri(L(i), L(j), R(j));
+                Tri(L(i), R(j), R(i));
+            }
+
+            var mesh = new Mesh { name = "Prism" };
+            mesh.SetVertices(verts);
+            mesh.SetNormals(normals);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        static Material tintedGlass;
+
+        /// <summary>Тонированное стекло машин NPC: водителя видно, но темновато.</summary>
+        public static Material TintedGlass
+        {
+            get
+            {
+                if (tintedGlass != null) return tintedGlass;
+                tintedGlass = new Material(Glass) { name = "TintedGlass", color = new Color(0.18f, 0.24f, 0.3f, 0.55f) };
+                return tintedGlass;
+            }
+        }
+
         public static Material Textured(Texture2D tex, string name)
         {
             var m = new Material(Shapes.Mat(Color.white)) { name = name, mainTexture = tex, color = Color.white };

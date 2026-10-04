@@ -69,9 +69,77 @@ namespace GasQueue
             return pivot;
         }
 
-        /// <summary>Шагаем: ноги и руки качаются в такт скорости.</summary>
+        // Драка
+        public bool Guard;          // стойка: кулаки у лица
+        public bool Limping;        // после драки хромает
+        float punchTimer, kickTimer, flinchTimer;
+        bool punchRight;
+        float fall;                 // 0 — стоит, 1 — лежит
+        bool fallen;
+        int bruises;
+
+        public bool IsFallen => fall > 0.5f;
+
+        // Стойка: кулаки перед лицом (руки вперёд и чуть внутрь)
+        static Quaternion GuardL => Quaternion.Euler(-75f, 0, 25f);
+        static Quaternion GuardR => Quaternion.Euler(-75f, 0, -25f);
+
+        public void Punch()
+        {
+            punchTimer = 0.28f;
+            punchRight = !punchRight;
+        }
+
+        public void Kick() => kickTimer = 0.4f;
+        public void Flinch() => flinchTimer = 0.22f;
+        public void SetFallen(bool value) => fallen = value;
+
+        /// <summary>Синяки на лице: синяк → фингал → разбитый нос → ещё синяки.</summary>
+        public void AddBruise()
+        {
+            var purple = Shapes.Hex("#5b2a5e");
+            var red = Shapes.Hex("#a3322e");
+            switch (bruises++)
+            {
+                case 0:
+                    Shapes.Make(PrimitiveType.Sphere, head, new Vector3(0.07f, -0.02f, 0.095f), new Vector3(0.07f, 0.06f, 0.03f), purple, name: "Bruise");
+                    break;
+                case 1: // фингал под глазом
+                    Shapes.Make(PrimitiveType.Sphere, head, new Vector3(-0.05f, 0.015f, 0.112f), new Vector3(0.065f, 0.055f, 0.02f), Shapes.Hex("#3b1d40"), name: "BlackEye");
+                    break;
+                case 2: // разбитый нос
+                    Shapes.Box(head, new Vector3(0f, -0.06f, 0.125f), new Vector3(0.03f, 0.04f, 0.01f), red, name: "Blood");
+                    Shapes.Make(PrimitiveType.Sphere, head, new Vector3(0f, -0.02f, 0.14f), new Vector3(0.045f, 0.055f, 0.04f), red, name: "Nose");
+                    break;
+                default:
+                    if (bruises > 7) return;
+                    Shapes.Make(PrimitiveType.Sphere, head,
+                        new Vector3(Random.Range(-0.09f, 0.09f), Random.Range(-0.08f, 0.06f), 0.1f),
+                        new Vector3(0.05f, 0.04f, 0.02f), Random.value < 0.5f ? purple : red, name: "Bruise");
+                    break;
+            }
+        }
+
+        /// <summary>Шагаем: ноги и руки качаются в такт скорости. Плюс удары, стойка, падение и хромота.</summary>
         public void Animate(float speed, float dt)
         {
+            punchTimer = Mathf.Max(0f, punchTimer - dt);
+            kickTimer = Mathf.Max(0f, kickTimer - dt);
+            flinchTimer = Mathf.Max(0f, flinchTimer - dt);
+
+            // Падение назад и подъём
+            fall = Mathf.MoveTowards(fall, fallen ? 1f : 0f, dt * (fallen ? 3f : 1.2f));
+            if (fall > 0.001f)
+            {
+                body.localRotation = Quaternion.Euler(-88f * fall, 0f, 0f);
+                body.localPosition = new Vector3(0f, 0.15f * fall, 0f);
+                legL.localRotation = Quaternion.Euler(-10f * fall, 0, -8f * fall);
+                legR.localRotation = Quaternion.Euler(-25f * fall, 0, 8f * fall);
+                armL.localRotation = Quaternion.Euler(-160f * fall, 0, -30f * fall);
+                armR.localRotation = Quaternion.Euler(-150f * fall, 0, 35f * fall);
+                if (fall > 0.99f) return;
+            }
+
             float swing;
             if (speed > 0.05f)
             {
@@ -83,10 +151,36 @@ namespace GasQueue
                 phase = 0f;
                 swing = 0f;
             }
-            legL.localRotation = Quaternion.Euler(swing, 0, 0);
-            legR.localRotation = Quaternion.Euler(-swing, 0, 0);
 
-            if (angry > 0f)
+            // Хромает: заваливается на одну ногу, вторая почти не сгибается
+            float lean = Limping ? Mathf.Sin(phase) * 7f + 4f : 0f;
+            float flinch = flinchTimer > 0f ? -12f * (flinchTimer / 0.22f) : 0f;
+            if (fall <= 0.001f)
+            {
+                body.localRotation = Quaternion.Euler(flinch, 0f, lean);
+                body.localPosition = Vector3.zero;
+            }
+
+            float kick = kickTimer > 0f ? Mathf.Sin(kickTimer / 0.4f * Mathf.PI) * -85f : 0f;
+            legL.localRotation = Quaternion.Euler(swing, 0, 0);
+            legR.localRotation = Quaternion.Euler(kickTimer > 0f ? kick : (Limping ? -swing * 0.3f : -swing), 0, 0);
+
+            if (punchTimer > 0f)
+            {
+                // Резкий выпад рукой вперёд, вторая — у лица
+                float t = Mathf.Sin(punchTimer / 0.28f * Mathf.PI);
+                var hit = Quaternion.Euler(-70f - 25f * t, 0, 0);
+                armR.localRotation = punchRight ? hit : GuardR;
+                armL.localRotation = punchRight ? GuardL : hit;
+                head.localRotation = Quaternion.identity;
+            }
+            else if (Guard)
+            {
+                armL.localRotation = GuardL;
+                armR.localRotation = GuardR;
+                head.localRotation = Quaternion.Euler(8f, 0, 0);
+            }
+            else if (angry > 0f)
             {
                 // Машет руками и возмущается
                 angry -= dt;
@@ -99,100 +193,10 @@ namespace GasQueue
             {
                 armL.localRotation = Quaternion.Euler(-swing * 0.8f, 0, -4f);
                 armR.localRotation = Quaternion.Euler(swing * 0.8f, 0, 4f);
-                head.localRotation = Quaternion.identity;
+                head.localRotation = Quaternion.Euler(flinch * 1.5f, 0, 0);
             }
         }
 
         public void Rage(float seconds) => angry = seconds;
-    }
-
-    /// <summary>Водитель, которого игрок стукнул: выходит, идёт к обидчику, машет руками и ругается, возвращается.</summary>
-    public class AngryDriver : MonoBehaviour
-    {
-        static readonly string[] Lines =
-        {
-            "Ты офигел?! Заплатишь за всё!", "Ты видел, что ты сделал?!", "Я сейчас ГАИ вызову!",
-            "Кто тебе права продал?!", "Бампер новый, между прочим!", "Ну всё, стой теперь, оформляем!",
-        };
-
-        NpcCar car;
-        PlayerCar player;
-        HumanRig rig;
-        float timer, duration;
-        int phase; // 0 — выходит и идёт, 1 — ругается, 2 — возвращается
-        float lineTimer;
-
-        public static void Spawn(NpcCar car, PlayerCar player, Transform parent, float seconds)
-        {
-            var rig = HumanRig.Build("AngryDriver", parent, HumanRig.RandomLook());
-            rig.transform.position = car.DriverDoor;
-            var d = rig.gameObject.AddComponent<AngryDriver>();
-            d.car = car;
-            d.player = player;
-            d.rig = rig;
-            d.duration = seconds;
-            SetDriverVisible(car, false);
-        }
-
-        static void SetDriverVisible(NpcCar car, bool visible)
-        {
-            if (car == null) return;
-            if (car.visual.driverHead != null) car.visual.driverHead.gameObject.SetActive(visible);
-            if (car.visual.driverTorso != null) car.visual.driverTorso.gameObject.SetActive(visible);
-        }
-
-        Vector3 Target()
-        {
-            var gm = GameManager.Instance;
-            if (gm != null && gm.OnFoot && gm.Walker != null) return gm.Walker.transform.position;
-            return player.DriverDoor;
-        }
-
-        void Update()
-        {
-            float dt = Time.deltaTime;
-            if (dt <= 0f) return;
-            timer += dt;
-            if (car == null) { Destroy(gameObject); return; }
-            car.Hold(0.5f); // без водителя машина никуда не едет
-
-            Vector3 goal = phase == 2 ? car.DriverDoor : Target();
-            var to = goal - transform.position;
-            to.y = 0f;
-            float stopAt = phase == 2 ? 0.2f : 1.3f;
-            float speed = 0f;
-            if (to.magnitude > stopAt)
-            {
-                speed = phase == 2 ? 1.6f : 2.2f;
-                transform.position += to.normalized * speed * dt;
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(to.normalized), dt * 8f);
-            }
-            else if (phase == 0)
-            {
-                phase = 1;
-                lineTimer = 0f;
-            }
-            else if (phase == 2)
-            {
-                SetDriverVisible(car, true);
-                Destroy(gameObject);
-                return;
-            }
-
-            if (phase == 1)
-            {
-                if (to.sqrMagnitude > 0.01f)
-                    transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(to.normalized), dt * 8f);
-                lineTimer -= dt;
-                if (lineTimer <= 0f)
-                {
-                    lineTimer = 3f;
-                    SpeechBubble.Show(transform, Lines[Random.Range(0, Lines.Length)], 1.5f);
-                    rig.Rage(2.5f);
-                }
-                if (timer > duration) phase = 2;
-            }
-            rig.Animate(speed, dt);
-        }
     }
 }

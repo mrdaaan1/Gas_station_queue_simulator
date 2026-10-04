@@ -10,6 +10,7 @@ namespace GasQueue
         const float Radius = 0.3f;
 
         public HumanRig Rig { get; private set; }
+        public Fighter Fighter { get; private set; }
         public bool Active => gameObject.activeSelf;
         public Vector2 Position2 => new Vector2(transform.position.x, transform.position.z);
         public Obb Box => new Obb(transform.position, transform.forward, 0.6f, 0.6f);
@@ -31,6 +32,7 @@ namespace GasQueue
             var human = HumanRig.Build("Player (пешком)", parent, look);
             var w = human.gameObject.AddComponent<WalkerController>();
             w.Rig = human;
+            w.Fighter = Fighter.AddTo(human, "Вы");
             w.traffic = traffic;
             w.cameraRig = rig;
             human.gameObject.SetActive(false);
@@ -56,6 +58,14 @@ namespace GasQueue
             var input = GameInput.Move;
             var gm = GameManager.Instance;
             if (gm != null && gm.DialogOpen) input = Vector2.zero;
+            if (Fighter.Down)
+            {
+                // Лежим, пока не очухаемся
+                Speed = 0f;
+                Rig.Animate(0f, dt);
+                return;
+            }
+            if (GameInput.AttackPressed) Attack();
             if (input.sqrMagnitude > 1f) input.Normalize();
 
             float yaw = cameraRig.FootYaw;
@@ -63,6 +73,7 @@ namespace GasQueue
             var right = Quaternion.Euler(0f, yaw, 0f) * Vector3.right;
             var move = forward * input.y + right * input.x;
             float targetSpeed = move.sqrMagnitude > 0.01f ? (GameInput.Run ? 4.5f : 1.9f) : 0f;
+            if (Fighter.Limping) targetSpeed *= 0.55f;
             Speed = Mathf.MoveTowards(Speed, targetSpeed, dt * 12f);
 
             var pos = transform.position;
@@ -76,6 +87,24 @@ namespace GasQueue
             transform.position = pos;
 
             Rig.Animate(Speed, dt);
+        }
+
+        /// <summary>Удар кулаком: если рядом возмущённый водитель — разворачиваемся к нему и бьём.</summary>
+        void Attack()
+        {
+            Fighter target = null;
+            var brawler = Brawler.Active;
+            if (brawler != null && !brawler.Fighter.Down)
+            {
+                var to = brawler.transform.position - transform.position;
+                to.y = 0f;
+                if (to.magnitude < 2.2f)
+                {
+                    target = brawler.Fighter;
+                    if (to.sqrMagnitude > 0.01f) transform.rotation = Quaternion.LookRotation(to.normalized);
+                }
+            }
+            Fighter.Punch(target, 9f, 16f, 0.45f);
         }
 
         Vector3 Collide(Vector3 pos)

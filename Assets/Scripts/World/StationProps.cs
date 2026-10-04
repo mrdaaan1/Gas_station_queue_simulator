@@ -33,11 +33,13 @@ namespace GasQueue
         public float price95 = 69.7f;
         public float priceDiesel = 69.7f;
         public bool soldOut;
+        public GameObject soldOutSign;
 
         public float CurrentPrice => price95;
 
         void Update()
         {
+            if (soldOutSign != null && soldOutSign.activeSelf != soldOut) soldOutSign.SetActive(soldOut);
             if (rows == null || rows.Length < 4) return;
             rows[0].text = soldOut ? "95  --.--" : $"95  {price95:00.00}";
             rows[1].text = soldOut ? "92  --.--" : $"92  {price92:00.00}";

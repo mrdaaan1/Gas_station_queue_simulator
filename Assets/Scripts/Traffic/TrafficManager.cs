@@ -84,12 +84,28 @@ namespace GasQueue
         readonly List<NpcCar> despawnList = new List<NpcCar>();
 
         LanePath leftPath;
+        public LanePath LeftPath => leftPath;
         readonly List<LanePath> oncoming = new List<LanePath>();
         readonly List<float> throughTimers = new List<float>();
 
         int carCounter;
         float tailTimer, giveUpTimer, cutterTimer;
         bool wasInQueue = true;
+        NpcCar pendingBrawler;
+        float pendingBrawlerTimer;
+
+        /// <summary>Пешеходы на дороге (продавцы, возмущённые водители) — машины их объезжают… то есть ждут.</summary>
+        public readonly List<Transform> Pedestrians = new List<Transform>();
+        public readonly List<Vendor> Vendors = new List<Vendor>();
+
+        // Слух «на соседней заправке есть бензин»
+        bool rumorDone;
+        float rumorTimer;
+        float rumorReturnTimer = -1f;
+        int rumorReturnCount;
+        float rumorSpawnTimer;
+        readonly List<(NpcCar car, float at)> rumorQuitters = new List<(NpcCar, float)>();
+        float canisterTimer = 25f, pieTimer = 50f;
         readonly HashSet<Vehicle> aheadWhenLeft = new HashSet<Vehicle>();
 
         GameManager Gm => GameManager.Instance;
@@ -139,8 +155,9 @@ namespace GasQueue
 
         NpcCar SpawnNpc(string tag)
         {
-            var visual = CarFactory.Build($"{tag} {++carCounter}", CarFactory.Paints[Random.Range(0, CarFactory.Paints.Length)],
-                CarFactory.RandomShape(), false);
+            var model = CarModels.Random(out bool taxi);
+            if (tag == "Cutter" && Random.value < 0.5f) { model = CarModel.Rio; taxi = true; } // таксисты наглее всех
+            var visual = CarFactory.Build($"{(taxi ? "Taxi" : tag)} {++carCounter}", CarModels.RandomPaint(model, taxi), model, false, taxi);
             visual.transform.SetParent(transform, false);
             var npc = visual.gameObject.AddComponent<NpcCar>();
             npc.visual = visual;
@@ -200,6 +217,18 @@ namespace GasQueue
 
             UpdateStation();
             UpdateSpawns(Time.deltaTime);
+
+            if (pendingBrawler != null)
+            {
+                pendingBrawlerTimer -= Time.deltaTime;
+                if (pendingBrawlerTimer <= 0f)
+                {
+                    Brawler.Spawn(pendingBrawler, this, BrawlReason.CutIn);
+                    pendingBrawler = null;
+                }
+            }
+            Pedestrians.RemoveAll(p => p == null);
+            if (Brawler.Active != null && !Pedestrians.Contains(Brawler.Active.transform)) Pedestrians.Add(Brawler.Active.transform);
         }
 
         void RebuildLanes()
@@ -266,6 +295,9 @@ namespace GasQueue
                     npc.Honk();
                     npc.Say(AngryAtCutter[Random.Range(0, AngryAtCutter.Length)]);
                     Gm.OnPlayerSqueezedIn();
+                    // Обиженный выходит разбираться — но не сразу, сначала побибикает
+                    if (Random.value < 0.65f) pendingBrawler = npc;
+                    pendingBrawlerTimer = 2.5f;
                 }
             }
             wasInQueue = PlayerInQueue;
@@ -280,7 +312,7 @@ namespace GasQueue
         {
             if (Barrier.IsDown) return;
 
-            if (queue.Count > 0 && queue[0].v is NpcCar head && head.S >= QueuePath.Length - 0.6f && head.Speed < 0.2f)
+            if (queue.Count > 0 && queue[0].v is NpcCar head && head.S >= QueuePath.Length - 1.5f && head.Speed < 0.2f)
             {
                 var pump = FreePump();
                 if (pump != null) head.GoToPump(pump);
@@ -395,17 +427,32 @@ namespace GasQueue
 
             if (Walker != null && Walker.Active && Obb.AheadDistance(box, Walker.Box, corridor + 0.3f, 20f, out float wd))
                 free = Mathf.Min(free, wd - 1.5f);
+            foreach (var p in Pedestrians)
+            {
+                if (p == null || !p.gameObject.activeInHierarchy) continue;
+                if (Obb.AheadDistance(box, new Obb(p.position, Vector3.forward, 0.7f, 0.7f), corridor + 0.3f, 20f, out float pd))
+                    free = Mathf.Min(free, pd - 1.5f);
+            }
 
             return free;
         }
 
-        /// <summary>Не залезет ли машина NPC в игрока или пешехода.</summary>
-        public bool WouldHitPlayer(Obb box)
+        /// <summary>
+        /// Не залезет ли машина NPC в игрока или пешехода. Если машины уже чуть-чуть касаются,
+        /// разрешаем движение, которое их не сближает (иначе обе застрянут навсегда).
+        /// </summary>
+        public bool WouldHitPlayer(Obb box, Obb current)
         {
             var playerBox = Player.Box;
             playerBox.half += new Vector2(0.05f, 0.1f);
-            if (Obb.Overlap(box, playerBox)) return true;
+            if (Obb.Overlap(box, playerBox, out var mtvNew))
+            {
+                if (!Obb.Overlap(current, playerBox, out var mtvOld)) return true;
+                if (mtvNew.sqrMagnitude > mtvOld.sqrMagnitude + 0.0001f) return true;
+            }
             if (Walker != null && Walker.Active && box.PushCircle(Walker.Position2, 0.45f, out _)) return true;
+            foreach (var p in Pedestrians)
+                if (p != null && p.gameObject.activeInHierarchy && box.PushCircle(new Vector2(p.position.x, p.position.z), 0.45f, out _)) return true;
             return false;
         }
 
@@ -417,8 +464,7 @@ namespace GasQueue
             // Машины, которые как раз перестраиваются в этот ряд (уже сместились больше чем на метр)
             var p = path.PointAt(s);
             foreach (var npc in Npcs)
-                if (npc != except && npc.Path != path && Mathf.Abs(npc.Offset) > 1f &&
-                    (npc.Role == NpcRole.Cutter || npc.Role == NpcRole.GivingUp) &&
+                if (npc != except && npc.TargetPath == path && Mathf.Abs(npc.Offset) > 1f &&
                     Vector3.Distance(npc.Position, p) < radius) return false;
             return true;
         }
@@ -426,7 +472,7 @@ namespace GasQueue
         // ---------- Вклинивания ----------
 
         /// <summary>Ищет в очереди «дырку», куда можно влезть, рядом с машиной cutter.</summary>
-        public bool FindQueueGap(NpcCar cutter, out Vehicle follower, out float gapCenterS)
+        public bool FindQueueGap(NpcCar cutter, float gapNeeded, float minCenterS, out Vehicle follower, out float gapCenterS)
         {
             follower = null;
             gapCenterS = 0f;
@@ -439,9 +485,9 @@ namespace GasQueue
                 if (IsTargeted(f.v, cutter)) continue;
                 float start = f.s + f.v.Length / 2f;
                 float end = leader.s - leader.v.Length / 2f;
-                if (end - start < cutter.Length + 2.2f) continue;
+                if (end - start < gapNeeded) continue;
                 float center = (start + end) / 2f;
-                if (center < cutter.S - 2f || center > cutter.S + 40f) continue;
+                if (center < cutter.S - 2f || center > cutter.S + 40f || center < minCenterS) continue;
                 float dist = Mathf.Abs(center - cutter.S);
                 if (dist < best)
                 {
@@ -454,7 +500,7 @@ namespace GasQueue
         }
 
         /// <summary>Дырка перед follower ещё открыта? gapCenterS — где её середина сейчас.</summary>
-        public bool GapStillOpen(NpcCar cutter, Vehicle follower, out float gapCenterS)
+        public bool GapStillOpen(NpcCar cutter, Vehicle follower, float minGap, out float gapCenterS)
         {
             gapCenterS = cutter.S;
             for (int i = 1; i < queue.Count; i++)
@@ -464,7 +510,7 @@ namespace GasQueue
                 float start = queue[i].s + follower.Length / 2f;
                 float end = leader.s - leader.v.Length / 2f;
                 gapCenterS = (start + end) / 2f;
-                return end - start >= cutter.Length + 0.8f;
+                return end - start >= minGap;
             }
             return false;
         }
@@ -567,10 +613,16 @@ namespace GasQueue
                 cutterTimer = 0f;
                 int cutters = 0;
                 foreach (var n in Npcs) if (n.Role == NpcRole.Cutter) cutters++;
-                float s = PlayerInQueue ? PlayerQueueS - Random.Range(50f, 90f) : Random.Range(100f, 400f);
-                if (cutters < 3 && s > 0f && LaneClearNear(MiddlePath, s, 15f))
-                    SpawnNpc("Cutter").SetupCutter(MiddlePath, s);
+                // Большинство едет к съезду и встаёт вторым рядом, остальные лезут где-то рядом с игроком
+                bool toEntrance = Random.value < 0.7f;
+                float s = toEntrance ? SecondRowWaitS - Random.Range(90f, 220f)
+                    : PlayerInQueue ? PlayerQueueS - Random.Range(50f, 90f) : Random.Range(100f, 400f);
+                if (cutters < 4 && s > 0f && LaneClearNear(MiddlePath, s, 15f))
+                    SpawnNpc("Cutter").SetupCutter(MiddlePath, s, toEntrance);
             }
+
+            UpdateVendors(dt);
+            UpdateRumor(dt);
 
             // Кто-то в очереди не выдерживает
             giveUpTimer += dt;
@@ -579,6 +631,96 @@ namespace GasQueue
                 giveUpTimer = 0f;
                 if (Random.value < Settings.giveUpChance) TryGiveUp();
             }
+        }
+
+        // ---------- Продавцы вдоль очереди ----------
+
+        void UpdateVendors(float dt)
+        {
+            Vendors.RemoveAll(v => v == null);
+            if (!PlayerInQueue || Player.Position.z > CityLayout.LotMinZ - 30f) return;
+            canisterTimer -= dt;
+            pieTimer -= dt;
+            if (canisterTimer <= 0f)
+            {
+                canisterTimer = Random.Range(45f, 80f);
+                TrySpawnVendor(VendorKind.Canister);
+            }
+            if (pieTimer <= 0f)
+            {
+                pieTimer = Random.Range(60f, 100f);
+                TrySpawnVendor(VendorKind.Pies);
+            }
+        }
+
+        void TrySpawnVendor(VendorKind kind)
+        {
+            foreach (var v in Vendors) if (v.Kind == kind) return;
+            float dir = Random.value < 0.5f ? 1f : -1f;
+            float z = Player.Position.z - dir * Random.Range(35f, 55f);
+            if (z > CityLayout.LotMinZ - 20f) z = Player.Position.z - 45f;
+            Vendors.Add(Vendor.Spawn(kind, this, z, dir));
+        }
+
+        public Vendor VendorNear(Vector3 point, float radius)
+        {
+            foreach (var v in Vendors)
+                if (v != null && Vector3.Distance(v.transform.position, point) < radius) return v;
+            return null;
+        }
+
+        // ---------- Слух про соседнюю заправку ----------
+
+        void UpdateRumor(float dt)
+        {
+            if (!rumorDone && PlayerInQueue && PlayerQueueIndex >= 6 && PlayerQueueIndex <= 16 && Gm.State == GameState.Queueing)
+            {
+                rumorTimer += dt;
+                if (rumorTimer > Settings.ServiceTime * 2.5f) StartRumor();
+            }
+
+            for (int i = rumorQuitters.Count - 1; i >= 0; i--)
+            {
+                var (car, at) = rumorQuitters[i];
+                if (Time.time < at) continue;
+                rumorQuitters.RemoveAt(i);
+                if (car != null && car.Role == NpcRole.Queue) car.GiveUp("На соседней есть бензин!");
+            }
+
+            if (rumorReturnTimer < 0f) return;
+            rumorReturnTimer -= dt;
+            if (rumorReturnTimer > 0f || rumorReturnCount <= 0) return;
+            // Вернулись ни с чем — встают в конец очереди
+            rumorSpawnTimer -= dt;
+            if (rumorSpawnTimer > 0f || queue.Count == 0) return;
+            float spawnS = queue[queue.Count - 1].s - Settings.carSpacing * 4f;
+            if (spawnS <= 5f || !LaneClearNear(QueuePath, spawnS, 8f)) return;
+            var npc = SpawnNpc("Queue");
+            npc.Setup(NpcRole.Queue, QueuePath, spawnS, true);
+            npc.StartRolling(6f);
+            rumorSpawnTimer = 1.5f;
+            if (--rumorReturnCount == 0)
+                Gm.ShowMessage("Те, кто уехал на «соседнюю», вернулись — там тоже пусто. Теперь они в конце очереди.", 8f);
+        }
+
+        void StartRumor()
+        {
+            rumorDone = true;
+            var candidates = new List<NpcCar>();
+            foreach (var e in queue)
+                if (e.v is NpcCar npc && npc.S < QueueRoadEndS - 15f) candidates.Add(npc);
+            int count = Mathf.Min(8, Mathf.RoundToInt(candidates.Count * 0.4f));
+            if (count == 0) return;
+            Gm.ShowMessage("По очереди пошёл слух: «На соседней заправке есть бензин!» Половина очереди срывается с места...", 9f);
+            float t = Time.time;
+            for (int i = 0; i < count; i++)
+            {
+                int k = Random.Range(0, candidates.Count);
+                rumorQuitters.Add((candidates[k], t + i * Random.Range(0.8f, 2f)));
+                candidates.RemoveAt(k);
+            }
+            rumorReturnCount = count;
+            rumorReturnTimer = Settings.ServiceTime * 5f;
         }
 
         void TryGiveUp()

@@ -64,6 +64,11 @@ namespace GasQueue
         public int SqueezedIn { get; private set; }
         public int Arguments { get; private set; }
         public int Talks { get; private set; }
+        public int FightsWon { get; private set; }
+        public int FightsLost { get; private set; }
+        public int CarKicks { get; private set; }
+        public int CanistersBought { get; private set; }
+        public int PiesEaten { get; private set; }
         public float LitersFilled { get; private set; }
         public float MoneySpent { get; private set; }
 
@@ -218,6 +223,19 @@ namespace GasQueue
                 return;
             }
 
+            // Продавец у окна (в машине) или рядом (пешком)
+            var vendor = Traffic.VendorNear(OnFoot ? Walker.transform.position : Player.DriverDoor, OnFoot ? 1.8f : 2.4f);
+            if (vendor != null && (OnFoot || vendor.Offering))
+            {
+                Prompt = vendor.Offer;
+                if (GameInput.InteractPressed) Buy(vendor);
+                if (!OnFoot)
+                {
+                    if (GameInput.CarDoorPressed && Mathf.Abs(Player.Speed) < 0.5f) ExitCar();
+                    return;
+                }
+            }
+
             if (!OnFoot)
             {
                 bool slow = Mathf.Abs(Player.Speed) < 0.5f;
@@ -249,7 +267,11 @@ namespace GasQueue
                     break;
                 }
 
-            if (nearCashier)
+            if (vendor != null)
+            {
+                // подсказка уже показана выше
+            }
+            else if (nearCashier)
             {
                 Prompt = "E — поговорить с кассиром";
                 if (GameInput.InteractPressed) OpenCashierDialog();
@@ -274,6 +296,30 @@ namespace GasQueue
             }
 
             if (GameInput.CarDoorPressed && nearCar) EnterCar();
+        }
+
+        void Buy(Vendor vendor)
+        {
+            int price = vendor.Price;
+            if (Money < price)
+            {
+                ShowMessage("Денег не хватает.");
+                return;
+            }
+            Money -= price;
+            vendor.Sold();
+            if (vendor.Kind == VendorKind.Canister)
+            {
+                CanistersBought++;
+                Player.AddFuelLiters(10f);
+                ShowMessage($"Мужик перелил вам 10 литров из канистры за {price} руб. Пахнет подозрительно... Но бак не пустой!", 8f);
+            }
+            else
+            {
+                PiesEaten++;
+                if (Walker.Fighter != null) Walker.Fighter.Heal(60f);
+                ShowMessage("Пирожок с капустой и сладкий чай. Силы возвращаются!", 6f);
+            }
         }
 
         void ExitCar()
@@ -588,6 +634,32 @@ namespace GasQueue
 
         public void OnRadioSwitched() => RadioSwitches++;
 
+        public void OnBrawlerOut(BrawlReason reason)
+        {
+            ShowMessage(reason == BrawlReason.CutIn
+                ? "Обиженный водитель вышел из машины и идёт к вам! Можно отсидеться или выйти (F) и разобраться."
+                : "Водитель вышел разбираться! Сидите в машине или выходите (F).", 8f);
+        }
+
+        public void OnCarKicked(string report)
+        {
+            CarKicks++;
+            if (report != null) ShowMessage(report);
+            else if (CarKicks % 4 == 1) ShowMessage("Вашу машину пинают! Бум! Бдыщ!");
+        }
+
+        public void OnPlayerWonFight()
+        {
+            FightsWon++;
+            ShowMessage("Вы победили! Обидчик, хромая, поплёлся к своей машине.", 7f);
+        }
+
+        public void OnPlayerLostFight()
+        {
+            FightsLost++;
+            ShowMessage("Вас уложили... Полежите, отдышитесь. Пирожок у продавщицы поможет прийти в себя.", 8f);
+        }
+
         public static string FormatQueueTime(double seconds)
         {
             int total = (int)(seconds / 60.0);
@@ -612,6 +684,11 @@ namespace GasQueue
             if (GiveUpsSeen >= 3) list.Add("Свидетель отчаяния");
             if (RadioSwitches >= 10) list.Add("Меломан поневоле");
             if (EngineStops >= 5) list.Add("Эко-водитель");
+            if (FightsWon >= 1) list.Add("Чемпион очереди");
+            if (CanistersBought >= 1) list.Add("Жертва спекулянта");
+            if (PiesEaten >= 2) list.Add("Пирожковый марафон");
+            if (FightsLost >= 1) list.Add("Получил за дело");
+            if (CarKicks >= 5) list.Add("Машина-боксёрская груша");
             return list;
         }
     }

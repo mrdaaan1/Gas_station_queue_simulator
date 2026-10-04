@@ -107,6 +107,7 @@ namespace GasQueue
             }
 
             DrawDialog(gm, w, h, k);
+            DrawHealth(gm, w, h, k);
 
             // Подсказка действия — снизу по центру
             string prompt = gm.Prompt;
@@ -117,6 +118,26 @@ namespace GasQueue
                 Panel(r, new Color(0.08f, 0.3f, 0.12f, 0.75f));
                 GUI.Label(r, prompt, promptStyle);
             }
+        }
+
+        /// <summary>Полоски здоровья: во время драки и пока игрок не оправился.</summary>
+        void DrawHealth(GameManager gm, float w, float h, float k)
+        {
+            var me = gm.Walker != null ? gm.Walker.Fighter : null;
+            var enemy = Brawler.Active != null ? Brawler.Active.Fighter : null;
+            bool showMe = me != null && gm.OnFoot && (me.Health < Fighter.MaxHealth - 0.5f || me.InCombat);
+            bool showEnemy = enemy != null && (Brawler.Active.Fighting || enemy.InCombat);
+            float y = h * 0.74f;
+            if (showMe) Bar(new Rect(w / 2 - 330 * k, y, 300 * k, 22 * k), me.Health / Fighter.MaxHealth, me.Down ? "Вы (лежите)" : "Вы", Shapes.Hex("#4caf50"), k);
+            if (showEnemy) Bar(new Rect(w / 2 + 30 * k, y, 300 * k, 22 * k), enemy.Health / Fighter.MaxHealth, enemy.Down ? "Водитель (лежит)" : "Водитель", Shapes.Hex("#e04a3c"), k);
+        }
+
+        void Bar(Rect r, float value, string label, Color color, float k)
+        {
+            Panel(new Rect(r.x - 3 * k, r.y - 26 * k, r.width + 6 * k, r.height + 30 * k), new Color(0, 0, 0, 0.45f));
+            GUI.Label(new Rect(r.x, r.y - 25 * k, r.width, 24 * k), label, smallStyle);
+            Panel(r, new Color(1f, 1f, 1f, 0.15f));
+            Panel(new Rect(r.x, r.y, r.width * Mathf.Clamp01(value), r.height), color);
         }
 
         void DrawDialog(GameManager gm, float w, float h, float k)
@@ -241,7 +262,7 @@ namespace GasQueue
                 GUI.Label(new Rect(20 * k, h - 40 * k, 300 * k, 30 * k), "F1 — управление", smallStyle);
                 return;
             }
-            var r = new Rect(20 * k, h - 270 * k, 380 * k, 250 * k);
+            var r = new Rect(20 * k, h - 300 * k, 380 * k, 280 * k);
             Panel(r, new Color(0, 0, 0, 0.45f));
             GUI.Label(new Rect(r.x + 14 * k, r.y + 10 * k, r.width - 28 * k, r.height),
                 "W / S — газ / тормоз, задний ход\n" +
@@ -251,7 +272,8 @@ namespace GasQueue
                 "E — касса, заправка, поговорить\n" +
                 "H / Пробел — бибикнуть, R — радио\n" +
                 $"C — камера ({gm.CameraRig.ModeName})\n" +
-                "Shift — бежать, Esc — пауза\n" +
+                "Shift — бежать, ЛКМ — ударить\n" +
+                "Esc — пауза\n" +
                 "F1 — скрыть подсказки", smallStyle);
         }
 
@@ -268,6 +290,7 @@ namespace GasQueue
                 $"Аварий: {gm.Crashes}" + (repair > 0 ? $"   ·   Ремонт: ~{repair} руб." : "") + "\n" +
                 $"Поругались с кассиром: {gm.Arguments}   ·   Поболтали с водителями: {gm.Talks}\n" +
                 $"Видели, как сдались и уехали: {gm.GiveUpsSeen}   ·   Глушили мотор: {gm.EngineStops}\n" +
+                $"Драк выиграно: {gm.FightsWon}   ·   проиграно: {gm.FightsLost}   ·   Пинков по машине: {gm.CarKicks}\n" +
                 $"Залили: {gm.LitersFilled:0.0} л на {gm.MoneySpent:0} руб.   ·   Осталось: {gm.Money:0} руб.";
             GUI.Label(new Rect(w / 2 - 520 * k, h * 0.17f, 1040 * k, 300 * k), stats, bigStyle);
 

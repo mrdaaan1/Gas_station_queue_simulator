@@ -111,6 +111,9 @@ namespace GasQueue
         void LateUpdate()
         {
             if (player == null) return;
+            // Водитель за рулём: в салоне видны только руки (голова — это мы), снаружи — весь; вышел — пусто
+            bool inside = !onFoot && Mode == CameraMode.Cabin;
+            player.visual.SetDriverVisible(!onFoot && !inside, !onFoot);
             if (onFoot && walker != null)
             {
                 FollowWalker();

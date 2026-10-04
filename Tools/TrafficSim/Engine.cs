@@ -29,7 +29,7 @@ public class Transform : Component { public Vector3 position; public Quaternion 
  public void SetParent(Transform p,bool w=true){parent=p;} public void SetPositionAndRotation(Vector3 p,Quaternion r){position=p;rotation=r;}
  public Vector3 TransformPoint(Vector3 p)=>position+rotation*Vector3.Scale(localScale,p); }
 public class GameObject : Object { public static List<Component> All=new List<Component>(); internal List<Component> comps=new List<Component>(); public Transform transform; bool active=true;
- public bool activeSelf=>active; public void SetActive(bool a){active=a;}
+ public bool activeSelf=>active; public bool activeInHierarchy=>active && !destroyed; public void SetActive(bool a){active=a;}
  public GameObject(string n=""){name=n; transform=new Transform{gameObject=this}; comps.Add(transform);}
  public T AddComponent<T>() where T:Component,new(){ var c=new T{gameObject=this}; comps.Add(c); All.Add(c); var m=typeof(T).GetMethod("Awake",BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public); m?.Invoke(c,null); return c; }
  public T GetComponent<T>() where T:Component=>comps.OfType<T>().FirstOrDefault(); }

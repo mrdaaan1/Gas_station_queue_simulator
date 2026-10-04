@@ -26,7 +26,7 @@ namespace GasQueue
             var city = CityBuilder.Build(root);
             var debris = Shapes.Group("Debris", root);
 
-            var playerVisual = CarFactory.Build("PlayerCar", Shapes.Hex("#d8c25a"), CarShape.Sedan, true);
+            var playerVisual = CarFactory.Build("PlayerCar", Shapes.Hex("#e3dccb"), CarModel.Vaz2107, true);
             playerVisual.transform.SetParent(root, false);
             var player = playerVisual.gameObject.AddComponent<PlayerCar>();
             player.Init(playerVisual, settings, debris);

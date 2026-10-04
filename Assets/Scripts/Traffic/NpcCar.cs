@@ -47,6 +47,9 @@ namespace GasQueue
         public float Offset { get; private set; }
         public Pump Pump { get; private set; }
 
+        /// <summary>В какой ряд машина сейчас перестраивается (или null).</summary>
+        public LanePath TargetPath => pathAfterLaneChange;
+
         /// <summary>Остановиться в конце маршрута (голова очереди, место у колонки).</summary>
         public bool StopAtEnd { get; private set; }
 
@@ -157,7 +160,14 @@ namespace GasQueue
         {
             float free = traffic.FreeDistance(this, DesiredGap, out var blocker);
             BlockedBy = blocker;
-            if (StopAtEnd) free = Mathf.Min(free, Path.Length - S);
+            // Если впереди не машина, а просто конец маршрута (место у колонки, голова очереди) —
+            // доезжаем до него, даже если осталось совсем чуть-чуть
+            bool limitedByStop = false;
+            if (StopAtEnd && Path.Length - S < free)
+            {
+                free = Path.Length - S;
+                limitedByStop = true;
+            }
             if (Role == NpcRole.Cutter && Cut != CutState.Looking)
                 free = Mathf.Min(free, cutTargetS - S + (Cut == CutState.Merging ? 0.5f : 0f));
             if (traffic.MustYieldToCutter(this)) free = Mathf.Min(free, 0f);
@@ -168,7 +178,7 @@ namespace GasQueue
 
             if (!moving)
             {
-                float startThreshold = Role == NpcRole.Through ? 0.5f : 1.2f;
+                float startThreshold = limitedByStop ? 0.15f : Role == NpcRole.Through ? 0.5f : 1.2f;
                 if (free > startThreshold || (changingLane && free > 0.6f))
                 {
                     reactTimer += dt;
@@ -211,16 +221,22 @@ namespace GasQueue
             {
                 // Нос машины поворачивает в сторону перестроения
                 float yaw = Mathf.Atan2(newOffset - Offset, Mathf.Max(step, LaneChangeRate * dt * 2f)) * Mathf.Rad2Deg;
-                fwd = Quaternion.Euler(0f, Mathf.Clamp(yaw, -25f, 25f), 0f) * fwd;
+                fwd = Quaternion.Euler(0f, Mathf.Clamp(yaw, -14f, 14f), 0f) * fwd;
             }
 
             // Страховка: никогда не въезжаем в игрока или пешехода
             var newBox = new Obb(pos, fwd, Width, Length);
-            if (traffic.WouldHitPlayer(newBox))
+            if (traffic.WouldHitPlayer(newBox, Box))
             {
-                Speed = 0f;
-                moving = false;
-                return;
+                // Может, мешает только поворот носа — пробуем сдвинуться боком, не поворачиваясь
+                fwd = Path.TangentAt(newS);
+                newBox = new Obb(pos, fwd, Width, Length);
+                if (traffic.WouldHitPlayer(newBox, Box))
+                {
+                    Speed = 0f;
+                    moving = false;
+                    return;
+                }
             }
 
             S = newS;
@@ -230,6 +246,22 @@ namespace GasQueue
             if (changingLane && Mathf.Abs(targetOffset - Offset) < 0.01f) FinishLaneChange();
 
             UpdateHonking(dt, blocker);
+            UpdateOvertake(dt, blocker);
+        }
+
+        float stuckBehindTimer;
+
+        /// <summary>Едет мимо по среднему ряду, а там встал «второй ряд» — уходит в левый ряд и объезжает.</summary>
+        void UpdateOvertake(float dt, Vehicle blocker)
+        {
+            if (Role != NpcRole.Through || Path != traffic.MiddlePath || pathAfterLaneChange != null) { stuckBehindTimer = 0f; return; }
+            bool stuck = blocker != null && blocker.Speed < 0.3f && Speed < 0.3f && !blocker.IsPlayer;
+            stuckBehindTimer = stuck ? stuckBehindTimer + dt : 0f;
+            if (stuckBehindTimer > 2.5f && traffic.LaneClearNear(traffic.LeftPath, S, 12f, this))
+            {
+                StartLaneChange(CityLayout.LaneLeft - CityLayout.LaneMiddle, traffic.LeftPath);
+                stuckBehindTimer = 0f;
+            }
         }
 
         void FinishLaneChange()
@@ -371,11 +403,10 @@ namespace GasQueue
             Honk();
             Say(CursesAfterCrash[Random.Range(0, CursesAfterCrash.Length)]);
             bool parked = Role == NpcRole.Queue || Role == NpcRole.Fueling || Role == NpcRole.ToPump;
-            if (impactSpeed > 2.2f && parked && holdTimer <= 0f && visual.driverHead != null)
+            if (impactSpeed > 1.8f && parked)
             {
                 // Водитель выходит разбираться
-                holdTimer = 12f;
-                AngryDriver.Spawn(this, traffic.Player, traffic.WorldRoot, 10f);
+                Brawler.Spawn(this, traffic, BrawlReason.Crash);
             }
             else if (Role == NpcRole.Through)
             {
@@ -385,12 +416,19 @@ namespace GasQueue
 
         // ---------- Вклинивание из соседнего ряда ----------
 
-        public void SetupCutter(LanePath lane, float s)
+        /// <summary>Едет к съезду на заправку и встаёт «вторым рядом» (иначе — ищет дырку прямо в середине очереди).</summary>
+        public bool AimsAtEntrance { get; private set; }
+
+        public void SetupCutter(LanePath lane, float s, bool aimEntrance)
         {
             Setup(NpcRole.Cutter, lane, s, false);
             Cut = CutState.Looking;
+            AimsAtEntrance = aimEntrance;
             cutTimer = 0f;
         }
+
+        // Наглецы у съезда лезут в дырку чуть длиннее своей машины, остальные — в дырку побольше
+        float GapNeeded => Length + (Cut == CutState.Waiting || AimsAtEntrance ? 1.0f : 2.2f);
 
         void UpdateCutter(float dt)
         {
@@ -399,7 +437,8 @@ namespace GasQueue
             {
                 case CutState.Looking:
                 {
-                    if (cutCooldown <= 0f && traffic.FindQueueGap(this, out var follower, out float gapCenterS))
+                    float minCenter = AimsAtEntrance ? traffic.SecondRowWaitS - 30f : 0f;
+                    if (cutCooldown <= 0f && traffic.FindQueueGap(this, GapNeeded, minCenter, out var follower, out float gapCenterS))
                     {
                         CutFollower = follower;
                         cutTargetS = gapCenterS;
@@ -418,7 +457,7 @@ namespace GasQueue
                 }
                 case CutState.Waiting:
                 {
-                    if (cutTimer > 3f && traffic.FindQueueGap(this, out var follower, out float gapCenterS) && gapCenterS < S + 12f)
+                    if (cutTimer > 2f && traffic.FindQueueGap(this, GapNeeded, 0f, out var follower, out float gapCenterS) && gapCenterS < S + 12f)
                     {
                         CutFollower = follower;
                         cutTargetS = gapCenterS;
@@ -431,7 +470,7 @@ namespace GasQueue
                 }
                 case CutState.Aligning:
                 {
-                    if (!traffic.GapStillOpen(this, CutFollower, out cutTargetS)) { AbortCut(); break; }
+                    if (!traffic.GapStillOpen(this, CutFollower, GapNeeded - 1.4f, out cutTargetS)) { AbortCut(); break; }
                     if (Mathf.Abs(S - cutTargetS) < 1.2f)
                     {
                         Cut = CutState.Signaling;
@@ -443,8 +482,8 @@ namespace GasQueue
                 }
                 case CutState.Signaling:
                 {
-                    if (!traffic.GapStillOpen(this, CutFollower, out cutTargetS)) { AbortCut(); break; }
-                    if (cutTimer > 1.2f)
+                    if (!traffic.GapStillOpen(this, CutFollower, GapNeeded - 1.4f, out cutTargetS)) { AbortCut(); break; }
+                    if (cutTimer > 1.0f)
                     {
                         Cut = CutState.Merging;
                         StartLaneChange(CityLayout.LaneQueue - CityLayout.LaneMiddle, traffic.QueuePath);
@@ -454,7 +493,7 @@ namespace GasQueue
                 case CutState.Merging:
                 {
                     // Если сосед успел поджать, а мы ещё не влезли наполовину — отказываемся
-                    if (Offset < 2f && !traffic.GapStillOpen(this, CutFollower, out cutTargetS)) AbortCut();
+                    if (Offset < 2f && !traffic.GapStillOpen(this, CutFollower, Length + 0.3f, out cutTargetS)) AbortCut();
                     break;
                 }
             }
@@ -472,8 +511,10 @@ namespace GasQueue
             pathAfterLaneChange = null;
             visual.blinker = 0;
             CutFollower = null;
-            Cut = CutState.Looking;
-            cutCooldown = Random.Range(5f, 10f);
+            // Наглец у съезда не сдаётся — снова встаёт вторым рядом и ждёт
+            Cut = AimsAtEntrance && S > traffic.SecondRowWaitS - 30f ? CutState.Waiting : CutState.Looking;
+            if (Cut == CutState.Waiting) cutTargetS = Mathf.Max(S, traffic.SecondRowWaitS - 15f);
+            cutCooldown = Random.Range(3f, 7f);
         }
 
         void GiveUpCutting()

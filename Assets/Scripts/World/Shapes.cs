@@ -83,18 +83,22 @@ namespace GasQueue
         static Material depthTested;
 
         /// <summary>
-        /// Материал шрифта, который прячется за стенами и крышей.
-        /// Стандартный материал шрифта Unity рисуется поверх всего — надписи просвечивали сквозь машину.
+        /// Материал шрифта, который прячется за стенами и крышей (свой шейдер GasQueue/WorldText).
+        /// Стандартный материал шрифта Unity рисуется поверх всего — надписи просвечивали сквозь предметы.
         /// </summary>
         public static Material DepthTested
         {
             get
             {
-                if (depthTested == null)
+                if (depthTested != null) return depthTested;
+                var shader = Shader.Find("GasQueue/WorldText");
+                if (shader == null) return Default.material; // на всякий случай — хоть как-то, но видно
+                depthTested = new Material(shader) { name = "WorldTextDepth", mainTexture = Default.material.mainTexture };
+                // Динамический шрифт иногда пересобирает текстуру с буквами — подхватываем новую
+                Font.textureRebuilt += f =>
                 {
-                    depthTested = new Material(Default.material) { name = "WorldTextDepth" };
-                    depthTested.SetFloat("unity_GUIZTestMode", (float)UnityEngine.Rendering.CompareFunction.LessEqual);
-                }
+                    if (f == Default && depthTested != null) depthTested.mainTexture = f.material.mainTexture;
+                };
                 return depthTested;
             }
         }
