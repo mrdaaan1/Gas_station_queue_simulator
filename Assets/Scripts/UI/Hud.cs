@@ -50,7 +50,7 @@ namespace GasQueue
             accentStyle = Style(22, TextAnchor.MiddleCenter, Shapes.Hex("#ffe14d"), true);
             speedStyle = Style(54, TextAnchor.LowerRight, Color.white, true);
             unitStyle = Style(18, TextAnchor.LowerLeft, new Color(1f, 1f, 1f, 0.7f));
-            promptStyle = Style(24, TextAnchor.MiddleCenter, Color.white, true);
+            promptStyle = Style(22, TextAnchor.MiddleCenter, Color.white, true);
 
             GUIStyle Style(int size, TextAnchor anchor, Color color, bool bold = false)
             {
@@ -60,6 +60,8 @@ namespace GasQueue
                     alignment = anchor,
                     fontStyle = bold ? FontStyle.Bold : FontStyle.Normal,
                     richText = true,
+                    wordWrap = false, // однострочные надписи не переносим, иначе строки наезжают друг на друга
+                    clipping = TextClipping.Clip,
                 };
                 st.normal.textColor = color;
                 return st;
@@ -99,11 +101,11 @@ namespace GasQueue
             // Заправка — компактная плашка под таймером
             if (gm.NozzleIn)
             {
-                var r = new Rect(w / 2 - 300 * k, 150 * k, 600 * k, 80 * k);
+                var r = new Rect(w / 2 - 330 * k, 125 * k, 660 * k, 92 * k);
                 Panel(r, new Color(0, 0, 0, 0.55f));
-                GUI.Label(new Rect(r.x, r.y + 4 * k, r.width, 40 * k), $"Залито: {gm.LitersFilled:0.0} из {gm.PaidLiters:0} л", timerStyle);
-                GUI.Label(new Rect(r.x, r.y + 44 * k, r.width, 30 * k),
-                    $"На стеле уже {gm.PriceBoard.CurrentPrice:0.00} руб/л — а вы заплатили раньше!", accentStyle);
+                GUI.Label(new Rect(r.x, r.y + 6 * k, r.width, 44 * k), $"Залито: {gm.LitersFilled:0.0} из {gm.PaidLiters:0} л", timerStyle);
+                GUI.Label(new Rect(r.x, r.y + 54 * k, r.width, 30 * k),
+                    $"На стеле уже {gm.PriceBoard.CurrentPrice:0.00} руб/л (вы платили раньше)", Shrink(accentStyle, 0.85f));
             }
 
             DrawDialog(gm, w, h, k);
@@ -114,7 +116,7 @@ namespace GasQueue
             if (prompt == null && !gm.CameraRig.CursorLocked) prompt = "Кликните, чтобы осмотреться мышью";
             if (prompt != null)
             {
-                var r = new Rect(w / 2 - 360 * k, h - 120 * k, 720 * k, 46 * k);
+                var r = new Rect(w / 2 - 480 * k, h - 120 * k, 960 * k, 46 * k);
                 Panel(r, new Color(0.08f, 0.3f, 0.12f, 0.75f));
                 GUI.Label(r, prompt, promptStyle);
             }
