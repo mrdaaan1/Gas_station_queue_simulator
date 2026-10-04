@@ -67,6 +67,10 @@ namespace GasQueue
 
         // Заправка
         float serviceTimer;
+        PumpCustomer customer;
+
+        /// <summary>Сколько налито: 0…1. Покупатель ждёт у колонки, пока не станет 1.</summary>
+        public float FuelProgress => serviceDuration > 0f ? serviceTimer / serviceDuration : 1f;
         float serviceDuration;
 
         // Вклинивание
@@ -133,6 +137,17 @@ namespace GasQueue
 
             if (Role == NpcRole.Fueling)
             {
+                if (customer != null)
+                {
+                    // Водитель ходит платить: бензин льётся только после оплаты, уезжаем, когда он сел обратно
+                    if (customer.Paid) serviceTimer = Mathf.Min(serviceDuration, serviceTimer + dt);
+                    if (customer.Done)
+                    {
+                        customer = null;
+                        StartExit();
+                    }
+                    return;
+                }
                 serviceTimer += dt;
                 if (serviceTimer >= serviceDuration) StartExit();
                 return;
@@ -298,7 +313,9 @@ namespace GasQueue
             if (Role != NpcRole.Through || Path != traffic.MiddlePath || pathAfterLaneChange != null) { stuckBehindTimer = 0f; return; }
             bool stuck = blocker != null && blocker.Speed < 0.3f && Speed < 0.3f && !blocker.IsPlayer;
             stuckBehindTimer = stuck ? stuckBehindTimer + dt : 0f;
-            if (stuckBehindTimer > 2.5f && traffic.LaneClearNear(traffic.LeftPath, S, 12f, this))
+            var left = traffic.LeftPath;
+            if (stuckBehindTimer > 2.5f && traffic.LaneClearNear(left, S, 12f, this) &&
+                traffic.AreaClear(left.PointAt(left.Project(Position, out _)), 9f, this))
             {
                 StartLaneChange(CityLayout.LaneLeft - CityLayout.LaneMiddle, traffic.LeftPath);
                 stuckBehindTimer = 0f;
@@ -440,6 +457,18 @@ namespace GasQueue
             serviceTimer = serviceDuration * progress;
             Speed = 0f;
             moving = false;
+
+            if (!IsVip)
+            {
+                // Сам идёт на кассу: заправка после оплаты короче, чтобы темп очереди остался прежним
+                bool alreadyPaid = progress > 0.35f;
+                customer = PumpCustomer.Spawn(this, traffic, alreadyPaid);
+                if (customer != null && !alreadyPaid)
+                {
+                    serviceDuration *= 0.45f;
+                    serviceTimer = 0f;
+                }
+            }
         }
 
         void StartExit()

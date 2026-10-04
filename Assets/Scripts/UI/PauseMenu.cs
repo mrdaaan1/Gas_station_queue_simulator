@@ -11,12 +11,13 @@ namespace GasQueue
 
         GameSettings settings;
         CameraRig rig;
-        System.Action restart;
+        System.Action restart, toMenu;
         GUIStyle title, label, button;
         float builtForHeight;
 
-        public void Init(GameSettings settings, CameraRig rig, System.Action restart)
+        public void Init(GameSettings settings, CameraRig rig, System.Action restart, System.Action toMenu)
         {
+            this.toMenu = toMenu;
             this.settings = settings;
             this.rig = rig;
             this.restart = restart;
@@ -26,6 +27,7 @@ namespace GasQueue
 
         void Update()
         {
+            if (MainMenu.IsOpen) return;
             if (GameManager.Instance == null || GameManager.Instance.State == GameState.Finished) return;
             if (GameInput.PausePressed) SetOpen(!IsOpen);
         }
@@ -85,6 +87,13 @@ namespace GasQueue
                 restart();
                 return;
             }
+            y += bh + gap;
+            if (GUI.Button(new Rect(x, y, pw, bh), "В главное меню", button))
+            {
+                SetOpen(false);
+                toMenu();
+                return;
+            }
             y += bh + gap * 3;
 
             // Настройки
@@ -121,13 +130,7 @@ namespace GasQueue
 
             y += gap * 2;
             if (GUI.Button(new Rect(x, y, pw, bh), "Выйти из игры", button))
-            {
-#if UNITY_EDITOR
-                UnityEditor.EditorApplication.isPlaying = false;
-#else
-                Application.Quit();
-#endif
-            }
+                MainMenu.Quit();
         }
     }
 }

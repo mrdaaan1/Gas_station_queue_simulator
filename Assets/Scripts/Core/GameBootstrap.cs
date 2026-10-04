@@ -12,12 +12,20 @@ namespace GasQueue
     {
         GameObject world;
 
-        void Start() => Build();
+        /// <summary>Показать стартовое меню после постройки мира (при запуске и «В главное меню»).</summary>
+        static bool showMenu = true;
+
+        void Start()
+        {
+            showMenu = true;
+            Build();
+        }
 
         void Build()
         {
             var settings = GetComponent<GameSettings>();
             PauseMenu.ResetGlobalState();
+            CashierLine.Reset();
             DisableForeignCameras();
 
             world = new GameObject("World (создаётся при запуске)");
@@ -48,10 +56,20 @@ namespace GasQueue
             var radio = systems.AddComponent<Radio>();
             radio.display = playerVisual.radioDisplay;
             var pause = systems.AddComponent<PauseMenu>();
-            pause.Init(settings, rig, Restart);
-            systems.AddComponent<Hud>().Init(pause);
+            pause.Init(settings, rig, Restart, ToMenu);
+            systems.AddComponent<Hud>().Init(pause, Restart, ToMenu);
             var gm = systems.AddComponent<GameManager>();
             gm.Init(settings, traffic, player, walker, rig, radio, city.barrier, city.priceBoard, city.cashier, Restart);
+
+            var menu = systems.AddComponent<MainMenu>();
+            if (showMenu) menu.Open(rig);
+            showMenu = false;
+        }
+
+        void ToMenu()
+        {
+            showMenu = true;
+            Restart();
         }
 
         void Restart()

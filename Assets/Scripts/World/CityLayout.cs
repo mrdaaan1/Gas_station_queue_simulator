@@ -52,6 +52,8 @@ namespace GasQueue
         public const float ShopDoorZ = 2f;
         public static readonly Vector3 CashierSpot = new Vector3(41.2f, 0f, 4.5f);
         public static readonly Vector3 CounterFront = new Vector3(38.8f, 0f, 4.5f);
+        /// <summary>Заправщик стоит у торца первого островка, лицом к шлагбауму.</summary>
+        public static readonly Vector3 AttendantSpot = new Vector3(22f, 0f, -1.7f);
 
         public const float TankerLaneX = 46.5f;
         public static readonly Vector3 TankerStop = new Vector3(46.5f, 0f, 2f);

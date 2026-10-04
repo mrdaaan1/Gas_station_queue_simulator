@@ -18,7 +18,10 @@ namespace GasQueue
         public static bool RadioPressed => Pressed(KeyCode.R);
         public static bool InteractPressed => Pressed(KeyCode.E);
         public static bool RestartPressed => Pressed(KeyCode.Return);
-        public static bool HelpPressed => Pressed(KeyCode.F1);
+        public static bool HelpPressed => Pressed(KeyCode.Tab);
+        public static bool BlinkLeftPressed => Pressed(KeyCode.Q);
+        public static bool BlinkRightPressed => Pressed(KeyCode.E);
+        public static bool JumpPressed => Pressed(KeyCode.Space);
         public static bool IgnitionPressed => Pressed(KeyCode.I);
         public static bool CarDoorPressed => Pressed(KeyCode.F);
         /// <summary>Удар в драке — левая кнопка мыши.</summary>
@@ -86,6 +89,8 @@ namespace GasQueue
                 case KeyCode.Return: return kb.enterKey;
                 case KeyCode.Escape: return kb.escapeKey;
                 case KeyCode.F1: return kb.f1Key;
+                case KeyCode.Tab: return kb.tabKey;
+                case KeyCode.Q: return kb.qKey;
                 case KeyCode.I: return kb.iKey;
                 case KeyCode.A: return kb.aKey;
                 case KeyCode.D: return kb.dKey;

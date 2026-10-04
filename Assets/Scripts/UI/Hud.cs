@@ -8,7 +8,7 @@ namespace GasQueue
     ///   сверху по центру — таймер очереди;
     ///   слева сверху — лента уведомлений;
     ///   справа снизу — приборы (скорость, топливо, двигатель, радио);
-    ///   слева снизу — подсказки по клавишам (F1).
+    ///   слева снизу — подсказки по клавишам (Tab).
     /// В центре только главное событие: «Бензин закончился».
     /// </summary>
     public class Hud : MonoBehaviour
@@ -19,8 +19,14 @@ namespace GasQueue
         float builtForHeight;
         Texture2D pixel;
         PauseMenu pause;
+        System.Action restart, toMenu;
 
-        public void Init(PauseMenu pauseMenu) => pause = pauseMenu;
+        public void Init(PauseMenu pauseMenu, System.Action restart, System.Action toMenu)
+        {
+            pause = pauseMenu;
+            this.restart = restart;
+            this.toMenu = toMenu;
+        }
 
         void Update()
         {
@@ -76,6 +82,7 @@ namespace GasQueue
 
             float w = Screen.width, h = Screen.height, k = h / 1080f;
 
+            if (MainMenu.IsOpen) return;
             if (gm.State == GameState.Finished)
             {
                 DrawFinal(gm, w, h, k);
@@ -247,11 +254,21 @@ namespace GasQueue
             // Радио
             var radio = gm.Radio;
             string radioText = radio != null && radio.StationName != null ? radio.StationName : "Радио выкл (R)";
+            // Состояние машины
+            float hp = player.damage.Health / 100f;
+            var hpRect = new Rect(r.x + 18 * k, r.y - 30 * k, pw - 36 * k, 10 * k);
+            if (hp < 0.999f)
+            {
+                Panel(new Rect(r.x, r.y - 46 * k, pw, 42 * k), new Color(0, 0, 0, 0.45f));
+                GUI.Label(new Rect(r.x + 18 * k, r.y - 46 * k, pw, 20 * k), $"Состояние машины: {Mathf.RoundToInt(hp * 100)}%", Shrink(accentStyle, 0.7f));
+                Panel(new Rect(hpRect.x, hpRect.y + 8 * k, hpRect.width, hpRect.height), new Color(1, 1, 1, 0.15f));
+                Panel(new Rect(hpRect.x, hpRect.y + 8 * k, hpRect.width * hp, hpRect.height), Color.Lerp(Shapes.Hex("#e04a3c"), Shapes.Hex("#5be37d"), hp));
+            }
             GUI.Label(new Rect(x, y, inner * 0.62f, 26 * k), radioText, smallStyle);
             GUI.Label(new Rect(x + inner * 0.62f, y, inner * 0.38f, 26 * k), $"{gm.Money:0} руб.", smallStyle);
             if (radio != null && radio.CurrentLine != null)
             {
-                var lineRect = new Rect(r.x, r.y - 70 * k, pw, 62 * k);
+                var lineRect = new Rect(r.x, r.y - (hp < 0.999f ? 116 : 70) * k, pw, 62 * k);
                 Panel(lineRect, new Color(0, 0, 0, 0.35f));
                 GUI.Label(new Rect(lineRect.x + 12 * k, lineRect.y + 6 * k, pw - 24 * k, 56 * k), radio.CurrentLine, smallStyle);
             }
@@ -261,28 +278,31 @@ namespace GasQueue
         {
             if (!showHelp)
             {
-                GUI.Label(new Rect(20 * k, h - 40 * k, 300 * k, 30 * k), "F1 — управление", smallStyle);
+                GUI.Label(new Rect(20 * k, h - 40 * k, 300 * k, 30 * k), "Tab — управление", smallStyle);
                 return;
             }
-            var r = new Rect(20 * k, h - 300 * k, 380 * k, 280 * k);
+            var r = new Rect(20 * k, h - 350 * k, 410 * k, 330 * k);
             Panel(r, new Color(0, 0, 0, 0.45f));
             GUI.Label(new Rect(r.x + 14 * k, r.y + 10 * k, r.width - 28 * k, r.height),
                 "W / S — газ / тормоз, задний ход\n" +
                 "A / D — руль (пешком — шаги вбок)\n" +
                 "I — заглушить / завести мотор\n" +
+                "Q / E — поворотник влево / вправо\n" +
                 "F — выйти из машины / сесть\n" +
-                "E — касса, заправка, поговорить\n" +
+                "E — касса, заправщик, поговорить\n" +
                 "H / Пробел — бибикнуть, R — радио\n" +
+                "Пешком: Пробел — прыжок / залезть\n" +
                 $"C — камера ({gm.CameraRig.ModeName})\n" +
                 "Shift — бежать, ЛКМ — ударить\n" +
                 "Esc — пауза\n" +
-                "F1 — скрыть подсказки", smallStyle);
+                "Tab — скрыть подсказки", smallStyle);
         }
 
         void DrawFinal(GameManager gm, float w, float h, float k)
         {
             Panel(new Rect(0, 0, w, h), new Color(0.05f, 0.06f, 0.08f, 0.88f));
-            GUI.Label(new Rect(0, h * 0.06f, w, 90 * k), gm.GaveUp ? "ВЫ СДАЛИСЬ" : "ВЫ ЗАПРАВИЛИСЬ!", bannerStyle);
+            string title = gm.CarWrecked ? "МАШИНА РАЗБИТА — ВЫ ПРОИГРАЛИ" : gm.GaveUp ? "ВЫ СДАЛИСЬ" : "ВЫ ЗАПРАВИЛИСЬ!";
+            GUI.Label(new Rect(0, h * 0.06f, w, 90 * k), title, bannerStyle);
 
             int repair = gm.Player.damage.RepairCost;
             string stats =
@@ -293,15 +313,28 @@ namespace GasQueue
                 $"Поругались с кассиром: {gm.Arguments}   ·   Поболтали с водителями: {gm.Talks}\n" +
                 $"Видели, как сдались и уехали: {gm.GiveUpsSeen}   ·   Глушили мотор: {gm.EngineStops}\n" +
                 $"Драк выиграно: {gm.FightsWon}   ·   проиграно: {gm.FightsLost}   ·   Пинков по машине: {gm.CarKicks}\n" +
+                $"Прыжков по машинам: {gm.CarJumps}   ·   Взяток заправщику: {gm.Bribes}   ·   Прочность машины: {Mathf.RoundToInt(gm.Player.damage.Health)}%\n" +
                 $"Залили: {gm.LitersFilled:0.0} л на {gm.MoneySpent:0} руб.   ·   Осталось: {gm.Money:0} руб.";
-            GUI.Label(new Rect(w / 2 - 520 * k, h * 0.17f, 1040 * k, 300 * k), stats, bigStyle);
+            GUI.Label(new Rect(w / 2 - 560 * k, h * 0.15f, 1120 * k, 340 * k), stats, bigStyle);
 
             string ach = "Достижения:\n" + string.Join("\n", gm.Achievements().ConvertAll(a => "• " + a));
-            GUI.Label(new Rect(w / 2 - 450 * k, h * 0.5f, 900 * k, h * 0.4f), ach, bigStyle);
+            if (achStyle == null) achStyle = new GUIStyle(bigStyle) { fontSize = Mathf.RoundToInt(bigStyle.fontSize * 0.85f) };
+            GUI.Label(new Rect(w / 2 - 450 * k, h * 0.49f, 900 * k, h * 0.33f), ach, achStyle);
 
-            GUI.Label(new Rect(0, h - 80 * k, w, 60 * k),
-                "А через километр — пустая заправка без очереди...     Enter — сыграть ещё раз", accentStyle);
+            GUI.Label(new Rect(0, h - 170 * k, w, 50 * k),
+                gm.CarWrecked ? "Эвакуатор приедет через три часа. В очередь." : "А через километр — пустая заправка без очереди...", accentStyle);
+
+            if (finalButton == null)
+            {
+                finalButton = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(26 * k) };
+            }
+            float bw = 300 * k, bh = 58 * k, gap = 20 * k, y = h - 110 * k, x = w / 2 - (bw * 3 + gap * 2) / 2;
+            if (GUI.Button(new Rect(x, y, bw, bh), "Сыграть ещё раз (Enter)", finalButton)) { restart?.Invoke(); return; }
+            if (GUI.Button(new Rect(x + bw + gap, y, bw, bh), "Главное меню", finalButton)) { toMenu?.Invoke(); return; }
+            if (GUI.Button(new Rect(x + (bw + gap) * 2, y, bw, bh), "Выйти из игры", finalButton)) MainMenu.Quit();
         }
+
+        GUIStyle finalButton, achStyle;
 
         GUIStyle shrunk;
         GUIStyle Shrink(GUIStyle source, float factor)

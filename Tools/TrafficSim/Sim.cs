@@ -20,7 +20,7 @@ public static class Sim { public static bool Verbose; public static int HonkedAt
     foreach(var n in traffic.Npcs){ if(n.Role==NpcRole.Exiting) exiting.Add(n); if(n.Role==NpcRole.Cutter) wasCutter.Add(n); else if(wasCutter.Remove(n) && n.Role==NpcRole.Queue) cutIns++; }
     // Наползание машин друг на друга (глубже 15 см)
     var ns=traffic.Npcs; bool anyOverlap=false;
-    for(int i=0;i<ns.Count;i++) for(int j=i+1;j<ns.Count;j++){ var d=ns[i].Position-ns[j].Position; if(d.x*d.x+d.z*d.z>49) continue; if(Obb.Overlap(ns[i].Box,ns[j].Box,out var m) && m.magnitude>0.15f){ anyOverlap=true; worstOverlap=Mathf.Max(worstOverlap,m.magnitude);} }
+    for(int i=0;i<ns.Count;i++) for(int j=i+1;j<ns.Count;j++){ var d=ns[i].Position-ns[j].Position; if(d.x*d.x+d.z*d.z>49) continue; if(Obb.Overlap(ns[i].Box,ns[j].Box,out var m) && m.magnitude>0.15f){ anyOverlap=true; if(m.magnitude>0.6f && System.Environment.GetEnvironmentVariable("SIM_OVERLAP")!=null) Console.WriteLine($"[{Time.time:F1}] overlap {m.magnitude:F2} {ns[i].name} {ns[i].Role} {ns[i].Path?.name} pos=({ns[i].Position.x:F1},{ns[i].Position.z:F1}) vs {ns[j].name} {ns[j].Role} {ns[j].Path?.name} pos=({ns[j].Position.x:F1},{ns[j].Position.z:F1})"); worstOverlap=Mathf.Max(worstOverlap,m.magnitude);} }
     if(anyOverlap) overlapFrames++;
     foreach(var n in exiting.ToList()) if(n.destroyed){ served++; exiting.Remove(n);} 
     GameObject.All.RemoveAll(c=>c.destroyed);

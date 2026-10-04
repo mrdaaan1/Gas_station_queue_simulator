@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace GasQueue
 {
-    public enum BrawlReason { Crash, CutIn }
+    public enum BrawlReason { Crash, CutIn, Roof }
 
     /// <summary>
     /// Возмущённый водитель NPC. Выходит из машины, идёт к игроку:
@@ -21,6 +21,11 @@ namespace GasQueue
         static readonly string[] CutInLines =
         {
             "Ты куда влез?!", "Я тут два часа стою!", "Самый умный, да?!", "Выходи, поговорим!", "Совести нет!",
+        };
+        static readonly string[] RoofLines =
+        {
+            "А ну слезай с моей машины!", "Слезь, говорю! Это не батут!", "Я тебе сейчас попрыгаю!",
+            "Крышу продавишь, ирод!", "Спускайся, поговорим!",
         };
         static readonly string[] FightLines = { "Ну давай, давай!", "Получай!", "Я тебе покажу очередь!", "На!" };
         static readonly string[] WinLines = { "Будешь знать!", "Вот так-то.", "Ещё раз влезешь — получишь!" };
@@ -117,7 +122,7 @@ namespace GasQueue
                     var goal = gm.Player.DriverDoor;
                     speed = MoveTo(goal, phase == Phase.Approach ? 2.4f : 0f, 1.0f, dt);
                     if (phase == Phase.Approach && speed == 0f) { phase = Phase.RantAtCar; timer = 0f; }
-                    if (lineTimer <= 0f) Say(reason == BrawlReason.CutIn ? CutInLines : CrashLines, 3f);
+                    if (lineTimer <= 0f) Say(reason == BrawlReason.CutIn ? CutInLines : reason == BrawlReason.Roof ? RoofLines : CrashLines, 3f);
 
                     if (phase == Phase.RantAtCar)
                     {
@@ -156,11 +161,18 @@ namespace GasQueue
                         break;
                     }
                     var target = gm.Walker.transform.position;
+                    bool onRoof = gm.Walker.Height > 0.6f;
+                    target.y = 0f;
                     float dist = Vector3.Distance(transform.position, target);
                     if (dist > 16f || timer > 40f) { BeginReturn(false); break; }
-                    speed = MoveTo(target, 2.8f, 1.0f, dt);
+                    speed = MoveTo(target, 2.8f, onRoof ? 1.6f : 1.0f, dt);
                     Face(target, dt);
-                    if (dist < 1.3f && fighter.CanPunch)
+                    if (onRoof)
+                    {
+                        // Игрок на крыше — не достать, только орать снизу
+                        if (lineTimer <= 0f) Say(RoofLines, 2.5f);
+                    }
+                    else if (dist < 1.3f && fighter.CanPunch)
                     {
                         fighter.Punch(playerFighter, 6f, 12f, Random.Range(0.9f, 1.5f));
                         if (Random.value < 0.3f && lineTimer <= 0f) Say(FightLines, 2.5f);

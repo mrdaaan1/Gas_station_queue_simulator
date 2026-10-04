@@ -29,6 +29,9 @@ namespace GasQueue
         public GameState State { get; private set; } = GameState.Queueing;
         public bool FuelRanOut { get; private set; }
         public bool GaveUp { get; private set; }
+        /// <summary>Машина разбита — игра проиграна.</summary>
+        public bool CarWrecked { get; private set; }
+        float wreckTimer;
 
         /// <summary>Сколько игрок «стоит в очереди», в игровых секундах.</summary>
         public double QueueSeconds { get; private set; }
@@ -43,6 +46,9 @@ namespace GasQueue
         public bool NozzleIn { get; private set; }
         public bool PlayerFueled { get; private set; }
         public bool CheatedIn { get; private set; }
+
+        /// <summary>Продавец стоит у окна машины — E значит «купить», а не «правый поворотник».</summary>
+        public bool VendorAtWindow { get; private set; }
 
         /// <summary>Подсказка действия внизу экрана (или null).</summary>
         public string Prompt { get; private set; }
@@ -70,6 +76,13 @@ namespace GasQueue
         public int CanistersBought { get; private set; }
         public int VipsSeen { get; private set; }
         public int PiesEaten { get; private set; }
+        public int CarJumps { get; private set; }
+        public int Bribes { get; private set; }
+        public bool BribeScammed { get; private set; }
+        public bool HitLiterLimit { get; private set; }
+        public bool WaitedCashierBreak { get; private set; }
+        public int LineCutAttempts { get; private set; }
+        public int LinePlacesTaken { get; private set; }
         public float LitersFilled { get; private set; }
         public float MoneySpent { get; private set; }
 
@@ -99,6 +112,29 @@ namespace GasQueue
             "Не нравится — езжайте на другую.", "Мужчина, не задерживайте очередь.", "Я тут ни при чём, я на кассе сижу.",
             "Жалобная книга у директора. Директор в отпуске.", "Кричать будете дома.",
         };
+
+        static readonly string[] AttendantIdle =
+        {
+            "Не толпимся!", "Сначала оплата, потом пистолет!", "Куда без очереди?!", "Завоз? Не знаю ничего.",
+            "Глушим моторы у колонок!", "Мне за это не доплачивают.",
+        };
+        static readonly string[] DeliveryRumors =
+        {
+            "Завоз обещали к обеду. Какого дня — не сказали.", "Бензовоз в пробке стоит. В очереди на другую заправку.",
+            "Директор сказал: ситуация стабильная. Значит, бензина не будет.", "Привезут. Наверное. Я тут вообще стажёр.",
+        };
+        const int BribePrice = 1000;
+        const float LiterLimit = 20f;
+
+        enum DialogWith { Cashier, Attendant }
+        DialogWith dialogWith;
+        HumanRig attendant;
+        float attendantLineTimer = 8f;
+        bool literLimitToday;
+        bool breakUsed;
+        float breakTimer;      // > 0 — кассир на перерыве
+        float breakLeaveTimer; // кассир договаривает и уходит
+        TextMesh breakSign;
 
         Barrier barrier;
         HumanRig cashier;
@@ -137,8 +173,15 @@ namespace GasQueue
             hose = Shapes.Make(PrimitiveType.Cylinder, transform, Vector3.zero, Vector3.one, Shapes.Hex("#1b1b1b"), name: "Hose").transform;
             hose.gameObject.SetActive(false);
 
+            CashierLine.Cashier = cashier.transform;
+            literLimitToday = Random.value < 0.35f;
+            BuildAttendant();
+            breakSign = Fonts.WorldText(traffic.WorldRoot, CityLayout.CounterFront + new Vector3(1.05f, 1.35f, 0f), "ПЕРЕРЫВ\n15 МИН", Shapes.Hex("#d32f2f"), 0.035f);
+            breakSign.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
+            breakSign.gameObject.SetActive(false);
+
             ShowMessage("Вы в очереди на заправку. Подъезжайте за машиной впереди (W), рулите A/D.", 8f);
-            ShowMessage("Не оставляйте дырку впереди — влезут! Esc — пауза, F1 — управление.", 8f);
+            ShowMessage("Не оставляйте дырку впереди — влезут! Esc — пауза, Tab — управление.", 8f);
         }
 
         void OnDestroy()
@@ -157,11 +200,24 @@ namespace GasQueue
             if (dt <= 0f) return;
 
             if (State != GameState.DrivingAway) QueueSeconds += dt * ClockRate;
+
+            // Машину добили — даём пару секунд посмотреть на дым и показываем проигрыш
+            if (Player.damage.Wrecked)
+            {
+                wreckTimer += dt;
+                if (wreckTimer > 3f)
+                {
+                    CarWrecked = true;
+                    Finish(false);
+                    return;
+                }
+            }
             UpdateDryTank(dt);
             if (State == GameState.OutOfFuel) UpdateDelivery(dt);
             UpdateTanker(dt);
             UpdateFueling(dt);
             UpdateCashier(dt);
+            UpdateAttendant(dt);
             UpdatePlayerFlow();
             UpdateInteractions();
         }
@@ -220,12 +276,13 @@ namespace GasQueue
                 int choice = GameInput.DialogChoice;
                 if (choice > 0) ChooseDialog(choice);
                 else if (GameInput.InteractPressed) CloseDialog();
-                else if (Walker.Active && Vector3.Distance(Walker.transform.position, CityLayout.CounterFront) > 2.5f) CloseDialog();
+                else if (Walker.Active && Vector3.Distance(Walker.transform.position, DialogAnchor) > 2.5f) CloseDialog();
                 return;
             }
 
             // Продавец у окна (в машине) или рядом (пешком)
             var vendor = Traffic.VendorNear(OnFoot ? Walker.transform.position : Player.DriverDoor, OnFoot ? 1.8f : 2.4f);
+            VendorAtWindow = !OnFoot && vendor != null && vendor.Offering;
             if (vendor != null && (OnFoot || vendor.Offering))
             {
                 Prompt = vendor.Offer;
@@ -256,6 +313,9 @@ namespace GasQueue
             var me = Walker.transform.position;
             bool nearCar = Vector3.Distance(me, Player.DriverDoor) < 1.8f || Player.Box.PushCircle(Walker.Position2, 1.1f, out _);
             bool nearCashier = Vector3.Distance(me, CityLayout.CounterFront) < 1.6f;
+            bool nearAttendant = Vector3.Distance(me, CityLayout.AttendantSpot) < 1.8f;
+            bool inShop = me.x > CityLayout.ShopMinX && me.x < CityLayout.ShopMaxX && me.z > CityLayout.ShopMinZ && me.z < CityLayout.ShopMaxZ;
+            int lineIndex = UpdatePlayerLinePlace(me);
             var cap = Player.transform.TransformPoint(Player.visual.fuelCapLocal);
             bool nearCap = Vector3.Distance(new Vector3(me.x, 0, me.z), new Vector3(cap.x, 0, cap.z)) < 1.8f;
             var carPump = Traffic.PumpAtPlayerCar();
@@ -272,10 +332,45 @@ namespace GasQueue
             {
                 // подсказка уже показана выше
             }
-            else if (nearCashier)
+            else if (nearCashier && breakTimer > 0f)
+            {
+                Prompt = $"Кассир на перерыве. Табличка: «15 минут». Ждать ещё ~{Mathf.CeilToInt(breakTimer)} с";
+            }
+            else if (nearCashier && (lineIndex == 0 || CashierLine.Count == 0 || (lineIndex < 0 && FrontIsAway())))
             {
                 Prompt = "E — поговорить с кассиром";
-                if (GameInput.InteractPressed) OpenCashierDialog();
+                if (GameInput.InteractPressed)
+                {
+                    if (lineIndex != 0) CashierLine.InsertAt(Walker, 0);
+                    OpenCashierDialog();
+                }
+            }
+            else if (nearCashier)
+            {
+                Prompt = "Перед вами очередь. E — всё равно пролезть к кассе";
+                if (GameInput.InteractPressed) TryCutCashierLine();
+            }
+            else if (inShop && lineIndex < 0)
+            {
+                Prompt = CashierLine.Count == 0 ? "Касса свободна — подойдите к прилавку" : $"E — встать в очередь в кассу (перед вами {CashierLine.Count} чел.)";
+                if (CashierLine.Count > 0 && GameInput.InteractPressed)
+                {
+                    int place = CashierLine.Join(Walker) + 1;
+                    ShowMessage($"Вы встали в очередь в кассу. Вы {place}-й. Отойдёте дальше пары метров — место займут.", 7f);
+                }
+            }
+            else if (lineIndex > 0)
+            {
+                Prompt = $"Очередь в кассу: вы {lineIndex + 1}-й. Стойте на своём месте";
+            }
+            else if (lineIndex == 0)
+            {
+                Prompt = "Ваша очередь в кассу! Подойдите к прилавку";
+            }
+            else if (nearAttendant)
+            {
+                Prompt = "E — поговорить с заправщиком";
+                if (GameInput.InteractPressed) OpenAttendantDialog();
             }
             else if (nearCap && carPump != null && Paid && !NozzleIn && !PlayerFueled)
             {
@@ -348,8 +443,22 @@ namespace GasQueue
 
         // ---------- Касса ----------
 
+        Vector3 DialogAnchor => dialogWith == DialogWith.Cashier ? CityLayout.CounterFront : CityLayout.AttendantSpot;
+
         void OpenCashierDialog()
         {
+            // Один раз за игру кассир уходит на перерыв прямо перед вами
+            if (!breakUsed && !Paid && Traffic.PlayerPump != null && Random.value < 0.4f)
+            {
+                breakUsed = true;
+                WaitedCashierBreak = true;
+                SpeechBubble.Show(cashier.transform, "Ой, у меня перерыв. Пятнадцать минут!", 1.5f);
+                breakLeaveTimer = 2f;
+                breakTimer = 45f / Settings.Speedup;
+                ShowMessage("Кассир ушла на перерыв прямо перед вами. «15 минут». Вся очередь ждёт.", 8f);
+                return;
+            }
+            dialogWith = DialogWith.Cashier;
             DialogOpen = true;
             DialogTitle = "Кассир: «Слушаю вас. Какая колонка?»";
             DialogOptions.Clear();
@@ -360,8 +469,77 @@ namespace GasQueue
 
         void CloseDialog()
         {
+            // Отошли от кассы — место в очереди уже не ваше
+            if (DialogOpen && dialogWith == DialogWith.Cashier) CashierLine.Leave(Walker);
             DialogOpen = false;
             DialogOptions.Clear();
+        }
+
+        // ---------- Очередь в кассу ----------
+
+        static readonly string[] LineAngry =
+        {
+            "Мужчина, тут очередь!", "В конец очереди!", "Самый умный, что ли?", "Мы тоже торопимся!", "Совсем обнаглели!",
+        };
+
+        /// <summary>Место игрока в очереди в кассу (−1 — не стоит). Отошёл далеко — место потерял.</summary>
+        int UpdatePlayerLinePlace(Vector3 me)
+        {
+            int index = CashierLine.IndexOf(Walker);
+            if (index < 0 || DialogOpen) return index;
+            float allowed = index == 0 ? 3.5f : 2.5f;
+            if (Vector3.Distance(me, CashierLine.Slot(index)) > allowed && Vector3.Distance(me, CityLayout.CounterFront) > 1.6f)
+            {
+                CashierLine.Leave(Walker);
+                ShowMessage("Вы отошли — очередь в кассу сомкнулась. Становитесь в конец.", 6f);
+                return -1;
+            }
+            return index;
+        }
+
+        /// <summary>Первый в очереди ещё не дошёл до прилавка (только что встал) — касса фактически свободна.</summary>
+        bool FrontIsAway()
+        {
+            if (CashierLine.Count == 0) return true;
+            var front = CashierLine.Members[0];
+            return Vector3.Distance(front.transform.position, CityLayout.CounterFront) > 4f && front is PumpCustomer;
+        }
+
+        void TryCutCashierLine()
+        {
+            LineCutAttempts++;
+            CashierSays(LineCutAttempts >= 3
+                ? "Я вас третий раз прошу: в конец очереди! Или охрану позову."
+                : "Мужчина, вы без очереди! Не обслуживаю. Встаньте в конец.");
+            cashier.Rage(1.5f);
+            if (CashierLine.Count > 0)
+            {
+                var front = CashierLine.Members[0];
+                if (front != null) SpeechBubble.Show(front.transform, LineAngry[Random.Range(0, LineAngry.Length)], 1.5f);
+            }
+            ShowMessage("Без очереди кассир не обслуживает. Встаньте в конец (E в магазине)... или «убедите» кого-нибудь уступить место.", 7f);
+        }
+
+        public int BystandersPunched { get; private set; }
+
+        public void OnPunchedBystander()
+        {
+            BystandersPunched++;
+            if (BystandersPunched == 1) ShowMessage("Вы ударили человека на заправке. Кассир уже тянется к телефону...", 6f);
+        }
+
+        /// <summary>Игрок уложил стоявшего в очереди — встаёт на его место, если был рядом.</summary>
+        public void OnLineVictimDown(int index, Vector3 at)
+        {
+            if (!OnFoot || Walker == null || !Walker.Active) return;
+            if (Vector3.Distance(Walker.transform.position, at) > 4f) return;
+            int mine = CashierLine.IndexOf(Walker);
+            if (mine >= 0 && mine <= index) return; // и так стояли впереди
+            CashierLine.InsertAt(Walker, index);
+            LinePlacesTaken++;
+            ShowMessage($"Вы заняли место избитого в очереди. Теперь вы {index + 1}-й. Очередь притихла и смотрит в пол.", 8f);
+            for (int i = index + 1; i < CashierLine.Count; i++)
+                if (Random.value < 0.5f) SpeechBubble.Show(CashierLine.Members[i].transform, LineAngry[Random.Range(0, LineAngry.Length)], 1.5f);
         }
 
         void CashierSays(string text)
@@ -372,6 +550,11 @@ namespace GasQueue
 
         void ChooseDialog(int choice)
         {
+            if (dialogWith == DialogWith.Attendant)
+            {
+                ChooseAttendant(choice);
+                return;
+            }
             switch (choice)
             {
                 case 1: TryPay(); break;
@@ -398,8 +581,15 @@ namespace GasQueue
 
             float price = PriceBoard.CurrentPrice;
             float liters = Mathf.Ceil(Settings.tankLiters - Player.FuelLiters);
+            bool limited = literLimitToday && liters > LiterLimit;
+            if (limited) liters = LiterLimit;
             if (liters * price > Money) liters = Mathf.Floor(Money / price);
             if (liters < 1f) { CashierSays("Денег не хватает даже на литр. Следующий!"); return; }
+            if (limited)
+            {
+                HitLiterLimit = true;
+                ShowMessage("«Лимит — 20 литров в одни руки». Три часа в очереди ради 20 литров.", 8f);
+            }
 
             float cost = liters * price;
             Money -= cost;
@@ -408,7 +598,9 @@ namespace GasQueue
             PaidLiters = liters;
             paidPump = pump;
             bool terminalGlitch = Random.value < 0.3f;
-            CashierSays(terminalGlitch
+            CashierSays(limited
+                ? $"Больше двадцати не положено, распоряжение сверху. Колонка №{pump.Number}, {liters:0} л."
+                : terminalGlitch
                 ? $"Терминал завис... А, прошло. Колонка №{pump.Number}, {liters:0} л. Вставляйте пистолет."
                 : $"Колонка №{pump.Number}, {liters:0} литров, {cost:0} руб. Вставляйте пистолет.");
             ShowMessage($"Оплачено: {liters:0} л на колонке №{pump.Number}. Подойдите к лючку бака (справа сзади) и нажмите E.", 8f);
@@ -417,6 +609,29 @@ namespace GasQueue
         void UpdateCashier(float dt)
         {
             if (cashier == null) return;
+            if (breakLeaveTimer > 0f)
+            {
+                breakLeaveTimer -= dt;
+                if (breakLeaveTimer <= 0f)
+                {
+                    CashierLine.CashierAway = true;
+                    cashier.gameObject.SetActive(false);
+                    breakSign.gameObject.SetActive(true);
+                }
+            }
+            else if (breakTimer > 0f)
+            {
+                breakTimer -= dt;
+                if (breakTimer <= 0f)
+                {
+                    CashierLine.CashierAway = false;
+                    cashier.gameObject.SetActive(true);
+                    breakSign.gameObject.SetActive(false);
+                    SpeechBubble.Show(cashier.transform, "Ну, что там у вас? Я с чаем.", 1.5f);
+                    ShowMessage("Кассир вернулась с перерыва. Можно платить.", 6f);
+                }
+            }
+            if (!cashier.gameObject.activeSelf) return;
             cashier.Animate(0f, dt);
             if (!OnFoot) return;
             // Кассир провожает игрока взглядом
@@ -424,6 +639,94 @@ namespace GasQueue
             to.y = 0f;
             if (to.magnitude < 8f && to.sqrMagnitude > 0.01f)
                 cashier.transform.rotation = Quaternion.Slerp(cashier.transform.rotation, Quaternion.LookRotation(to.normalized), dt * 3f);
+        }
+
+        // ---------- Заправщик ----------
+
+        void BuildAttendant()
+        {
+            var look = new HumanRig.Look
+            {
+                shirt = Shapes.Hex("#d32f2f"),
+                pants = Shapes.Hex("#2b2f3a"),
+                skin = Shapes.Hex("#e0ac85"),
+                hair = Shapes.Hex("#2a2a2a"),
+                shoes = Shapes.Hex("#1b1b1b"),
+            };
+            attendant = HumanRig.Build("Attendant", Traffic.WorldRoot, look);
+            attendant.transform.position = CityLayout.AttendantSpot;
+            attendant.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+            // Светоотражающий жилет
+            Shapes.Box(attendant.transform, new Vector3(0f, 1.15f, 0f), new Vector3(0.44f, 0.4f, 0.26f), Shapes.Hex("#c6e83a"), name: "Vest");
+            Obstacles.AddBox(CityLayout.AttendantSpot, 0.5f, 0.5f, "заправщик");
+        }
+
+        void UpdateAttendant(float dt)
+        {
+            if (attendant == null) return;
+            attendant.Animate(0f, dt);
+            attendantLineTimer -= dt;
+            if (attendantLineTimer <= 0f)
+            {
+                attendantLineTimer = Random.Range(18f, 30f);
+                SpeechBubble.Show(attendant.transform, AttendantIdle[Random.Range(0, AttendantIdle.Length)], 1.5f);
+            }
+            if (OnFoot)
+            {
+                var to = Walker.transform.position - attendant.transform.position;
+                to.y = 0f;
+                if (to.magnitude < 6f && to.sqrMagnitude > 0.01f)
+                    attendant.transform.rotation = Quaternion.Slerp(attendant.transform.rotation, Quaternion.LookRotation(to.normalized), dt * 3f);
+            }
+        }
+
+        void OpenAttendantDialog()
+        {
+            dialogWith = DialogWith.Attendant;
+            DialogOpen = true;
+            DialogTitle = "Заправщик: «Чего тебе?»";
+            DialogOptions.Clear();
+            DialogOptions.Add(Traffic.PlayerBribed ? "Ну что там с колонкой?" : $"Сунуть {BribePrice} руб.: «Пропусти вперёд, брат»");
+            DialogOptions.Add("Спросить, когда завоз");
+            DialogOptions.Add("Уйти");
+        }
+
+        void AttendantSays(string text)
+        {
+            SpeechBubble.Show(attendant.transform, text, 1.5f);
+            DialogTitle = $"Заправщик: «{text}»";
+        }
+
+        void ChooseAttendant(int choice)
+        {
+            if (choice == 2) { AttendantSays(DeliveryRumors[Random.Range(0, DeliveryRumors.Length)]); return; }
+            if (choice != 1) { CloseDialog(); return; }
+
+            if (PlayerFueled || Traffic.PlayerPump != null) { AttendantSays($"Тебе ж колонку дали. Езжай давай."); return; }
+            if (Traffic.PlayerBribed) { AttendantSays("Жди, говорю. Освободится — махну."); return; }
+            if (BribeScammed) { AttendantSays("Какую тысячу? Я тебя первый раз вижу."); return; }
+            if (State == GameState.OutOfFuel) { AttendantSays("Бензина нет. Хоть миллион давай — из воздуха не налью."); return; }
+            if (Money < BribePrice) { AttendantSays("Ты мне мелочь не суй."); return; }
+
+            float roll = Random.value;
+            if (roll < 0.2f)
+            {
+                AttendantSays("Ты чё, тут камеры! Стой как все.");
+                return;
+            }
+            Money -= BribePrice;
+            MoneySpent += BribePrice;
+            Bribes++;
+            if (roll < 0.45f)
+            {
+                // Взял и забыл
+                BribeScammed = true;
+                AttendantSays("Договорились, жди. Всё будет.");
+                return;
+            }
+            Traffic.PlayerBribed = true;
+            AttendantSays("Тихо. Как колонка освободится — махну. Объезжай очередь и заезжай.");
+            ShowMessage("Заправщик взял тысячу. Ждите сигнала — колонку дадут без очереди.", 8f);
         }
 
         // ---------- Заправка ----------
@@ -548,6 +851,12 @@ namespace GasQueue
 
         public void OnPlayerGranted(Pump pump)
         {
+            if (Traffic.PlayerBribed && !Traffic.PlayerIsHead)
+            {
+                if (attendant != null) SpeechBubble.Show(attendant.transform, $"Эй! Сюда, на {pump.Number}-ю! Быстро!", 1.5f);
+                ShowMessage($"Заправщик машет: колонка №{pump.Number} ваша. Объезжайте очередь — сзади уже бибикают.", 9f);
+                return;
+            }
             ShowMessage($"Ваша очередь! Свободна колонка №{pump.Number}. Заезжайте.", 9f);
         }
 
@@ -637,9 +946,29 @@ namespace GasQueue
 
         public void OnBrawlerOut(BrawlReason reason)
         {
+            if (reason == BrawlReason.Roof)
+            {
+                ShowMessage("Хозяин машины вышел и требует слезть с крыши. Сверху он вас не достанет...", 8f);
+                return;
+            }
             ShowMessage(reason == BrawlReason.CutIn
                 ? "Обиженный водитель вышел из машины и идёт к вам! Можно отсидеться или выйти (F) и разобраться."
                 : "Водитель вышел разбираться! Сидите в машине или выходите (F).", 8f);
+        }
+
+        public void OnJumpedOnCar()
+        {
+            CarJumps++;
+            if (CarJumps == 1) ShowMessage("Вы на крыше чужой машины. Очередь снимает вас на телефоны.");
+            if (CarJumps == 10) ShowMessage("Кто-то уже выложил видео «Мужик скачет по машинам в очереди за бензином».", 7f);
+        }
+
+        public void OnJumpedOnOwnCar()
+        {
+            CarJumps++;
+            string report = Player.damage.Wear(1.2f, Vector3.zero);
+            if (report != null) ShowMessage(report);
+            else if (Random.value < 0.3f) ShowMessage("Крыша родной «семёрки» жалобно хрустнула.");
         }
 
         public void OnVipArrived()
@@ -677,7 +1006,7 @@ namespace GasQueue
 
         public List<string> Achievements()
         {
-            var list = new List<string> { GaveUp ? "Сдался и уехал без бензина" : "Отстоял очередь и заправился" };
+            var list = new List<string> { CarWrecked ? "Металлолом: машина не дожила до заправки" : GaveUp ? "Сдался и уехал без бензина" : "Отстоял очередь и заправился" };
             if (FuelRanOut) list.Add("Бензин кончился прямо перед носом");
             if (Honks == 0) list.Add("Дзен: ни разу не бибикнул");
             if (Honks >= 15) list.Add("Дирижёр клаксонов");
@@ -699,6 +1028,14 @@ namespace GasQueue
             if (PiesEaten >= 2) list.Add("Пирожковый марафон");
             if (FightsLost >= 1) list.Add("Получил за дело");
             if (CarKicks >= 5) list.Add("Машина-боксёрская груша");
+            if (CarJumps >= 1) list.Add("Паркур в очереди");
+            if (CarJumps >= 10) list.Add("Король крыш");
+            if (Bribes >= 1 && !BribeScammed) list.Add("Всё решается");
+            if (BribeScammed) list.Add("Кинули на тысячу");
+            if (HitLiterLimit) list.Add("20 литров в одни руки");
+            if (WaitedCashierBreak) list.Add("Перерыв 15 минут");
+            if (LinePlacesTaken >= 1) list.Add("Очередь по понятиям");
+            if (LineCutAttempts >= 3) list.Add("Я только чек спросить");
             return list;
         }
     }

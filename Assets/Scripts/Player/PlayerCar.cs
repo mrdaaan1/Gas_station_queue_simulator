@@ -95,10 +95,13 @@ namespace GasQueue
             if (!gas && !back) warnedEngineOff = false;
 
             // Газ, тормоз, задний ход
+            // Побитая машина тянет хуже
+            float power = Mathf.Lerp(0.4f, 1f, Mathf.Clamp01(damage.Health / 60f));
+            float maxSpeed = MaxSpeed * power;
             if (gas)
             {
                 if (Speed < -0.1f) Speed = Mathf.Min(0f, Speed + BrakeDecel * dt);
-                else if (running) Speed = Mathf.Min(MaxSpeed, Speed + Accel * (1f - Speed / (MaxSpeed * 1.2f)) * dt);
+                else if (running) Speed = Mathf.Min(maxSpeed, Speed + Accel * power * (1f - Speed / (maxSpeed * 1.2f)) * dt);
             }
             else if (back)
             {
@@ -129,8 +132,48 @@ namespace GasQueue
                 GameManager.Instance.OnPlayerHonk();
             }
 
+            UpdateBlinkers(dt);
             UpdateDashboard(dt);
             engine.pitch = 0.8f + Mathf.Abs(Speed) / MaxSpeed * 1.1f + (gas && running ? 0.15f : 0f);
+        }
+
+        // ---------- Поворотники ----------
+
+        float blinkerTimer;
+        bool blinkWasOn;
+        AudioSource tick;
+
+        void UpdateBlinkers(float dt)
+        {
+            if (controlsEnabled)
+            {
+                if (GameInput.BlinkLeftPressed) SetBlinker(visual.blinker == -1 ? 0 : -1);
+                // E в машине — правый поворотник, если у окна нет продавца (тогда E — «купить»)
+                if (GameInput.BlinkRightPressed && !GameManager.Instance.VendorAtWindow) SetBlinker(visual.blinker == 1 ? 0 : 1);
+            }
+            if (visual.blinker != 0)
+            {
+                blinkerTimer += dt;
+                if (blinkerTimer > 20f) SetBlinker(0); // сам выключается через 20 секунд
+            }
+            // Тиканье реле поворотника
+            bool on = visual.blinker != 0 && Mathf.Repeat(Time.time, 0.8f) < 0.45f;
+            if (on != blinkWasOn && visual.blinker != 0)
+            {
+                if (tick == null)
+                {
+                    tick = SoundFactory.Source3D(gameObject, 0.35f);
+                    tick.spatialBlend = 0f;
+                }
+                tick.PlayOneShot(SoundFactory.Tick, on ? 1f : 0.7f);
+            }
+            blinkWasOn = on;
+        }
+
+        public void SetBlinker(int side)
+        {
+            visual.blinker = side;
+            blinkerTimer = 0f;
         }
 
         // ---------- Столкновения ----------
@@ -197,6 +240,7 @@ namespace GasQueue
             float severity = impact / 3f;
             var velocity = fwd * (ourFront ? impact : -impact);
             string report = damage.Hit(ourFront, severity, velocity);
+            if (damage.Wrecked) ForceEngineOff();
 
             crash.pitch = Random.Range(0.85f, 1.1f);
             crash.PlayOneShot(SoundFactory.Crash, Mathf.Clamp01(0.3f + impact / 6f));
@@ -219,6 +263,12 @@ namespace GasQueue
                 if (GameManager.Instance.NozzleIn)
                 {
                     GameManager.Instance.ShowMessage("Сначала закончите заправку — пистолет ещё в баке!");
+                    return;
+                }
+                if (damage.Wrecked)
+                {
+                    GameManager.Instance.ShowMessage("Стартер крутит, а толку ноль. Машина разбита.");
+                    starter.Play();
                     return;
                 }
                 Engine = EngineState.Starting;
@@ -284,7 +334,8 @@ namespace GasQueue
             crash.pitch = Random.Range(0.9f, 1.2f);
             crash.PlayOneShot(SoundFactory.Thud, 0.8f);
             visual.Bounce();
-            var report = damage.Hit(front, 0.12f, Vector3.zero);
+            var report = damage.Hit(front, 0.12f, Vector3.zero) ?? damage.Wear(1.3f, Vector3.zero);
+            if (damage.Wrecked) ForceEngineOff();
             GameManager.Instance.OnCarKicked(report);
         }
 

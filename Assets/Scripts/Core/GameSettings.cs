@@ -80,6 +80,7 @@ namespace GasQueue
         }
 
         float Speed => fastTestMode ? Mathf.Max(1f, testSpeedup) : 1f;
+        public float Speedup => Speed;
 
         public float ServiceTime => serviceTime / Speed;
         /// <summary>Сколько одна машина стоит у колонки (≈ 8 игровых минут при обычной скорости часов).</summary>

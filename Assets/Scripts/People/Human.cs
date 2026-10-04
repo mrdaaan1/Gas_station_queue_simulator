@@ -72,6 +72,7 @@ namespace GasQueue
         // Драка
         public bool Guard;          // стойка: кулаки у лица
         public bool Limping;        // после драки хромает
+        public bool Airborne;       // в прыжке: ноги поджаты, руки вверх
         float punchTimer, kickTimer, flinchTimer;
         bool punchRight;
         float fall;                 // 0 — стоит, 1 — лежит
@@ -195,7 +196,22 @@ namespace GasQueue
                 armR.localRotation = Quaternion.Euler(swing * 0.8f, 0, 4f);
                 head.localRotation = Quaternion.Euler(flinch * 1.5f, 0, 0);
             }
+
+            // Прыжок: одна нога вперёд, другая назад, руки вверх и в стороны
+            air = Mathf.MoveTowards(air, Airborne ? 1f : 0f, dt * 8f);
+            if (air > 0.001f && fall <= 0.001f)
+            {
+                legL.localRotation = Quaternion.Slerp(legL.localRotation, Quaternion.Euler(-45f, 0, 0), air);
+                legR.localRotation = Quaternion.Slerp(legR.localRotation, Quaternion.Euler(25f, 0, 0), air);
+                if (punchTimer <= 0f)
+                {
+                    armL.localRotation = Quaternion.Slerp(armL.localRotation, Quaternion.Euler(-150f, 0, -35f), air);
+                    armR.localRotation = Quaternion.Slerp(armR.localRotation, Quaternion.Euler(-150f, 0, 35f), air);
+                }
+            }
         }
+
+        float air;
 
         public void Rage(float seconds) => angry = seconds;
     }

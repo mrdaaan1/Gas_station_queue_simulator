@@ -108,6 +108,26 @@ namespace GasQueue
             }
         }
 
+        static AudioClip tick;
+
+        /// <summary>Щелчок реле поворотника.</summary>
+        public static AudioClip Tick
+        {
+            get
+            {
+                if (tick != null) return tick;
+                int n = (int)(Rate * 0.03f);
+                var data = new float[n];
+                for (int i = 0; i < n; i++)
+                {
+                    float t = (float)i / Rate;
+                    data[i] = Mathf.Sin(2 * Mathf.PI * 2200f * t) * Mathf.Exp(-t * 220f) * 0.6f;
+                }
+                tick = Create("Tick", data);
+                return tick;
+            }
+        }
+
         static AudioClip siren;
 
         /// <summary>«Кряк» спецсигнала: тон, который быстро взлетает и падает.</summary>

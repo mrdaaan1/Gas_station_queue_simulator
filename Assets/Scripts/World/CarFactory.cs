@@ -28,6 +28,8 @@ namespace GasQueue
         public readonly List<Transform> headlights = new List<Transform>();
         public readonly List<Transform> taillights = new List<Transform>();
         public Transform frontPanel, rearPanel;
+        public readonly List<Transform> doors = new List<Transform>();
+        public Transform roof;
 
         public readonly List<Renderer> leftBlinkers = new List<Renderer>();
         public readonly List<Renderer> rightBlinkers = new List<Renderer>();
@@ -258,7 +260,7 @@ namespace GasQueue
             foreach (float side in new[] { -1f, 1f })
             {
                 float x = 0.86f * side;
-                Shapes.Box(body, new Vector3(x, (floorY + beltY) / 2f, (cabFront + cabRear) / 2f), new Vector3(0.08f, beltY - floorY, cabFront - cabRear), paint, name: "Door");
+                visual.doors.Add(Shapes.Box(body, new Vector3(x, (floorY + beltY) / 2f, (cabFront + cabRear) / 2f), new Vector3(0.08f, beltY - floorY, cabFront - cabRear), paint, name: "Door").transform);
                 Shapes.Box(body, new Vector3(x - 0.05f * side, beltY - 0.02f, (cabFront + cabRear) / 2f), new Vector3(0.06f, 0.05f, cabFront - cabRear), trim, name: "DoorTrim");
                 Shapes.Box(body, new Vector3(x - 0.05f * side, floorY + 0.25f, -0.4f), new Vector3(0.04f, 0.3f, 1.4f), plastic, name: "DoorCard");
                 // Боковые стёкла и стойки
@@ -284,7 +286,7 @@ namespace GasQueue
             rearGlass.GetComponent<Renderer>().sharedMaterial = MeshFactory.Glass;
 
             // Крыша и потолок
-            Shapes.Box(body, new Vector3(0, roofY, (windTopZ + cabRear) / 2f - 0.05f), new Vector3(1.74f, 0.06f, windTopZ - cabRear + 0.1f), paint, name: "Roof");
+            visual.roof = Shapes.Box(body, new Vector3(0, roofY, (windTopZ + cabRear) / 2f - 0.05f), new Vector3(1.74f, 0.06f, windTopZ - cabRear + 0.1f), paint, name: "Roof").transform;
             Shapes.Box(body, new Vector3(0, roofY - 0.035f, (windTopZ + cabRear) / 2f - 0.05f), new Vector3(1.62f, 0.01f, windTopZ - cabRear), headliner, name: "Headliner");
             foreach (float x in new[] { -0.4f, 0.4f })
                 Shapes.Box(body, new Vector3(x, roofY - 0.06f, windTopZ - 0.08f), new Vector3(0.42f, 0.02f, 0.16f), headliner, new Vector3(-8, 0, 0), "SunVisor");

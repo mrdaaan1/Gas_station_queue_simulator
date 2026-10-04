@@ -2,7 +2,10 @@ using System; using System.Collections.Generic; using UnityEngine;
 namespace GasQueue {
 public enum CarModel { Vaz2107, Rio, Niva, Gazelle, Maybach }
 public class VipLights : MonoBehaviour { public void Whoop(){} }
-public enum BrawlReason { Crash, CutIn }
+public enum BrawlReason { Crash, CutIn, Roof }
+// Водитель, который ходит платить на кассу: в симуляторе — просто задержка на дорогу и очередь
+public class PumpCustomer { NpcCar car; float t0, walk; bool paid; public bool Paid=>paid||Time.time-t0>walk; public bool Done=>Paid&&car.FuelProgress>=1f;
+ public static PumpCustomer Spawn(NpcCar c,TrafficManager t,bool alreadyPaid)=>new PumpCustomer{car=c,t0=Time.time,paid=alreadyPaid,walk=UnityEngine.Random.Range(14f,22f)}; }
 public enum VendorKind { Canister, Pies }
 public static class CarModels { public static CarModel Random(out bool taxi){ taxi=UnityEngine.Random.value<0.2f; return (CarModel)UnityEngine.Random.Range(0,4);} public static Color RandomPaint(CarModel m,bool t)=>Color.white; }
 public class Brawler : MonoBehaviour { public static Brawler Active; public static Brawler Spawn(NpcCar c,TrafficManager t,BrawlReason r){ GameManager.Log($"brawler out ({r})"); return null; } }
@@ -11,13 +14,13 @@ public enum GameState { Queueing, OutOfFuel, DrivingAway, Finished }
 public class CarVisual : MonoBehaviour { public float length, width=1.86f, height=1.5f; public Vector3 driverDoorLocal=new Vector3(-1.45f,0,-0.45f); public int blinker; public Transform driverHead, driverTorso; public void Roll(float d){} public void Bounce(){} }
 public static class CarFactory {
  public static CarVisual Build(string name,Color c,CarModel m,bool p,bool taxi=false){ var go=new GameObject(name); var v=go.AddComponent<CarVisual>(); if(m==CarModel.Maybach) go.AddComponent<VipLights>(); v.length= m==CarModel.Maybach?5.4f:m==CarModel.Gazelle?5.5f:m==CarModel.Niva?3.74f:m==CarModel.Rio?4.4f:4.14f; v.width=m==CarModel.Gazelle?2.06f:1.8f; return v; } }
-public class CarDamage : MonoBehaviour { public float Front,Rear; public void Init(CarVisual v,Transform t){} public string Hit(bool f,float s,Vector3 v)=>null; }
+public class CarDamage : MonoBehaviour { public float Front,Rear; public void Init(CarVisual v,Transform t){} public string Hit(bool f,float s,Vector3 v)=>null; public string Wear(float a,Vector3 v)=>null; }
 public static class SoundFactory { public static AudioClip Horn=new AudioClip(); public static AudioSource Source3D(GameObject g,float v=1,float m=120)=>g.AddComponent<AudioSource>(); }
 public static class SpeechBubble { public static int Count; public static void Show(Transform t,string p,float h){Count++; if (Sim.Verbose) Console.WriteLine($"  [{Time.time:F0}] {t.gameObject.name}: {p}");} }
 public static class AngryDriver { public static void Spawn(NpcCar c,PlayerCar p,Transform r,float s){} }
 public class Barrier : MonoBehaviour { public bool IsDown {get; private set;} public void SetDown(bool d)=>IsDown=d; public Obb Box=>Obb.Axis(transform.position+Vector3.left*3.4f,6.8f,0.3f); }
 public class WalkerController : MonoBehaviour { public bool Active=>false; public Vector2 Position2=>Vector2.zero; public Obb Box=>default; }
-public class GameManager : MonoBehaviour { public static GameManager Instance; public GameState State=GameState.Queueing; public bool FuelRanOut, PlayerFueled; public Barrier barrier; float t; public float delivery=60f;
+public class GameManager : MonoBehaviour { public static GameManager Instance; public bool OnFoot; public void OnJumpedOnCar(){} public GameState State=GameState.Queueing; public bool FuelRanOut, PlayerFueled; public Barrier barrier; float t; public float delivery=60f;
  public void TriggerOutOfFuel(){FuelRanOut=true; State=GameState.OutOfFuel; barrier.SetDown(true); t=0; Log("OUT OF FUEL");}
  void Update(){ if(State==GameState.OutOfFuel){ t+=Time.deltaTime; if(t>delivery){barrier.SetDown(false); State=GameState.Queueing; Log("DELIVERY");} } }
  public static void Log(string s)=>Console.WriteLine($"[{Time.time:F0}s] {s}");

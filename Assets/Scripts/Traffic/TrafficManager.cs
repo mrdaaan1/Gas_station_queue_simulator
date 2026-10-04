@@ -77,6 +77,9 @@ namespace GasQueue
         public bool PlayerShouldMoveUp { get; private set; }
         public Pump PlayerPump { get; private set; }
 
+        /// <summary>Игрок «договорился» с заправщиком: следующая свободная колонка — его, без очереди.</summary>
+        public bool PlayerBribed;
+
         readonly List<LanePath> roadPaths = new List<LanePath>();
         readonly List<LanePath> allPaths = new List<LanePath>();
         readonly Dictionary<LanePath, List<PathEntry>> lanes = new Dictionary<LanePath, List<PathEntry>>();
@@ -294,7 +297,7 @@ namespace GasQueue
             if (PlayerInQueue && !wasInQueue && PlayerQueueIndex >= 0 && PlayerQueueIndex + 1 < queue.Count && Gm != null)
             {
                 var behind = queue[PlayerQueueIndex + 1];
-                if (behind.v is NpcCar npc && aheadWhenLeft.Contains(npc))
+                if (behind.v is NpcCar npc && aheadWhenLeft.Contains(npc) && npc != courtesyGiver)
                 {
                     npc.Honk();
                     npc.Say(AngryAtCutter[Random.Range(0, AngryAtCutter.Length)]);
@@ -337,6 +340,22 @@ namespace GasQueue
                         pump.reservedForPlayer = true;
                         PlayerPump = pump;
                         Gm.OnPlayerGranted(pump);
+                    }
+                }
+            }
+            else if (PlayerBribed && PlayerPump == null && Gm.State == GameState.Queueing && !Gm.PlayerFueled)
+            {
+                var pump = FreePump();
+                if (pump != null)
+                {
+                    pump.reservedForPlayer = true;
+                    PlayerPump = pump;
+                    Gm.OnPlayerGranted(pump);
+                    // Очередь видит, кого пустили без очереди
+                    if (queue.Count > 0 && queue[0].v is NpcCar first)
+                    {
+                        first.Honk();
+                        first.Say("Э! А он куда?! Мы тут с утра стоим!");
                     }
                 }
             }
@@ -458,6 +477,19 @@ namespace GasQueue
             foreach (var p in Pedestrians)
                 if (p != null && p.gameObject.activeInHierarchy && box.PushCircle(new Vector2(p.position.x, p.position.z), 0.45f, out _)) return true;
             return false;
+        }
+
+        /// <summary>Нет ли рядом с точкой ни одной машины (по реальным координатам, а не по параметру маршрута).</summary>
+        public bool AreaClear(Vector3 point, float radius, NpcCar except = null)
+        {
+            foreach (var npc in Npcs)
+            {
+                if (npc == except) continue;
+                var d = npc.Position - point;
+                if (d.x * d.x + d.z * d.z < radius * radius) return false;
+            }
+            var pd = Player.Position - point;
+            return pd.x * pd.x + pd.z * pd.z >= radius * radius;
         }
 
         public bool LaneClearNear(LanePath path, float s, float radius, NpcCar except = null)
@@ -616,6 +648,28 @@ namespace GasQueue
             if (target != null) target.React(AnswersToHonk[Random.Range(0, AnswersToHonk.Length)]);
         }
 
+        static readonly string[] RoofLines =
+        {
+            "Э! Ты чё на крышу залез?!", "Слезь с машины, больной!", "Это тебе не батут!",
+            "Ты мне крышу помнёшь!", "Мужик, ты в порядке вообще?", "Я сейчас выйду!",
+            "Совсем от очереди крыша поехала...", "Снимаю на видео, будешь звездой!",
+        };
+
+        readonly Dictionary<NpcCar, int> roofJumps = new Dictionary<NpcCar, int>();
+
+        /// <summary>Игрок спрыгнул на крышу машины NPC. С третьего раза водитель может выйти разбираться.</summary>
+        public void OnPlayerJumpedOnCar(NpcCar car)
+        {
+            roofJumps.TryGetValue(car, out int n);
+            roofJumps[car] = ++n;
+            car.Hold(2.5f);
+            car.Say(RoofLines[Random.Range(0, RoofLines.Length)]);
+            if (Random.value < 0.6f) car.Honk();
+            if (car.damage != null) car.damage.Wear(0.8f, Vector3.zero);
+            Gm.OnJumpedOnCar();
+            if (n >= 3 && Random.value < 0.5f) Brawler.Spawn(car, this, BrawlReason.Roof);
+        }
+
         // ---------- Новые машины ----------
 
         void UpdateSpawns(float dt)
@@ -668,6 +722,7 @@ namespace GasQueue
 
             UpdateVendors(dt);
             UpdateRumor(dt);
+            UpdatePlayerSignal(dt);
             UpdateVip(dt);
 
             // Кто-то в очереди не выдерживает
@@ -677,6 +732,47 @@ namespace GasQueue
                 giveUpTimer = 0f;
                 if (Random.value < Settings.giveUpChance) TryGiveUp();
             }
+        }
+
+        // ---------- Игрок моргает правым поворотником во втором ряду ----------
+
+        float signalTimer;
+        bool courtesyRolled;
+        NpcCar courtesyGiver;
+
+        void UpdatePlayerSignal(float dt)
+        {
+            float ps = QueuePath.Project(Player.Position, out float lat);
+            bool signaling = Player.visual.blinker == 1 && !PlayerInQueue && !Gm.OnFoot &&
+                             lat < -1.7f && lat > -5.5f && ps < QueueRoadEndS && Mathf.Abs(Player.Speed) < 3f;
+            if (!signaling)
+            {
+                signalTimer = 0f;
+                courtesyRolled = false;
+                return;
+            }
+            signalTimer += dt;
+            if (signalTimer < 1.5f || courtesyRolled) return;
+            courtesyRolled = true;
+
+            // Тот, кто стоит в очереди рядом с нами (чуть сзади), решает — пустить или нет
+            NpcCar candidate = null;
+            float best = float.MinValue;
+            foreach (var e in queue)
+                if (e.v is NpcCar npc && e.s > ps - 8f && e.s < ps + 1f && e.s > best)
+                {
+                    best = e.s;
+                    candidate = npc;
+                }
+            if (candidate == null) return;
+            if (Random.value < 0.3f)
+            {
+                courtesyGiver = candidate;
+                candidate.Hold(7f);
+                candidate.Say("Давай, проезжай");
+                Gm.ShowMessage("Вас пропускают! Вот что значит поворотник.");
+            }
+            else candidate.Say(Random.value < 0.5f ? "Ага, щас!" : "Стой как все!");
         }
 
         // ---------- Депутат с мигалкой ----------
@@ -699,7 +795,7 @@ namespace GasQueue
             vipTimer = Random.Range(650f, 850f);
             foreach (var n in Npcs) if (n.IsVip && n.Role != NpcRole.Exiting) return; // один депутат за раз
             float s = Random.Range(60f, 140f);
-            if (!LaneClearNear(vipPath, s, 20f)) return;
+            if (!AreaClear(vipPath.PointAt(s), 14f)) return;
             var visual = CarFactory.Build($"VIP {++carCounter}", new Color(0.04f, 0.04f, 0.05f), CarModel.Maybach, false);
             visual.transform.SetParent(transform, false);
             var npc = visual.gameObject.AddComponent<NpcCar>();
