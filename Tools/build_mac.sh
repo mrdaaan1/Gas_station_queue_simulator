@@ -12,6 +12,17 @@ fi
 if [ -z "$UNITY" ] || [ ! -x "$UNITY" ]; then
   echo "Не нашёл Unity в /Applications/Unity/Hub/Editor. Установите Unity через Unity Hub."; exit 1
 fi
+# Проект открыт в Unity — две Unity не могут работать с одним проектом
+if pgrep -fil "Unity.app/Contents/MacOS/Unity" | grep -iF -- "$PROJECT" >/dev/null 2>&1; then
+  echo "Проект сейчас открыт в Unity. Либо закройте Unity (Cmd+Q) и запустите скрипт снова,"
+  echo "либо соберите прямо в Unity: меню Gas Queue → Собрать для Mac (.app)."
+  exit 1
+fi
+# Unity не запущена, но после вылета остался файл-замок — убираем
+if [ -f "$PROJECT/Temp/UnityLockfile" ] && ! pgrep -x Unity >/dev/null 2>&1; then
+  echo "Удаляю старый замок проекта (Unity не запущена)."
+  rm -f "$PROJECT/Temp/UnityLockfile"
+fi
 mkdir -p "$PROJECT/Builds"
 echo "Собираю игру через $UNITY ... (несколько минут, окно Unity не откроется)"
 if "$UNITY" -batchmode -quit -projectPath "$PROJECT" -executeMethod GameBuilder.BuildMacBatch -logFile "$PROJECT/Builds/build_mac.log"; then
@@ -23,6 +34,10 @@ if "$UNITY" -batchmode -quit -projectPath "$PROJECT" -executeMethod GameBuilder.
   open "$PROJECT/Builds/Mac"
 else
   echo "Сборка не удалась. Лог: $PROJECT/Builds/build_mac.log"
-  echo "Последние ошибки:"; grep -iE "error|exception" "$PROJECT/Builds/build_mac.log" | tail -20
+  if grep -q "another Unity instance is running" "$PROJECT/Builds/build_mac.log" 2>/dev/null; then
+    echo "Проект открыт в Unity. Закройте Unity (Cmd+Q) или соберите из меню Gas Queue → Собрать для Mac (.app)."
+  else
+    echo "Последние ошибки:"; grep -iE "error|exception" "$PROJECT/Builds/build_mac.log" | tail -20
+  fi
   exit 1
 fi
