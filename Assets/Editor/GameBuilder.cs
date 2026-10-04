@@ -25,6 +25,15 @@ public static class GameBuilder
         EditorApplication.Exit(ok ? 0 : 1);
     }
 
+    const string IconPath = "Assets/Icons/AppIcon.png";
+
+    /// <summary>Иконка приложения (Tools/Icon/make_icon.py) — для Mac и Windows.</summary>
+    public static void ApplyIcon()
+    {
+        var icon = AssetDatabase.LoadAssetAtPath<Texture2D>(IconPath);
+        if (icon != null) PlayerSettings.SetIconsForTargetGroup(BuildTargetGroup.Unknown, new[] { icon });
+    }
+
     static bool Build(BuildTarget target, string output, string platform)
     {
         if (!File.Exists(ScenePath))
@@ -42,6 +51,7 @@ public static class GameBuilder
         }
 
         BuildMaterials.Generate(); // материалы для шейдеров — иначе в сборке всё розовое
+        ApplyIcon();
         PlayerSettings.productName = ProductName;
         if (string.IsNullOrEmpty(PlayerSettings.companyName) || PlayerSettings.companyName == "DefaultCompany")
             PlayerSettings.companyName = "GasQueue";

@@ -29,6 +29,7 @@ public class BuildMaterials : IPreprocessBuildWithReport
     public void OnPreprocessBuild(BuildReport report)
     {
         Generate();
+        GameBuilder.ApplyIcon();
         KeepLinearFog();
         var rp = GraphicsSettings.currentRenderPipeline;
         Debug.Log("[Gas Queue] Сборка: рендер-пайплайн " + (rp != null ? rp.name : "Built-in") + ", материалы в " + Dir);

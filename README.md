@@ -101,6 +101,8 @@ Assets/
   Готовый архив для друзей — `Builds/Mac/GasQueue-Mac.zip`.
 - Перед любой сборкой (и при открытии проекта) редактор сохраняет материалы в `Assets/Resources/GasQueueGenerated` —
   без них Unity вырезает шейдеры, и в собранной игре всё розовое.
+- **Иконка** (`Assets/Icons/AppIcon.png`, рисует `Tools/Icon/make_icon.py`) ставится при сборке сама.
+  Поставить её на уже собранную игру без пересборки: `bash Tools/set_mac_icon.sh`.
 - **Windows:** **Gas Queue → Собрать для Windows (.exe)**. Нужен модуль *Windows Build Support (Mono)*
   (Unity Hub → Installs → ⚙ → Add modules). Отправляйте всю папку `Builds/Windows` в zip, не только `.exe`.
 - Игра не подписана Apple, поэтому друзьям на Mac при первом запуске нужно:
