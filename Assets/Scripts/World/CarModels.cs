@@ -78,9 +78,10 @@ namespace GasQueue
                     return new Spec
                     {
                         length = 4.14f, halfWidth = 0.84f, wheelR = 0.3f, axleFront = 1.33f, axleRear = -1.1f, track = 0.71f,
-                        body = new[] { V(-2.07f, 0.3f), V(2.07f, 0.3f), V(2.08f, 0.8f), V(1.05f, 0.92f), V(-1.28f, 0.95f), V(-2.07f, 0.9f) },
-                        cabin = new[] { V(-1.32f, 0.95f), V(1.05f, 0.92f), V(0.25f, 1.42f), V(-0.9f, 1.43f) },
-                        cabinBottom = 0.8f, cabinTop = 0.66f, roofY = 1.43f, seatZ = -0.35f, dashZ = 0.65f, lightY = 0.66f, bumperY = 0.4f,
+                        // «Коробка»: высокий плоский капот, вертикальный зад, почти прямые стойки
+                        body = new[] { V(-2.07f, 0.3f), V(2.07f, 0.3f), V(2.08f, 0.85f), V(1.0f, 0.93f), V(-1.3f, 0.95f), V(-2.08f, 0.93f) },
+                        cabin = new[] { V(-1.25f, 0.95f), V(0.98f, 0.93f), V(0.42f, 1.41f), V(-0.95f, 1.42f) },
+                        cabinBottom = 0.8f, cabinTop = 0.73f, roofY = 1.43f, seatZ = -0.35f, dashZ = 0.65f, lightY = 0.66f, bumperY = 0.4f,
                     };
             }
         }
@@ -92,10 +93,10 @@ namespace GasQueue
         {
             float r = UnityEngine.Random.value;
             taxi = false;
-            if (r < 0.4f) return CarModel.Vaz2107;
-            if (r < 0.75f)
+            if (r < 0.45f) return CarModel.Vaz2107;
+            if (r < 0.7f)
             {
-                taxi = UnityEngine.Random.value < 0.45f;
+                taxi = UnityEngine.Random.value < 0.35f;
                 return CarModel.Rio;
             }
             if (r < 0.9f) return CarModel.Niva;
@@ -163,6 +164,9 @@ namespace GasQueue
             Rear(body, visual, spec, model);
             Plates(body, spec);
             SideDetails(body, spec, model);
+            if (model == CarModel.Vaz2107) Extras2107(body, spec);
+            if (model == CarModel.Niva) ExtrasNiva(body, spec);
+            if (model == CarModel.Rio) ExtrasRio(body, spec);
 
             if (taxi) TaxiDress(body, spec);
             if (model == CarModel.Gazelle && UnityEngine.Random.value < 0.6f) RouteSign(body, spec);
@@ -352,6 +356,53 @@ namespace GasQueue
                 var front = s.cabin[1];
                 Shapes.Box(body, new Vector3(sign * (s.cabinBottom + 0.12f), front.y + 0.1f, front.x - 0.12f), new Vector3(0.14f, 0.1f, 0.06f), Black, name: "Mirror");
             }
+        }
+
+        /// <summary>«Семёрка»: хромированные окантовки окон и водостоки на крыше, брызговики, хромированные колпаки.</summary>
+        static void Extras2107(Transform body, Spec s)
+        {
+            var c = s.cabin;
+            foreach (float sign in new[] { -1f, 1f })
+            {
+                // Хром по нижней кромке окон и по краю крыши
+                Beam(body, new Vector3(sign * (s.cabinBottom + 0.015f), c[0].y + 0.01f, c[0].x), new Vector3(sign * (s.cabinBottom + 0.015f), c[1].y + 0.01f, c[1].x), 0.03f, Chrome, "BeltChrome");
+                Beam(body, new Vector3(sign * (s.cabinTop + 0.02f), c[3].y - 0.01f, c[3].x), new Vector3(sign * (s.cabinTop + 0.02f), c[2].y - 0.01f, c[2].x), 0.035f, Chrome, "DripRail");
+                // Брызговики за колёсами
+                foreach (float z in new[] { s.axleFront, s.axleRear })
+                    Shapes.Box(body, new Vector3(sign * (s.halfWidth - 0.08f), 0.2f, z - s.wheelR - 0.12f), new Vector3(0.22f, 0.3f, 0.02f), Black, name: "Mudflap");
+            }
+            // Хромированные колпаки
+            foreach (var w in body.parent.GetComponentsInChildren<Transform>())
+                if (w.name == "Wheel")
+                    Shapes.Make(PrimitiveType.Cylinder, w, Vector3.zero, new Vector3(s.wheelR * 1.05f, 0.118f, s.wheelR * 1.05f), Chrome, name: "Hubcap");
+        }
+
+        /// <summary>«Нива»: чёрные расширители арок и багажник на крыше.</summary>
+        static void ExtrasNiva(Transform body, Spec s)
+        {
+            foreach (float sign in new[] { -1f, 1f })
+            foreach (float z in new[] { s.axleFront, s.axleRear })
+                Shapes.Box(body, new Vector3(sign * (s.halfWidth + 0.03f), s.wheelR + 0.32f, z), new Vector3(0.08f, 0.1f, s.wheelR * 2.5f), Black, name: "FenderFlare");
+            float roof = s.roofY + 0.06f;
+            var front = s.cabin[2].x - 0.1f;
+            var rear = s.cabin[s.cabin.Length - 1].x + 0.1f;
+            foreach (float sign in new[] { -1f, 1f })
+                Beam(body, new Vector3(sign * (s.cabinTop - 0.05f), roof, rear), new Vector3(sign * (s.cabinTop - 0.05f), roof, front), 0.05f, Black, "RoofRail");
+            for (int i = 0; i < 3; i++)
+            {
+                float z = Mathf.Lerp(rear + 0.2f, front - 0.2f, i / 2f);
+                Shapes.Box(body, new Vector3(0, roof + 0.03f, z), new Vector3(s.cabinTop * 2f - 0.05f, 0.03f, 0.05f), Black, name: "RoofBar");
+            }
+        }
+
+        /// <summary>«Рио»: чёрный низ бамперов и порогов, узкий фонарь через всю корму.</summary>
+        static void ExtrasRio(Transform body, Spec s)
+        {
+            float half = s.length / 2f;
+            Shapes.Box(body, new Vector3(0, 0.36f, half + 0.03f), new Vector3(1.5f, 0.08f, 0.03f), Black, name: "LowerTrim");
+            Shapes.Box(body, new Vector3(0, 0.88f, -half - 0.005f), new Vector3(1.2f, 0.04f, 0.02f), TailLight, name: "TailBar");
+            foreach (float sign in new[] { -1f, 1f })
+                Shapes.Box(body, new Vector3(sign * (s.halfWidth + 0.005f), 0.36f, 0), new Vector3(0.02f, 0.08f, s.length * 0.55f), Black, name: "Sill");
         }
 
         /// <summary>Такси: шашечки на дверях и «гребешок» на крыше.</summary>

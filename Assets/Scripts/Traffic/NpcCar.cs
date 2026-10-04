@@ -184,6 +184,9 @@ namespace GasQueue
             bool changingLane = Mathf.Abs(targetOffset - Offset) > 0.01f;
             float limit = SpeedLimit();
 
+            // Невежливый сосед, перед которым кто-то моргает поворотником, спешит поджать дырку
+            if (!moving && traffic.IsCutterTarget(this)) reactionDelay = Mathf.Min(reactionDelay, 0.15f);
+
             if (!moving)
             {
                 float startThreshold = limitedByStop ? ArriveTolerance : Role == NpcRole.Through ? 0.5f : 1.2f;
@@ -232,18 +235,28 @@ namespace GasQueue
                 fwd = Quaternion.Euler(0f, Mathf.Clamp(yaw, -14f, 14f), 0f) * fwd;
             }
 
-            // Страховка: никогда не въезжаем в игрока или пешехода
+            // Страховка: никогда не въезжаем в игрока, пешехода или другую машину
+            var current = Box;
             var newBox = new Obb(pos, fwd, Width, Length);
-            if (traffic.WouldHitPlayer(newBox, Box))
+            if (Blocked(newBox, current))
             {
-                // Может, мешает только поворот носа — пробуем сдвинуться боком, не поворачиваясь
+                // Может, мешает только поворот носа — пробуем сдвинуться, не поворачиваясь
                 fwd = Path.TangentAt(newS);
                 newBox = new Obb(pos, fwd, Width, Length);
-                if (traffic.WouldHitPlayer(newBox, Box))
+                if (Blocked(newBox, current))
                 {
-                    Speed = 0f;
-                    moving = false;
-                    return;
+                    // И без бокового сдвига — только вперёд
+                    pos = Path.PointAt(newS) + Path.RightAt(newS) * Offset;
+                    newOffset = Offset;
+                    newBox = new Obb(pos, fwd, Width, Length);
+                    if (Blocked(newBox, current))
+                    {
+                        Speed = 0f;
+                        moving = false;
+                        if (changingLane) laneBlockedTimer += dt;
+                        return;
+                    }
+                    if (changingLane) laneBlockedTimer += dt;
                 }
             }
 
@@ -251,13 +264,24 @@ namespace GasQueue
             Offset = newOffset;
             Place(pos, fwd);
 
-            if (changingLane && Mathf.Abs(targetOffset - Offset) < 0.01f) FinishLaneChange();
+            if (changingLane && Mathf.Abs(targetOffset - Offset) < 0.01f)
+            {
+                laneBlockedTimer = 0f;
+                FinishLaneChange();
+            }
 
             UpdateHonking(dt, blocker);
             UpdateOvertake(dt, blocker);
         }
 
         float stuckBehindTimer;
+        float laneBlockedTimer; // как долго перестроение упирается в соседей
+
+        // Если перестроение 3 с упирается в соседей-NPC, машина «протискивается» (чуть касаясь их),
+        // иначе застрявшая наполовину в очереди машина перекрывает её навсегда. В игрока не въезжаем никогда.
+        bool Blocked(Obb newBox, Obb current) =>
+            traffic.WouldHitPlayer(newBox, current) ||
+            (laneBlockedTimer < 3f && traffic.WouldHitNpc(this, newBox, current));
 
         /// <summary>Едет мимо по среднему ряду, а там встал «второй ряд» — уходит в левый ряд и объезжает.</summary>
         void UpdateOvertake(float dt, Vehicle blocker)
@@ -302,6 +326,7 @@ namespace GasQueue
         {
             targetOffset = offset;
             pathAfterLaneChange = target;
+            laneBlockedTimer = 0f;
             visual.blinker = offset > 0 ? 1 : -1;
         }
 
@@ -436,7 +461,7 @@ namespace GasQueue
         }
 
         // Наглецы у съезда лезут в дырку чуть длиннее своей машины, остальные — в дырку побольше
-        float GapNeeded => Length + (Cut == CutState.Waiting || AimsAtEntrance ? 1.0f : 2.2f);
+        float GapNeeded => Length + (Cut == CutState.Waiting || AimsAtEntrance ? 1.8f : 2.4f);
 
         void UpdateCutter(float dt)
         {
@@ -450,7 +475,7 @@ namespace GasQueue
                     {
                         CutFollower = follower;
                         cutTargetS = gapCenterS;
-                        CutPolite = !follower.IsPlayer && Random.value < 0.5f;
+                        CutPolite = !follower.IsPlayer && traffic.RollPoliteness();
                         Cut = CutState.Aligning;
                         cutTimer = 0f;
                     }
@@ -469,7 +494,7 @@ namespace GasQueue
                     {
                         CutFollower = follower;
                         cutTargetS = gapCenterS;
-                        CutPolite = !follower.IsPlayer && Random.value < 0.6f;
+                        CutPolite = !follower.IsPlayer && traffic.RollPoliteness();
                         Cut = CutState.Aligning;
                         cutTimer = 0f;
                     }
@@ -500,8 +525,10 @@ namespace GasQueue
                 }
                 case CutState.Merging:
                 {
-                    // Если сосед успел поджать, а мы ещё не влезли наполовину — отказываемся
-                    if (Offset < 2f && !traffic.GapStillOpen(this, CutFollower, Length + 0.3f, out cutTargetS)) AbortCut();
+                    // Если сосед успел поджать, а мы ещё не влезли наполовину — отказываемся.
+                    // Если боком упёрлись в соседей — тоже отказываемся и возвращаемся в свой ряд.
+                    if ((Offset < 2f && !traffic.GapStillOpen(this, CutFollower, Length + 0.3f, out cutTargetS)) || laneBlockedTimer > 2.5f)
+                        AbortCut();
                     break;
                 }
             }
@@ -517,6 +544,7 @@ namespace GasQueue
             }
             targetOffset = 0f;
             pathAfterLaneChange = null;
+            laneBlockedTimer = 0f;
             visual.blinker = 0;
             CutFollower = null;
             // Наглец у съезда не сдаётся — снова встаёт вторым рядом и ждёт
@@ -547,6 +575,17 @@ namespace GasQueue
         void UpdateGivingUp(float dt)
         {
             giveUpTimer += dt;
+            if (pathAfterLaneChange != null && laneBlockedTimer > 4f)
+            {
+                // Боком не протиснуться — передумал, возвращается на место в очереди
+                targetOffset = 0f;
+                pathAfterLaneChange = null;
+                laneBlockedTimer = 0f;
+                Role = NpcRole.Queue;
+                StopAtEnd = true;
+                visual.blinker = 0;
+                return;
+            }
             if (pathAfterLaneChange != null || giveUpTimer < 2f) return;
             // Ждём, пока в соседнем ряду будет свободно
             if (traffic.LaneClearNear(traffic.MiddlePath, S, 10f, this))

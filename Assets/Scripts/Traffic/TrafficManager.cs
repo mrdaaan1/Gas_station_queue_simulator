@@ -156,7 +156,7 @@ namespace GasQueue
         NpcCar SpawnNpc(string tag)
         {
             var model = CarModels.Random(out bool taxi);
-            if (tag == "Cutter" && Random.value < 0.5f) { model = CarModel.Rio; taxi = true; } // таксисты наглее всех
+            if (tag == "Cutter" && Random.value < 0.35f) { model = CarModel.Rio; taxi = true; } // таксисты наглее всех
             var visual = CarFactory.Build($"{(taxi ? "Taxi" : tag)} {++carCounter}", CarModels.RandomPaint(model, taxi), model, false, taxi);
             visual.transform.SetParent(transform, false);
             var npc = visual.gameObject.AddComponent<NpcCar>();
@@ -522,14 +522,55 @@ namespace GasQueue
             return false;
         }
 
-        /// <summary>Вежливый NPC пропускает того, кто моргает поворотником перед ним.</summary>
+        /// <summary>Вежливый NPC пропускает того, кто уже моргает поворотником перед ним.</summary>
         public bool MustYieldToCutter(NpcCar me)
         {
             if (me.Role != NpcRole.Queue) return false;
             foreach (var npc in Npcs)
                 if (npc.Role == NpcRole.Cutter && npc.CutFollower == me && npc.CutPolite &&
-                    (npc.Cut == NpcCar.CutState.Signaling || npc.Cut == NpcCar.CutState.Merging || npc.Cut == NpcCar.CutState.Aligning))
+                    (npc.Cut == NpcCar.CutState.Signaling || npc.Cut == NpcCar.CutState.Merging))
                     return true;
+            return false;
+        }
+
+        /// <summary>Кто-то невежливо целится влезть прямо перед этой машиной.</summary>
+        public bool IsCutterTarget(NpcCar me)
+        {
+            if (me.Role != NpcRole.Queue) return false;
+            foreach (var npc in Npcs)
+                if (npc.Role == NpcRole.Cutter && npc.CutFollower == me && !npc.CutPolite && npc.Cut != NpcCar.CutState.Looking)
+                    return true;
+            return false;
+        }
+
+        float lastPoliteTime = -999f;
+
+        /// <summary>
+        /// Пропустит ли сосед наглеца. В жизни такое редко: примерно каждый седьмой,
+        /// и не чаще раза в минуту на всю очередь.
+        /// </summary>
+        public bool RollPoliteness()
+        {
+            if (Time.time - lastPoliteTime < 60f / Mathf.Max(1f, Settings.fastTestMode ? Settings.testSpeedup : 1f)) return false;
+            if (Random.value > 0.15f) return false;
+            lastPoliteTime = Time.time;
+            return true;
+        }
+
+        /// <summary>Не залезет ли машина NPC в другую машину NPC (касание, которое не усиливается, разрешаем).</summary>
+        public bool WouldHitNpc(NpcCar me, Obb box, Obb current)
+        {
+            var c = box.center;
+            foreach (var other in Npcs)
+            {
+                if (other == me) continue;
+                var d = other.Box.center - c;
+                if (d.sqrMagnitude > 64f) continue;
+                var ob = other.Box;
+                if (!Obb.Overlap(box, ob, out var mtvNew)) continue;
+                if (!Obb.Overlap(current, ob, out var mtvOld)) return true;
+                if (mtvNew.sqrMagnitude > mtvOld.sqrMagnitude + 0.0001f) return true;
+            }
             return false;
         }
 
