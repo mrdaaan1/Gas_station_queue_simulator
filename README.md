@@ -80,7 +80,7 @@ Assets/
   Scripts/
     Core/    GameBootstrap (точка входа), GameManager (правила, касса, заправка, финал), GameSettings, GameInput
     Traffic/ TrafficManager (очередь, колонки, поток, вклинивания), NpcCar, Vehicle, CarDamage (вмятины, обломки), Geometry (маршруты, габариты)
-    Player/  PlayerCar (езда, мотор, столкновения), CameraRig (камеры в машине и пешком)
+    Player/  PlayerCar (езда, мотор, столкновения), CameraRig (камеры в машине и пешком), CarMirrors (зеркала заднего вида)
     People/  Human (человечек: ходьба, удары, прыжок, падение, синяки), Fighter (здоровье и драка), Brawler (возмущённый водитель), Vendor (продавцы),
              PumpCustomer (водитель NPC идёт платить), CashierLine (очередь в кассу), WalkerController (игрок пешком: прыжки, залезть на машину)
     World/   CityLayout (все координаты), CityBuilder (город и заправка), CarModels (2107, Rio-такси, Нива, Газель), CarFactory (машина игрока), TextureFactory, MeshFactory, StationProps

@@ -17,6 +17,7 @@ namespace GasQueue
         public Transform steeringWheel;
         public Transform driverEyes;
         public Transform driverHead;
+        public Transform mirrorRear, mirrorLeft, mirrorRight; // стёкла зеркал машины игрока (CarMirrors)
         public Transform driverTorso;
         public Transform leftHand, rightHand, leftArm, rightArm;
         public Renderer fuelLamp;
@@ -268,9 +269,13 @@ namespace GasQueue
                 sideGlass.GetComponent<Renderer>().sharedMaterial = MeshFactory.Glass;
                 Shapes.Box(body, new Vector3(x, (beltY + roofY) / 2f, -0.75f), new Vector3(0.08f, roofY - beltY, 0.1f), paint, name: "BPillar");
                 Shapes.Box(body, new Vector3(x, (beltY + roofY) / 2f, cabRear + 0.08f), new Vector3(0.08f, roofY - beltY, 0.16f), paint, name: "CPillar");
-                // Боковое зеркало снаружи
-                Shapes.Box(body, new Vector3(0.98f * side, beltY + 0.08f, cabFront - 0.15f), new Vector3(0.1f, 0.13f, 0.2f), paint, name: "SideMirror");
-                Shapes.Box(body, new Vector3(0.98f * side, beltY + 0.08f, cabFront - 0.255f), new Vector3(0.08f, 0.11f, 0.01f), Chrome, name: "SideMirrorGlass");
+                // Боковое зеркало снаружи: повёрнуто к водителю (он сидит слева), стекло смотрит назад
+                Shapes.Box(body, new Vector3(0.93f * side, beltY + 0.04f, cabFront - 0.12f), new Vector3(0.1f, 0.05f, 0.08f), trim, name: "SideMirrorArm");
+                var mirror = Shapes.Group(side < 0 ? "LeftMirror" : "RightMirror", body,
+                    new Vector3(1.06f * side, beltY + 0.1f, cabFront - 0.12f), new Vector3(0f, side < 0 ? -27f : 48f, 0f));
+                Shapes.Box(mirror, new Vector3(0f, 0f, 0.035f), new Vector3(0.24f, 0.16f, 0.07f), paint, name: "SideMirror");
+                var sideGlassMirror = Shapes.Make(PrimitiveType.Quad, mirror, new Vector3(0f, 0f, -0.002f), new Vector3(0.21f, 0.135f, 1f), Chrome, name: "SideMirrorGlass").transform;
+                if (side < 0) visual.mirrorLeft = sideGlassMirror; else visual.mirrorRight = sideGlassMirror;
             }
 
             // Лобовое стекло и передние стойки — под наклоном
@@ -332,8 +337,9 @@ namespace GasQueue
 
             // Салонное зеркало
             Shapes.Make(PrimitiveType.Cylinder, body, new Vector3(0, roofY - 0.08f, windTopZ + 0.02f), new Vector3(0.02f, 0.04f, 0.02f), trim, name: "MirrorMount");
-            Shapes.Box(body, new Vector3(0, roofY - 0.14f, windTopZ + 0.02f), new Vector3(0.26f, 0.07f, 0.03f), trim, name: "Mirror");
-            Shapes.Box(body, new Vector3(0, roofY - 0.14f, windTopZ + 0.004f), new Vector3(0.24f, 0.055f, 0.003f), Chrome, name: "MirrorGlass");
+            var inner = Shapes.Group("RearMirror", body, new Vector3(0, roofY - 0.15f, windTopZ + 0.02f), new Vector3(0f, 22f, 0f));
+            Shapes.Box(inner, new Vector3(0f, 0f, 0.018f), new Vector3(0.31f, 0.09f, 0.035f), trim, name: "Mirror");
+            visual.mirrorRear = Shapes.Make(PrimitiveType.Quad, inner, new Vector3(0f, 0f, -0.001f), new Vector3(0.29f, 0.075f, 1f), Chrome, name: "MirrorGlass").transform;
 
             AddBumpersAndLights(body, visual, half);
             AddWheels(root, visual, half);

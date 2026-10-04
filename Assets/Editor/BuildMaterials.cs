@@ -52,6 +52,10 @@ public class BuildMaterials : IPreprocessBuildWithReport
         GasQueue.MeshFactory.MakeTransparent(glass);
         Save("Glass", glass);
 
+        // Зеркала: картинка с камеры без освещения
+        var unlit = Shader.Find(rp != null ? "Universal Render Pipeline/Unlit" : "Unlit/Texture");
+        if (unlit != null) Save("Mirror", new Material(unlit));
+
         var skyShader = Shader.Find("Skybox/Procedural");
         if (skyShader != null)
         {

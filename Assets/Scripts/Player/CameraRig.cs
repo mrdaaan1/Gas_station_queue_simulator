@@ -21,6 +21,7 @@ namespace GasQueue
 
         public CameraMode Mode { get; private set; } = CameraMode.Cabin;
         public bool FootFirstPerson { get; private set; }
+        public bool OnFoot => onFoot;
         public bool CursorLocked => Cursor.lockState == CursorLockMode.Locked;
 
         /// <summary>Куда смотрит камера по горизонтали, когда игрок пешком (для ходьбы относительно камеры).</summary>
