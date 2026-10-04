@@ -38,3 +38,8 @@ crashlytics-build.properties
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Сборка симулятора
+Tools/**/bin/
+Tools/**/obj/
+!Tools/**/*.csproj

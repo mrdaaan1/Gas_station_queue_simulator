@@ -81,8 +81,8 @@ namespace GasQueue
         float Speed => fastTestMode ? Mathf.Max(1f, testSpeedup) : 1f;
 
         public float ServiceTime => serviceTime / Speed;
-        /// <summary>Сколько одна машина стоит у колонки: колонок 4, поэтому каждая в 4 раза дольше, а очередь движется в прежнем темпе.</summary>
-        public float PumpServiceTime => ServiceTime * 4f;
+        /// <summary>Сколько одна машина стоит у колонки (≈ 8 игровых минут при обычной скорости часов).</summary>
+        public float PumpServiceTime => ServiceTime * 2.5f;
         public float CutterInterval => cutterInterval / Speed;
         public float GiveUpCheckInterval => giveUpCheckInterval / Speed;
         public float DeliveryDuration => deliveryDuration / Speed;

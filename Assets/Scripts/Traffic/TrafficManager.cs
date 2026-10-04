@@ -409,16 +409,17 @@ namespace GasQueue
             return false;
         }
 
-        public bool LaneClearNear(LanePath path, float s, float radius)
+        public bool LaneClearNear(LanePath path, float s, float radius, NpcCar except = null)
         {
             if (!lanes.TryGetValue(path, out var list)) return true;
             foreach (var e in list)
-                if (Mathf.Abs(e.s - s) < radius && Mathf.Abs(e.offset) < 2f) return false;
-            // Машины, которые как раз перестраиваются в этот ряд
+                if (e.v != except && Mathf.Abs(e.s - s) < radius && Mathf.Abs(e.offset) < 2f) return false;
+            // Машины, которые как раз перестраиваются в этот ряд (уже сместились больше чем на метр)
             var p = path.PointAt(s);
             foreach (var npc in Npcs)
-                if (npc.Role == NpcRole.Cutter || npc.Role == NpcRole.GivingUp)
-                    if (Vector3.Distance(npc.Position, p) < radius && npc.Path != path) return false;
+                if (npc != except && npc.Path != path && Mathf.Abs(npc.Offset) > 1f &&
+                    (npc.Role == NpcRole.Cutter || npc.Role == NpcRole.GivingUp) &&
+                    Vector3.Distance(npc.Position, p) < radius) return false;
             return true;
         }
 

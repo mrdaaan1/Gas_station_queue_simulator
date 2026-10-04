@@ -345,7 +345,7 @@ namespace GasQueue
             serviceDuration = traffic.Settings.PumpServiceTime * Random.Range(0.75f, 1.3f);
             if (Random.value < traffic.Settings.slowDriverChance)
             {
-                serviceDuration *= 2f;
+                serviceDuration *= 1.6f;
                 traffic.OnSlowDriver(this);
             }
             serviceTimer = serviceDuration * progress;
@@ -500,8 +500,18 @@ namespace GasQueue
             giveUpTimer += dt;
             if (pathAfterLaneChange != null || giveUpTimer < 2f) return;
             // Ждём, пока в соседнем ряду будет свободно
-            if (!traffic.LaneClearNear(traffic.MiddlePath, S, 10f)) return;
-            StartLaneChange(CityLayout.LaneMiddle - CityLayout.LaneQueue, traffic.MiddlePath);
+            if (traffic.LaneClearNear(traffic.MiddlePath, S, 10f, this))
+            {
+                StartLaneChange(CityLayout.LaneMiddle - CityLayout.LaneQueue, traffic.MiddlePath);
+                return;
+            }
+            // Так и не смог перестроиться — передумал и остался в очереди
+            if (giveUpTimer > 15f)
+            {
+                Role = NpcRole.Queue;
+                StopAtEnd = true;
+                visual.blinker = 0;
+            }
         }
 
         public void Hold(float seconds) => holdTimer = Mathf.Max(holdTimer, seconds);
