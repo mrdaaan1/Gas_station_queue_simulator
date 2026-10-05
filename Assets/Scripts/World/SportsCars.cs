@@ -4,7 +4,7 @@ using UnityEngine;
 namespace GasQueue
 {
     /// <summary>Машины, которые может выбрать игрок.</summary>
-    public enum PlayerCarKind { Vaz2107, Supra, Gelik, Skyline }
+    public enum PlayerCarKind { Vaz2107, Supra, Gelik, Skyline, Rx7 }
 
     /// <summary>
     /// Спорткары из гладких сеток (<see cref="SupraModel"/> и следующие): собирает объекты Unity
@@ -14,7 +14,10 @@ namespace GasQueue
     {
         public static string Title(PlayerCarKind kind) =>
             kind == PlayerCarKind.Supra ? "Тоёта Супра (1997)" : kind == PlayerCarKind.Gelik ? "Гелик (2025)" :
-            kind == PlayerCarKind.Skyline ? "Скайлайн GT-R (1999)" : "ВАЗ-2107";
+            kind == PlayerCarKind.Skyline ? "Скайлайн GT-R (1999)" : kind == PlayerCarKind.Rx7 ? "Мазда RX-7 (1993)" : "ВАЗ-2107";
+
+        /// <summary>Красная, как у Доминика в первом «Форсаже».</summary>
+        public static readonly Color Rx7Red = Shapes.Hex("#d4141c");
 
         /// <summary>Серебристый, как у Брайана во «Двойном форсаже».</summary>
         public static readonly Color SkylineSilver = Shapes.Hex("#c3c7cc");
@@ -217,6 +220,72 @@ namespace GasQueue
 
             PlateText(map["PlateFront"], "Р 340 ТР");
             PlateText(map["PlateRear"], "Р 340 ТР");
+            return visual;
+        }
+
+        /// <summary>«Мазда RX-7» Доминика из «Форсажа»: руль слева, стрелочные приборы, «когти» на кузове.</summary>
+        public static CarVisual BuildRx7(string name, Color paint)
+        {
+            var root = new GameObject(name).transform;
+            var visual = root.gameObject.AddComponent<CarVisual>();
+            var map = ModelSpawner.Spawn(Rx7Model.Get().root, root, key => CarMaterials.Get(key, paint, 0.85f));
+
+            visual.body = map["Body"];
+            visual.length = 4.3f;
+            visual.width = 1.83f;
+            visual.height = 1.23f;
+            visual.hoodTop = 0.76f;
+            visual.rightHandDrive = false;
+            visual.maxSpeed = 58f;        // ~210 км/ч, роторный мотор крутится до отсечки
+            visual.accel = 7.8f;
+            visual.speedoMaxKmh = 260f;
+            visual.wheelRadius = Rx7Model.WheelR;
+            visual.sporty = true;
+
+            foreach (var tag in new[] { "FL", "FR", "RL", "RR" })
+                visual.wheels.Add(map["Wheel" + tag]);
+            visual.frontSteer.Add(map["SteerFL"]);
+            visual.frontSteer.Add(map["SteerFR"]);
+
+            visual.steeringWheel = map["SteeringWheel"];
+            visual.steeringTilt = Rx7Model.SteeringTilt;
+            visual.speedNeedle = map["SpeedNeedle"];
+            visual.fuelNeedle = map["FuelNeedle"];
+            visual.tachNeedle = map["TachNeedle"];
+            visual.fuelLamp = map["FuelLamp"].GetComponent<Renderer>();
+            visual.engineLamp = map["EngineLamp"].GetComponent<Renderer>();
+            visual.radioDisplay = Fonts.WorldText(map["RadioScreen"], new Vector3(0f, 0f, -0.002f), "", Shapes.Hex("#7dffa8"), 0.0034f);
+
+            visual.mirrorLeft = map["MirrorGlassL"];
+            visual.mirrorRight = map["MirrorGlassR"];
+            visual.mirrorRear = map["RearMirrorGlass"];
+
+            visual.driverHead = map["DriverHead"];
+            visual.driverTorso = map["DriverTorso"];
+            AddArms(visual, Rx7Model.DriverEyes, 0.93f, -0.86f, 0.172f);
+            visual.driverEyes = Shapes.Group("DriverEyes", root, Rx7Model.DriverEyes);
+            visual.driverDoorLocal = new Vector3(-1.45f, 0f, -0.7f);
+            visual.fuelCapLocal = new Vector3(0.92f, 0.8f, -1.55f);
+
+            visual.headlights.Add(map["HeadlightL"]);
+            visual.headlights.Add(map["HeadlightR"]);
+            visual.taillights.Add(map["TaillightL"]);
+            visual.taillights.Add(map["TaillightR"]);
+            visual.bumperFront = map["BumperF"];
+            visual.bumperRear = map["BumperR"];
+            visual.frontPanel = map["Hood"];
+            visual.rearPanel = map["Trunk"];
+            visual.doors.Add(map["DoorL"]);
+            visual.doors.Add(map["DoorR"]);
+            visual.roof = map["Roof"];
+            visual.leftBlinkers.Add(map["BlinkFL"].GetComponent<Renderer>());
+            visual.leftBlinkers.Add(map["BlinkRL"].GetComponent<Renderer>());
+            visual.rightBlinkers.Add(map["BlinkFR"].GetComponent<Renderer>());
+            visual.rightBlinkers.Add(map["BlinkRR"].GetComponent<Renderer>());
+            visual.blinkOffMat = CarMaterials.Get("amber", paint);
+
+            PlateText(map["PlateFront"], "В 777 ОР");
+            PlateText(map["PlateRear"], "В 777 ОР");
             return visual;
         }
 
