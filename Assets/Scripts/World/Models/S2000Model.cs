@@ -92,7 +92,7 @@ namespace GasQueue
             else if (seg == SegD && cabin)
             {
                 // Боковых стёкол нет (опущены), остаются только стойки рамки
-                mat = z > Header - 0.04f && z < Cowl && v > 0.8f ? "black" : null;
+                mat = null;
             }
             bool lower = seg == SegB || seg == SegC;
             if (lower && z < DoorFront && z > DoorRear && p.y > 0.16f) node = side > 0 ? "DoorR" : "DoorL";
@@ -100,7 +100,7 @@ namespace GasQueue
             if (seg <= SegC && z < -1.88f && p.y < 0.68f) node = "BumperR";
             if (mat != null && mat != "glass" && seg >= SegB && seg <= SegC && z < Cowl && z > Tonneau - 0.05f && p.y > 0.22f)
                 inner = "int_door";
-            if (mat == "black" && seg >= SegD && z < Cowl) inner = "black"; // рамку стекла видно и изнутри
+            if (mat == "black" && seg == SegE && z < Cowl) inner = "black"; // рамку стекла видно и изнутри
             return new CellInfo { node = node, mat = mat, innerMat = inner };
         }
 
@@ -515,8 +515,23 @@ namespace GasQueue
             Geo.Surface(cab.M("int_black"), id, 30, 4, Hood, true);
             Geo.Surface(cab.M("int_black"), id, 30, 4, Hood, false);
             var cl = cab.Child("ClusterScreen", c + new Vector3(0f, -0.01f, 0.03f), SportsCarModel.LookEuler((c - DriverEyes).normalized));
-            Geo.RoundBox(cl.M("gauge_face"), id, new Vector3(0f, 0f, 0.008f), new Vector3(0.34f, 0.13f, 0.012f), 0.3f, 6);
-            Geo.Quad(cl.M("screen_amber"), id, 0.3f, 0.1f);
+            // Щиток как у настоящей S2000: дуга светодиодного тахометра, крупная скорость, столбик бензина
+            Geo.RoundBox(cl.M("gauge_face"), id, new Vector3(0f, 0f, 0.008f), new Vector3(0.36f, 0.14f, 0.012f), 0.3f, 6);
+            const int leds = 30;
+            for (int i = 0; i < leds; i++)
+            {
+                float ang = Mathf.Lerp(162f, 18f, i / (float)(leds - 1)) * Mathf.Deg2Rad;
+                var radial = new Vector3(Mathf.Cos(ang), Mathf.Sin(ang), 0f);
+                var tangent = new Vector3(-Mathf.Sin(ang), Mathf.Cos(ang), 0f);
+                var led = cl.Child("Led" + i, new Vector3(0f, -0.075f, 0f) + radial * 0.13f);
+                Geo.Box(led.M("led_off"), new Frame { o = new Vector3(0f, 0f, -0.002f), x = radial, y = tangent, z = Vector3.forward },
+                    Vector3.zero, new Vector3(0.022f, 0.009f, 0.003f));
+            }
+            for (int i = 0; i < 8; i++)
+            {
+                var seg = cl.Child("FuelLed" + i, new Vector3(0.155f, -0.05f + i * 0.012f, 0f));
+                Geo.Box(seg.M("led_off"), id, new Vector3(0f, 0f, -0.002f), new Vector3(0.02f, 0.008f, 0.003f));
+            }
             var screen = cab.Child("RadioScreen", new Vector3(0.12f, 0.6f, 0.15f), new Vector3(10f, 0f, 0f));
             Geo.RoundBox(screen.M("int_black"), id, new Vector3(0f, 0f, 0.01f), new Vector3(0.2f, 0.06f, 0.02f), 0.2f, 6);
             Geo.Quad(screen.M("screen"), id, 0.16f, 0.035f);

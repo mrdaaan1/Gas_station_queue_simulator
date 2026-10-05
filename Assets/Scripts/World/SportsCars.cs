@@ -319,8 +319,17 @@ namespace GasQueue
             visual.steeringWheel = map["SteeringWheel"];
             visual.steeringTilt = S2000Model.SteeringTilt;
             var white = Color.white;
-            visual.digitalSpeed = Fonts.WorldText(map["ClusterScreen"], new Vector3(-0.13f, 0f, -0.003f), "", white, 0.0034f);
-            visual.digitalFuel = Fonts.WorldText(map["ClusterScreen"], new Vector3(0.13f, 0f, -0.003f), "", white, 0.0026f);
+            visual.digitalSpeed = Fonts.WorldText(map["ClusterScreen"], new Vector3(0f, -0.02f, -0.004f), "", Shapes.Hex("#ffd27a"), 0.0062f);
+            Fonts.WorldText(map["ClusterScreen"], new Vector3(0f, -0.052f, -0.004f), "км/ч", Shapes.Hex("#c08a3a"), 0.0022f);
+            Fonts.WorldText(map["ClusterScreen"], new Vector3(0.155f, 0.05f, -0.004f), "F", Shapes.Hex("#c08a3a"), 0.0022f);
+            Fonts.WorldText(map["ClusterScreen"], new Vector3(0.155f, -0.062f, -0.004f), "E", Shapes.Hex("#c08a3a"), 0.0022f);
+            visual.tachLeds = new Renderer[30];
+            for (int k = 0; k < 30; k++) visual.tachLeds[k] = map["Led" + k].GetComponent<Renderer>();
+            visual.fuelLeds = new Renderer[8];
+            for (int k = 0; k < 8; k++) visual.fuelLeds[k] = map["FuelLed" + k].GetComponent<Renderer>();
+            visual.ledOff = CarMaterials.Get("led_off", paint);
+            visual.ledOn = CarMaterials.Get("led_on", paint);
+            visual.ledRed = CarMaterials.Get("led_red", paint);
             visual.radioDisplay = Fonts.WorldText(map["RadioScreen"], new Vector3(0f, 0f, -0.003f), "", Shapes.Hex("#9fd0ff"), 0.0034f);
 
             visual.mirrorLeft = map["MirrorGlassL"];

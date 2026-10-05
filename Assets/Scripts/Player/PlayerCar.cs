@@ -345,6 +345,11 @@ namespace GasQueue
         bool throttle;
         float shownRpm;
 
+        static void SetLed(Renderer r, Material m)
+        {
+            if (r != null && r.sharedMaterial != m) r.sharedMaterial = m;
+        }
+
         /// <summary>Обороты мотора: шесть передач, на каждой стрелка тахометра бежит от ~3000 до отсечки.</summary>
         public float Rpm
         {
@@ -381,9 +386,29 @@ namespace GasQueue
                 visual.speedNeedle.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(120f, -120f, SpeedKmh / visual.speedoMaxKmh));
             if (visual.digitalSpeed != null)
             {
-                visual.digitalSpeed.text = ignition ? Mathf.RoundToInt(SpeedKmh) + "\nкм/ч" : "";
-                visual.digitalFuel.text = ignition ? Mathf.RoundToInt(fuel * 100f) + "%\nбензин" : "";
-                visual.digitalFuel.color = fuel < 0.1f && Mathf.Repeat(lampBlink, 1f) < 0.6f ? LampFuel : Color.white;
+                if (visual.tachLeds != null)
+                    visual.digitalSpeed.text = ignition ? Mathf.RoundToInt(SpeedKmh).ToString() : "";
+                else
+                    visual.digitalSpeed.text = ignition ? Mathf.RoundToInt(SpeedKmh) + "\nкм/ч" : "";
+                if (visual.digitalFuel != null)
+                {
+                    visual.digitalFuel.text = ignition ? Mathf.RoundToInt(fuel * 100f) + "%\nбензин" : "";
+                    visual.digitalFuel.color = fuel < 0.1f && Mathf.Repeat(lampBlink, 1f) < 0.6f ? LampFuel : Color.white;
+                }
+            }
+            if (visual.tachLeds != null)
+            {
+                // Светодиодный тахометр: горит до текущих оборотов, последние четыре — красная зона
+                float rpm = ignition && Engine == EngineState.Running ? Rpm : 0f;
+                shownRpm = Mathf.MoveTowards(shownRpm, rpm, dt * 12000f);
+                int n = visual.tachLeds.Length;
+                int lit = Mathf.RoundToInt(shownRpm / 9000f * n);
+                for (int i = 0; i < n; i++)
+                    SetLed(visual.tachLeds[i], i < lit ? (i >= n - 4 ? visual.ledRed : visual.ledOn) : visual.ledOff);
+                int fuelLit = ignition ? Mathf.CeilToInt(fuel * visual.fuelLeds.Length) : 0;
+                bool blinkLow = fuel < 0.1f && Mathf.Repeat(lampBlink, 1f) > 0.6f;
+                for (int i = 0; i < visual.fuelLeds.Length; i++)
+                    SetLed(visual.fuelLeds[i], i < fuelLit && !blinkLow ? (fuel < 0.15f ? visual.ledRed : visual.ledOn) : visual.ledOff);
             }
             if (visual.tachNeedle != null)
             {

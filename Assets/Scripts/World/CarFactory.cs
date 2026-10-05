@@ -61,6 +61,9 @@ namespace GasQueue
         public Material blinkOffMat, blinkOnMat;
         /// <summary>Цифровые приборы (вместо стрелок): скорость и бензин на экране.</summary>
         public TextMesh digitalSpeed, digitalFuel;
+        /// <summary>Светодиоды тахометра и бензина на цифровом щитке (горят по оборотам и уровню).</summary>
+        public Renderer[] tachLeds, fuelLeds;
+        public Material ledOff, ledOn, ledRed;
         /// <summary>Ближняя граница камеры салонного зеркала: не показывать саму машину (заднюю дверь, запаску).</summary>
         public float rearMirrorNear = 2.6f;
 
