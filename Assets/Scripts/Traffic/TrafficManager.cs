@@ -442,11 +442,12 @@ namespace GasQueue
         }
 
         /// <summary>Ряд очереди рядом с машиной пуст (хвост очереди впереди) — можно просто встать в хвост.</summary>
-        public bool QueueLaneFreeBeside(NpcCar npc)
+        public bool QueueLaneFreeBeside(NpcCar npc, bool pushy = false)
         {
             float qs = QueuePath.Project(npc.Position, out float lat);
-            if (Mathf.Abs(lat) > 5f || qs > QueueRoadEndS - 6f) return false;
-            if (!LaneClearNear(QueuePath, qs, 9f, npc)) return false;
+            if (Mathf.Abs(lat) > (pushy ? 7.5f : 5f) || (!pushy && qs > QueueRoadEndS - 6f)) return false;
+            if (!LaneClearNear(QueuePath, qs, pushy ? 7f : 9f, npc)) return false;
+            if (pushy) return true; // долго ждёт у въезда — влезает в любую дырку рядом
             // Хвост очереди должен быть впереди: сразу позади нас в очереди никого (иначе это уже «влезть»)
             foreach (var e in queue)
                 if (e.s < qs && e.s > qs - 40f) return false;

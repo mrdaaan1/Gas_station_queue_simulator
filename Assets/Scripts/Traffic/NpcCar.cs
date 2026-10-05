@@ -133,13 +133,13 @@ namespace GasQueue
             RacerName = name;
             skill = racerSkill;
             profile = speedProfile;
-            accel = 6.8f * racerSkill;
+            accel = 9.5f * racerSkill;
             decel = 10f;
             laneRate = 3.2f;
             Setup(NpcRole.Racing, lane, s, false);
             moving = false;
             Speed = 0f;
-            reactionDelay = Random.Range(0.1f, 0.6f); // реакция на зелёный
+            reactionDelay = Random.Range(0.02f, 0.2f); // реакция на зелёный — все срываются почти разом
         }
 
         /// <summary>Трасса кончилась на правой полосе — в хвост очереди.</summary>
@@ -206,7 +206,7 @@ namespace GasQueue
             return limit;
         }
 
-        float DesiredGap => Role == NpcRole.Racing ? 4f + Speed * 0.3f : Role == NpcRole.Through ? 5f : pressing ? 0.55f : 2f;
+        float DesiredGap => Role == NpcRole.Racing ? 1.5f + Speed * 0.3f : Role == NpcRole.Through ? 5f : pressing ? 0.55f : 2f;
 
         void Update()
         {
@@ -334,7 +334,7 @@ namespace GasQueue
 
             if (!moving)
             {
-                float startThreshold = limitedByStop ? ArriveTolerance : Role == NpcRole.Through ? 0.5f : 1.2f;
+                float startThreshold = limitedByStop ? ArriveTolerance : Role == NpcRole.Through || Role == NpcRole.Racing ? 0.3f : 1.2f;
                 if (free > startThreshold || (changingLane && free > 0.6f))
                 {
                     reactTimer += dt;
@@ -342,7 +342,7 @@ namespace GasQueue
                     {
                         moving = true;
                         reactTimer = 0f;
-                        reactionDelay = Random.Range(0.4f, 1.4f);
+                        reactionDelay = Role == NpcRole.Racing ? Random.Range(0.05f, 0.2f) : Random.Range(0.4f, 1.4f);
                     }
                 }
                 else reactTimer = 0f;
@@ -740,7 +740,7 @@ namespace GasQueue
                         Cut = CutState.Aligning;
                         cutTimer = 0f;
                     }
-                    else if (IsRacer && cutTimer > 1.5f && traffic.QueueLaneFreeBeside(this)) StartTailMerge();
+                    else if (IsRacer && cutTimer > 1.5f && traffic.QueueLaneFreeBeside(this, cutTimer > 10f)) StartTailMerge();
                     else if (cutTimer > 45f) GiveUpCutting();
                     break;
                 }
@@ -788,7 +788,11 @@ namespace GasQueue
             Cut = CutState.Merging;
             CutFollower = null;
             cutTargetS = S + 6f;
-            StartLaneChange(CityLayout.LaneQueue - CityLayout.LaneMiddle, traffic.QueuePath);
+            // Насколько сдвинуться вбок, чтобы оказаться на маршруте очереди (у въезда он уходит вправо)
+            var queue = traffic.QueuePath;
+            var target = queue.PointAt(queue.Project(Position, out _));
+            float offset = Mathf.Clamp(Vector3.Dot(target - Path.PointAt(S), Path.RightAt(S)), 2.5f, 7f);
+            StartLaneChange(offset, queue);
         }
 
         bool tailMerge;

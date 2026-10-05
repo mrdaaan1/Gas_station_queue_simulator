@@ -230,20 +230,29 @@ namespace GasQueue
 
             var n = mtv.normalized;
             var fwd2 = new Vector2(fwd.x, fwd.z);
-            float impact = -Vector2.Dot(fwd2 * Speed, n); // скорость сближения с препятствием
+            // Скорость сближения с препятствием (с машиной — относительная: догнали едущего — удар слабый)
+            var otherVel = npc != null ? new Vector2(npc.Forward.x, npc.Forward.z) * npc.Speed : Vector2.zero;
+            float impact = -Vector2.Dot(fwd2 * Speed - otherVel, n);
             if (impact <= 0.05f) return;
 
             // Удар носом или задом
             bool ourFront = Vector2.Dot(fwd2, n) < 0f;
-            // Гасим скорость и слегка отскакиваем
-            Speed = -Speed * 0.12f;
+            if (raceFuel)
+            {
+                // Гонка: по касательной скорость почти сохраняется, в лоб — гасится; в едущую машину — подстраиваемся под неё
+                float headOn = Mathf.Abs(Vector2.Dot(fwd2, n));
+                Speed *= Mathf.Clamp01(1f - headOn * 0.85f);
+                if (npc != null) Speed = Mathf.Min(Speed, Mathf.Max(0f, Vector2.Dot(otherVel, fwd2)) + Speed * (1f - headOn) * 0.3f);
+            }
+            else Speed = -Speed * 0.12f; // гасим скорость и слегка отскакиваем
 
             if (impact < 0.9f) return;
             float now = Time.time;
             if (lastHit.TryGetValue(what, out float t) && now - t < 0.8f) return;
             lastHit[what] = now;
 
-            float severity = impact / 3f;
+            // В гонке машина крепче, как в аркадных гонках: удар мнёт бампер, но с одного раза не разваливается
+            float severity = raceFuel ? Mathf.Min(impact / 3f * 0.25f, 0.55f) : impact / 3f;
             var velocity = fwd * (ourFront ? impact : -impact);
             string report = damage.Hit(ourFront, severity, velocity);
             if (damage.Wrecked) ForceEngineOff();

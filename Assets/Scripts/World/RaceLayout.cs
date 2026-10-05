@@ -11,8 +11,9 @@ namespace GasQueue
     /// </summary>
     public static class RaceLayout
     {
-        public const float LaneOffset = 1.75f;
-        public const float HalfWidth = 5.2f;
+        /// <summary>Полосы соперников — в 2,6 м от оси. Трасса шире (16 м), чтобы их можно было объехать с любой стороны.</summary>
+        public const float LaneOffset = 2.6f;
+        public const float HalfWidth = 8f;
         public const float CornerRadius = 18f;
         /// <summary>Где трасса заканчивается и начинается главная дорога.</summary>
         public const float JoinZ = -560f;

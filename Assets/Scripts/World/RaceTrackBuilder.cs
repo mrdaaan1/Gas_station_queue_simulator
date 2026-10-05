@@ -244,7 +244,8 @@ namespace GasQueue
                 lights[i] = lamp.GetComponent<Renderer>();
             }
             // Шахматная линия
-            for (int i = 0; i < 12; i++)
+            int squares = Mathf.CeilToInt(RaceLayout.HalfWidth * 2f / 0.87f) - 1;
+            for (int i = 0; i < squares; i++)
                 for (int j = 0; j < 2; j++)
                     if ((i + j) % 2 == 0)
                         Shapes.Box(arch, new Vector3(-RaceLayout.HalfWidth + 0.45f + i * 0.87f, 0.02f, j * 0.6f - 0.3f), new Vector3(0.87f, 0.01f, 0.6f), Color.white);
