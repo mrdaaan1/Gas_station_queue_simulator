@@ -98,6 +98,36 @@ static class Program
                 if (m.n.Count != m.v.Count || m.uv.Count != m.v.Count) Console.WriteLine($"COUNT {n.name}:{n.mats[k]} v={m.v.Count} n={m.n.Count} uv={m.uv.Count}");
                 int vc = 0; foreach (var mm in n.meshes) vc += mm.v.Count;
                 if (k == 0 && vc > 65000) Console.WriteLine($"BIG {n.name} {vc}");
+                for (int ti = 0; ti < m.t.Count; ti += 3)
+                {
+                    var n0 = m.n[m.t[ti]]; var n1 = m.n[m.t[ti + 1]]; var n2 = m.n[m.t[ti + 2]];
+                    float md = Mathf.Min(Vector3.Dot(n0, n1), Mathf.Min(Vector3.Dot(n1, n2), Vector3.Dot(n0, n2)));
+                    var fn = Vector3.Cross(m.v[m.t[ti + 1]] - m.v[m.t[ti]], m.v[m.t[ti + 2]] - m.v[m.t[ti]]);
+                    bool against = fn.sqrMagnitude > 1e-12f && Vector3.Dot(fn.normalized, (n0 + n1 + n2).normalized) < -0.2f;
+                    if (md < 0f || against)
+                    {
+                        string key = n.name + ":" + n.mats[k] + (md < 0f ? " opposite-normals" : " normal-vs-winding");
+                        bad[key] = bad.TryGetValue(key, out int c) ? c + 1 : 1;
+                        where[key] = f.P(m.v[m.t[ti]]);
+                    }
+                }
+                foreach (int ti in m.t) if (ti < 0 || ti >= m.v.Count) { Console.WriteLine($"INDEX {n.name}:{n.mats[k]} {ti}/{m.v.Count}"); break; }
+                for (int ti = 0; ti < m.t.Count; ti += 3)
+                {
+                    var A = m.v[m.t[ti]]; var B = m.v[m.t[ti + 1]]; var C = m.v[m.t[ti + 2]];
+                    float L = Mathf.Max((A - B).magnitude, Mathf.Max((B - C).magnitude, (A - C).magnitude));
+                    if (L > 1.0f && n.name == "Interior") { Console.WriteLine($"LONG {n.name}:{n.mats[k]} {L:F2} {f.P(A)} {f.P(B)} {f.P(C)}"); }
+                }
+                for (int ui = 0; ui < m.uv.Count; ui++)
+                {
+                    var q = m.uv[ui];
+                    if (float.IsNaN(q.x) || float.IsNaN(q.y) || float.IsInfinity(q.x) || float.IsInfinity(q.y) || Math.Abs(q.x) > 1000f || Math.Abs(q.y) > 1000f)
+                    {
+                        string key = n.name + ":" + n.mats[k] + " BAD-UV";
+                        bad[key] = bad.TryGetValue(key, out int c) ? c + 1 : 1;
+                        where[key] = new Vector3(q.x, q.y, 0);
+                    }
+                }
                 var used = new HashSet<int>(m.t);
                 foreach (int i in used)
                 {
