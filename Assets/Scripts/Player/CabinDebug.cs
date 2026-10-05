@@ -15,6 +15,10 @@ namespace GasQueue
             "0 — как обычно",
             "1 — прицел: наведите крестик на белое и сделайте скриншот",
             "2 — только машина на пурпурном фоне",
+            "3 — камера без HDR и сглаживания",
+            "4 — машина без освещения (плоские цвета)",
+            "5 — нормали машины пересчитаны самим Unity",
+            "6 — без тумана, окружающий свет простой",
         };
 
         class MeshInfo
@@ -39,7 +43,7 @@ namespace GasQueue
                 SetMode((mode + 1) % Names.Length);
                 if (GameManager.Instance != null) GameManager.Instance.ShowMessage("Отладка салона (K): " + Names[mode], 6f);
             }
-            if (mode == 1 && Time.unscaledTime >= nextRay)
+            if ((mode == 1 || mode >= 3) && Time.unscaledTime >= nextRay)
             {
                 nextRay = Time.unscaledTime + 0.2f;
                 label = Probe();
@@ -49,8 +53,109 @@ namespace GasQueue
         void SetMode(int m)
         {
             if (mode == 2) Restore();
+            if (mode == 3) SetHdr(true);
+            if (mode == 4) SetUnlit(false);
+            if (mode == 5) SetNormals(false);
+            if (mode == 6) SetFogAmbient(false);
             mode = m;
             if (mode == 2) Isolate();
+            if (mode == 3) SetHdr(false);
+            if (mode == 4) SetUnlit(true);
+            if (mode == 5) SetNormals(true);
+            if (mode == 6) SetFogAmbient(true);
+        }
+
+        bool savedHdr, savedMsaa;
+
+        void SetHdr(bool restore)
+        {
+            var cam = Camera.main;
+            if (cam == null) return;
+            if (restore) { cam.allowHDR = savedHdr; cam.allowMSAA = savedMsaa; return; }
+            savedHdr = cam.allowHDR; savedMsaa = cam.allowMSAA;
+            cam.allowHDR = false; cam.allowMSAA = false;
+        }
+
+        readonly Dictionary<Renderer, Material[]> savedMats = new Dictionary<Renderer, Material[]>();
+        readonly Dictionary<Material, Material> unlit = new Dictionary<Material, Material>();
+
+        void SetUnlit(bool on)
+        {
+            if (!on)
+            {
+                foreach (var kv in savedMats) if (kv.Key != null) kv.Key.sharedMaterials = kv.Value;
+                savedMats.Clear();
+                return;
+            }
+            var shader = Shader.Find("Unlit/Color");
+            if (shader == null) return;
+            foreach (var r in GetComponentsInChildren<MeshRenderer>())
+            {
+                if (r.GetComponent<TextMesh>() != null) continue;
+                var mats = r.sharedMaterials;
+                savedMats[r] = (Material[])mats.Clone();
+                for (int i = 0; i < mats.Length; i++)
+                {
+                    if (mats[i] == null || mats[i].renderQueue >= 2500 || !mats[i].HasProperty("_Color")) continue;
+                    if (!unlit.TryGetValue(mats[i], out var u))
+                    {
+                        u = new Material(shader) { color = mats[i].color, name = mats[i].name + "_Unlit" };
+                        unlit[mats[i]] = u;
+                    }
+                    mats[i] = u;
+                }
+                r.sharedMaterials = mats;
+            }
+        }
+
+        readonly Dictionary<MeshFilter, Mesh> savedMeshes = new Dictionary<MeshFilter, Mesh>();
+
+        void SetNormals(bool on)
+        {
+            if (!on)
+            {
+                foreach (var kv in savedMeshes)
+                {
+                    if (kv.Key == null) continue;
+                    var copy = kv.Key.sharedMesh;
+                    kv.Key.sharedMesh = kv.Value;
+                    if (copy != null && copy != kv.Value) Destroy(copy);
+                }
+                savedMeshes.Clear();
+                return;
+            }
+            foreach (var mf in GetComponentsInChildren<MeshFilter>())
+            {
+                var mesh = mf.sharedMesh;
+                if (mesh == null || !mesh.isReadable) continue;
+                var copy = Instantiate(mesh);
+                copy.RecalculateNormals();
+                savedMeshes[mf] = mesh;
+                mf.sharedMesh = copy;
+            }
+        }
+
+        UnityEngine.Rendering.AmbientMode savedAmbientMode;
+        Color savedAmbient;
+        bool savedFog6;
+
+        void SetFogAmbient(bool on)
+        {
+            if (on)
+            {
+                savedFog6 = RenderSettings.fog;
+                savedAmbientMode = RenderSettings.ambientMode;
+                savedAmbient = RenderSettings.ambientLight;
+                RenderSettings.fog = false;
+                RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+                RenderSettings.ambientLight = new Color(0.5f, 0.5f, 0.5f);
+            }
+            else
+            {
+                RenderSettings.fog = savedFog6;
+                RenderSettings.ambientMode = savedAmbientMode;
+                RenderSettings.ambientLight = savedAmbient;
+            }
         }
 
         void Isolate()
@@ -151,7 +256,7 @@ namespace GasQueue
 
         void OnGUI()
         {
-            if (mode != 1) return;
+            if (mode == 0 || mode == 2) return;
             float cx = Screen.width / 2f, cy = Screen.height / 2f;
             var old = GUI.color;
             GUI.color = Color.red;
@@ -167,7 +272,7 @@ namespace GasQueue
 
         void OnDestroy()
         {
-            if (mode == 2) Restore();
+            SetMode(0);
         }
     }
 }
