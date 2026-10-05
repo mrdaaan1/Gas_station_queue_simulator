@@ -34,6 +34,36 @@ public static class GameBuilder
         if (icon != null) PlayerSettings.SetIconsForTargetGroup(BuildTargetGroup.Unknown, new[] { icon });
     }
 
+    /// <summary>
+    /// Одна сборка и для Mac на Apple Silicon (M1–M4), и для старых Intel.
+    /// Через рефлексию: модуль сборки для Mac есть не у всех версий Unity в одном и том же виде.
+    /// </summary>
+    static void MakeUniversalMac()
+    {
+        try
+        {
+            var settings = FindType("UnityEditor.OSXStandalone.UserBuildSettings");
+            var arch = FindType("UnityEditor.Build.OSArchitecture");
+            var prop = settings?.GetProperty("architecture", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            if (prop == null || arch == null) return;
+            prop.SetValue(null, System.Enum.Parse(arch, "x64ARM64"));
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("[Gas Queue] Не удалось включить универсальную сборку (Intel + Apple Silicon): " + e.Message);
+        }
+    }
+
+    static System.Type FindType(string fullName)
+    {
+        foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
+        {
+            var t = asm.GetType(fullName, false);
+            if (t != null) return t;
+        }
+        return null;
+    }
+
     static bool Build(BuildTarget target, string output, string platform)
     {
         if (!File.Exists(ScenePath))
@@ -56,6 +86,7 @@ public static class GameBuilder
         if (string.IsNullOrEmpty(PlayerSettings.companyName) || PlayerSettings.companyName == "DefaultCompany")
             PlayerSettings.companyName = "GasQueue";
 
+        if (target == BuildTarget.StandaloneOSX) MakeUniversalMac();
         Directory.CreateDirectory(Path.GetDirectoryName(output));
         var options = new BuildPlayerOptions
         {

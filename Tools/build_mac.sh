@@ -26,12 +26,8 @@ fi
 mkdir -p "$PROJECT/Builds"
 echo "Собираю игру через $UNITY ... (несколько минут, окно Unity не откроется)"
 if "$UNITY" -batchmode -quit -projectPath "$PROJECT" -executeMethod GameBuilder.BuildMacBatch -logFile "$PROJECT/Builds/build_mac.log"; then
-  cd "$PROJECT/Builds/Mac"
-  rm -f GasQueue-Mac.zip
-  ditto -c -k --keepParent GasQueue.app GasQueue-Mac.zip
   echo "Готово! Игра: $PROJECT/Builds/Mac/GasQueue.app"
-  echo "Архив для друзей: $PROJECT/Builds/Mac/GasQueue-Mac.zip"
-  open "$PROJECT/Builds/Mac"
+  bash "$PROJECT/Tools/package_mac.sh" "$PROJECT/Builds/Mac/GasQueue.app"
 else
   echo "Сборка не удалась. Лог: $PROJECT/Builds/build_mac.log"
   if grep -q "another Unity instance is running" "$PROJECT/Builds/build_mac.log" 2>/dev/null; then

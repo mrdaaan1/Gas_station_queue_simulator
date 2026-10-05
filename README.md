@@ -103,6 +103,8 @@ Assets/
   без них Unity вырезает шейдеры, и в собранной игре всё розовое.
 - **Иконка** (`Assets/Icons/AppIcon.png`, рисует `Tools/Icon/make_icon.py`) ставится при сборке сама.
   Поставить её на уже собранную игру без пересборки: `bash Tools/set_mac_icon.sh`.
+- `Tools/package_mac.sh` (его зовут и `build_mac.sh`, и `set_mac_icon.sh`) заново подписывает `.app`
+  и кладёт в архив «Как запустить.txt». Без повторной подписи изменённое приложение у друзей не откроется.
 - **Windows:** **Gas Queue → Собрать для Windows (.exe)**. Нужен модуль *Windows Build Support (Mono)*
   (Unity Hub → Installs → ⚙ → Add modules). Отправляйте всю папку `Builds/Windows` в zip, не только `.exe`.
 - Игра не подписана Apple, поэтому друзьям на Mac при первом запуске нужно:
