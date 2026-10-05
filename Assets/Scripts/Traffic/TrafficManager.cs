@@ -393,9 +393,7 @@ namespace GasQueue
                 SpawnNpc("Queue").Setup(NpcRole.Queue, QueuePath, s, true);
             foreach (var pump in Pumps)
                 SpawnNpc("Pump").PlaceAtPump(pump, Random.Range(0.1f, 0.9f));
-            foreach (var lane in new[] { leftPath }.Concat(oncoming))
-                for (float ls = Random.Range(10f, 60f); ls < lane.Length - 20f; ls += Random.Range(70f, 150f))
-                    SpawnNpc("Car").Setup(NpcRole.Through, lane, ls, false);
+            // Улица перекрыта под гонку: обычного потока по городу нет
 
             // Стартовая решётка: по две машины в ряд, ряды через 8 м за стартовой линией
             var names = new List<string>(RacerNames);
@@ -1030,21 +1028,11 @@ namespace GasQueue
             }
         }
 
-        /// <summary>В гонке: только поток по городу, продавцы, депутат и разговоры. Хвост очереди — это сами гонщики.</summary>
+        /// <summary>В гонке улица перекрыта: ни потока, ни депутата. Только продавцы и разговоры. Хвост очереди — сами гонщики.</summary>
         void UpdateRaceSpawns(float dt, int total)
         {
-            for (int i = 0; i < throughTimers.Count; i++)
-            {
-                throughTimers[i] -= dt;
-                if (throughTimers[i] > 0f) continue;
-                throughTimers[i] = Random.Range(Settings.trafficIntervalMin, Settings.trafficIntervalMax) * 1.5f;
-                var lane = i == 0 ? leftPath : oncoming[i - 1];
-                if (total < 90 && LaneClearNear(lane, 0f, 25f))
-                    SpawnNpc("Car").Setup(NpcRole.Through, lane, 0f, false);
-            }
             UpdateVendors(dt);
             UpdatePlayerSignal(dt);
-            UpdateVip(dt);
             UpdateServices(dt);
         }
 

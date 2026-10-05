@@ -53,6 +53,8 @@ namespace GasQueue
             var result = new Result { lights = BuildStart(g, probe) };
             BuildFuelSign(g);
             BuildFinish(root);
+            BuildClosure(root);
+            BuildRoadSigns(root);
             return result;
         }
 
@@ -276,6 +278,60 @@ namespace GasQueue
             var text = Fonts.WorldText(board, new Vector3(0f, 5f, -0.12f), CityBuilder.Brand + "\nзаправка через 500 м", Color.white, 0.05f);
             text.transform.localRotation = Quaternion.identity;
             Obstacles.AddBox(board.position, 0.6f, 0.6f, "щит заправки");
+        }
+
+        /// <summary>
+        /// Улица перекрыта сразу за въездом на заправку: блоки и высокий забор с транспарантом.
+        /// К финишу можно проехать только через территорию заправки и выезд.
+        /// </summary>
+        static void BuildClosure(Transform root)
+        {
+            var g = Shapes.Group("RoadClosure", root);
+            var red = Shapes.Mat(BlockRed);
+            var white = Shapes.Mat(BlockWhite);
+            var cube = BlockMesh();
+            float z = RaceLayout.ClosureZ, x0 = RaceLayout.ClosureMinX, x1 = RaceLayout.ClosureMaxX;
+            int k = 0;
+            for (float x = x0; x < x1 - 0.1f; x += 2.4f, k++)
+            {
+                var go = MeshFactory.MeshObject("Block", g, cube, new Vector3(x + 1.2f, 0f, z), new Vector3(0f, 90f, 0f), k % 2 == 0 ? red : white);
+                go.transform.localScale = new Vector3(0.6f, 0.85f, 2.45f);
+            }
+            Obstacles.AddBox(new Vector3((x0 + x1) / 2f, 0f, z), x1 - x0, 0.7f, "забор «Проезд закрыт»");
+            // Забор над блоками: транспаранты на столбах
+            for (float x = x0 + 2f; x < x1; x += 8f)
+            {
+                float w = Mathf.Min(7.6f, x1 - x + 1.6f);
+                Shapes.Box(g, new Vector3(x - 1.6f, 1.9f, z + 0.15f), new Vector3(0.12f, 2.2f, 0.12f), Steel);
+                Shapes.Box(g, new Vector3(x - 1.6f + w / 2f, 2.1f, z + 0.15f), new Vector3(w, 1.5f, 0.08f), Shapes.Hex("#c8312b"));
+                var text = Fonts.WorldText(g, new Vector3(x - 1.6f + w / 2f, 2.1f, z + 0.08f), "ПРОЕЗД ЗАКРЫТ\nвсе на заправку", Color.white, 0.05f);
+                text.transform.localRotation = Quaternion.identity;
+            }
+        }
+
+        /// <summary>Щиты вдоль главной дороги: сколько до заправки и что заправиться обязательно.</summary>
+        static void BuildRoadSigns(Transform root)
+        {
+            var g = Shapes.Group("RaceSigns", root);
+            float[] at = { -420f, -280f, -160f, -80f };
+            foreach (float z in at)
+            {
+                int meters = Mathf.RoundToInt((CityLayout.EntranceMinZ - z) / 10f) * 10;
+                var sign = Shapes.Group("FuelSign", g, new Vector3(12.9f, 0f, z));
+                Shapes.Box(sign, new Vector3(0f, 1.6f, 0f), new Vector3(0.15f, 3.2f, 0.15f), Steel);
+                Shapes.Box(sign, new Vector3(-0.6f, 3.6f, 0f), new Vector3(3.4f, 1.6f, 0.12f), Shapes.Hex("#c8312b"));
+                var text = Fonts.WorldText(sign, new Vector3(-0.6f, 3.6f, -0.08f),
+                    $"{CityBuilder.Brand}\nзаправка через {meters} м", Color.white, 0.03f);
+                text.transform.localRotation = Quaternion.identity;
+                Obstacles.AddBox(new Vector3(12.9f, 0f, z), 0.3f, 0.3f, "щит заправки");
+            }
+            // У самого въезда — над очередью
+            var gate = Shapes.Group("EntranceSign", g, new Vector3(11.8f, 0f, CityLayout.EntranceMinZ - 6f));
+            Shapes.Box(gate, new Vector3(0f, 2f, 0f), new Vector3(0.18f, 4f, 0.18f), Steel);
+            Shapes.Box(gate, new Vector3(-2.2f, 4.6f, 0f), new Vector3(5.2f, 1.5f, 0.12f), Shapes.Hex("#f2c81a"));
+            Obstacles.AddBox(gate.position, 0.3f, 0.3f, "щит заправки");
+            var t2 = Fonts.WorldText(gate, new Vector3(-2.2f, 4.6f, -0.08f), "ГОНЩИКИ — В ОЧЕРЕДЬ\nна заправку >>>", Shapes.Hex("#1b1d22"), 0.04f);
+            t2.transform.localRotation = Quaternion.identity;
         }
 
         /// <summary>Финишная арка поперёк главной дороги за заправкой.</summary>

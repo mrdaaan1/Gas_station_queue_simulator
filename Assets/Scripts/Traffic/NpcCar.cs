@@ -143,8 +143,11 @@ namespace GasQueue
         }
 
         /// <summary>Трасса кончилась на правой полосе — в хвост очереди.</summary>
+        bool fromTrack;
+
         public void JoinQueueFromRace(LanePath queuePath)
         {
+            fromTrack = true;
             Role = NpcRole.Queue;
             Path = queuePath;
             S = queuePath.Project(transform.position, out _);
@@ -202,6 +205,8 @@ namespace GasQueue
                 else if (Role == NpcRole.Cutter && Cut == CutState.Looking && S < traffic.SecondRowWaitS - 50f) limit = 22f;
                 else if (Role == NpcRole.Exiting && transform.position.x < 11f) limit = 34f * skill;
             }
+            // Приехал с трассы в хвост очереди — подъезжает к хвосту, а не ползёт 500 м со скоростью очереди
+            if (fromTrack && !IsRacer && Role == NpcRole.Queue && S < traffic.QueueRoadEndS - 25f) limit = 14f;
             if (MaxSpeedCap > 0f) limit = Mathf.Min(limit, MaxSpeedCap);
             return limit;
         }
@@ -293,6 +298,13 @@ namespace GasQueue
             if (Role == NpcRole.Racing && atEnd)
             {
                 traffic.OnRacerReachedRoad(this);
+                return;
+            }
+            // Обычная машина с трассы тоже едет заправляться
+            if (atEnd && Role == NpcRole.Through && Path == traffic.RaceTraffic)
+            {
+                JoinQueueFromRace(traffic.QueuePath);
+                MaxSpeedCap = 0f;
                 return;
             }
             if (atEnd && !StopAtEnd) traffic.Despawn(this);

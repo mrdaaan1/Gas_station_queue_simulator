@@ -201,7 +201,19 @@ namespace GasQueue
             var t = gm.Traffic;
             string place;
             bool bad = false;
+            if (race != null && race.NeedsFuel)
+            {
+                // Красный индикатор не уходит, пока не встанете в очередь
+                place = $"Бензина на ~{Mathf.RoundToInt(race.RangeMeters / 10f) * 10} м  ·  заправка через {Mathf.RoundToInt(race.StationDistance)} м";
+                bad = Mathf.Repeat(Time.time, 1f) < 0.65f || race.RangeMeters < race.StationDistance + 80f;
+                var wide = new Rect(w / 2 - 330 * k, 76 * k, 660 * k, 36 * k);
+                Panel(wide, bad ? new Color(0.75f, 0.08f, 0.06f, 0.85f) : new Color(0.35f, 0.05f, 0.05f, 0.7f));
+                GUI.Label(wide, place, accentStyle);
+                return;
+            }
             if (race != null && gm.PlayerFueled) place = "Бак полный — на финиш!";
+            else if (race != null && (t.PlayerInQueue || t.PlayerPump != null) && !gm.PlayerFueled && t.PlayerPump == null)
+                place = t.PlayerQueueIndex == 0 ? "Очередь на заправку: вы первый!" : $"Очередь на заправку: впереди {t.PlayerQueueIndex}";
             else if (race != null && !t.PlayerInQueue && t.PlayerPump == null && gm.Player.Position.z < RaceLayout.JoinZ)
                 place = race.FuelSignal ? "Лампочка бензина горит!" : "Гонка!";
             else if (gm.State == GameState.DrivingAway || gm.PlayerFueled) place = "Свобода!";

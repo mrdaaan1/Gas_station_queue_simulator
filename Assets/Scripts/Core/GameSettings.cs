@@ -47,7 +47,7 @@ namespace GasQueue
 
         [Header("Гонка «Самая быстрая гонка»")]
         [Tooltip("Сколько обычных машин уже стоит в очереди, когда приезжают гонщики.")]
-        public int raceQueueCars = 6;
+        public int raceQueueCars = 14;
         [Tooltip("Бензин на старте гонки, литров.")]
         public float raceStartFuelLiters = 6f;
         [Tooltip("Расход спорткара в гонке, литров на 100 км (на холостых — ноль).")]
@@ -68,7 +68,7 @@ namespace GasQueue
 
         // Номер версии настроек: когда меняем значения по умолчанию, старая сцена обновляется сама
         [SerializeField, HideInInspector] int settingsVersion;
-        const int CurrentVersion = 4;
+        const int CurrentVersion = 5;
 
         void Awake() => Migrate();
         void OnValidate() => Migrate();
@@ -84,6 +84,7 @@ namespace GasQueue
                 maxCarsBehind = 26;
             }
             if (settingsVersion < 4) cutterInterval = 22f; // наглецов вторым рядом стало больше
+            if (settingsVersion < 5) raceQueueCars = 14; // очередь в гонке должна быть видна с дороги
             settingsVersion = CurrentVersion;
         }
 

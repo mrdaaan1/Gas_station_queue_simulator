@@ -28,6 +28,25 @@ namespace GasQueue
         public float DryMetersToFinish { get; private set; }
         public bool FuelSignal { get; private set; }
 
+        /// <summary>На сколько метров хватит бензина в гонке.</summary>
+        public float RangeMeters => player.FuelLiters / Mathf.Max(0.01f, gm.Settings.raceLitersPer100Km / 100f) * 1000f;
+
+        /// <summary>Сколько ехать до въезда на заправку (по трассе и по главной дороге).</summary>
+        public float StationDistance
+        {
+            get
+            {
+                var p = player.Position;
+                float road = CityLayout.EntranceMinZ - RaceLayout.JoinZ;
+                if (p.z < RaceLayout.JoinZ - 1f) return center.Length - center.Project(p, out _) + road;
+                return Mathf.Max(0f, CityLayout.EntranceMinZ - p.z);
+            }
+        }
+
+        /// <summary>Нужно ли сейчас кричать «заправься»: лампочка горит, бак не залит, в очереди и у колонки не стоим.</summary>
+        public bool NeedsFuel => FuelSignal && !gm.PlayerFueled && !traffic.PlayerInQueue && traffic.PlayerPump == null && !gm.Paid;
+
+        bool warnedLow, warnedCritical;
         TrafficManager traffic;
         PlayerCar player;
         GameManager gm;
@@ -78,6 +97,7 @@ namespace GasQueue
             if (queueing && player.Position.z > RaceLayout.JoinZ) QueueTime += dt;
 
             UpdateFuelSignal();
+            UpdateFuelWarnings();
             placeTimer -= dt;
             if (placeTimer <= 0f)
             {
@@ -143,6 +163,23 @@ namespace GasQueue
             if (player.FuelLiters > liters) player.SetFuelLiters(liters);
             gm.ShowMessage("Загорелась лампочка бензина! У соперников тоже. Все — на заправку «" + CityBuilder.Brand + "», она прямо по курсу.", 10f);
             gm.ShowMessage("Без заправки до финиша не доехать: бензин кончится раньше.", 10f);
+        }
+
+        /// <summary>Едет мимо или тянет — напоминаем всё настойчивее.</summary>
+        void UpdateFuelWarnings()
+        {
+            if (!NeedsFuel) return;
+            float range = RangeMeters;
+            if (!warnedLow && range < StationDistance + 80f)
+            {
+                warnedLow = true;
+                gm.ShowMessage("Бензин на исходе! Сворачивайте на заправку и вставайте в очередь — дальше улица перекрыта.", 9f);
+            }
+            if (!warnedCritical && range < 120f)
+            {
+                warnedCritical = true;
+                gm.ShowMessage($"Бензина метров на {Mathf.RoundToInt(range)}! Ещё чуть-чуть — и мотор заглохнет.", 8f);
+            }
         }
 
         void OnRacerFinished(NpcCar racer)

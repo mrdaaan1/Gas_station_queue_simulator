@@ -99,15 +99,17 @@ namespace GasQueue
             return new LanePath(right ? "RaceRight" : "RaceLeft", TopSpeed, pts, false);
         }
 
-        /// <summary>Обычные машины на трассе: по правой полосе, на главной дороге — в левый ряд и дальше по городу.</summary>
+        /// <summary>Обычные машины на трассе: по правой полосе — и тоже в очередь на заправку (улица дальше перекрыта).</summary>
         public static LanePath TrafficLane()
         {
             var pts = Offset(Center(), LaneOffset);
-            pts.Add(new Vector3(CityLayout.LaneMiddle, 0f, JoinZ + 25f));
-            pts.Add(new Vector3(CityLayout.LaneLeft, 0f, JoinZ + 55f));
-            pts.Add(new Vector3(CityLayout.LaneLeft, 0f, CityLayout.RoadEndZ));
+            pts.Add(new Vector3(CityLayout.LaneQueue, 0f, JoinZ + 15f));
             return new LanePath("RaceTraffic", 12f, pts, false);
         }
+
+        /// <summary>Улица перекрыта забором сразу за въездом на заправку: к финишу — только через заправку и выезд.</summary>
+        public const float ClosureZ = -17f;
+        public const float ClosureMinX = -18f, ClosureMaxX = 14f;
 
         /// <summary>Длина оси трассы до точки, ближайшей к углу (для сигнала «бензин» и подсчёта мест).</summary>
         public static float CenterS(Vector3 p)
