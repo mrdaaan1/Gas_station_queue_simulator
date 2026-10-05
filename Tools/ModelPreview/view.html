@@ -43,7 +43,8 @@ const mats = {
   leather_black: std('#141416', 0.55), int_black: std('#1a1a1d', 0.7), int_grey: std('#8b8e93', 0.45, 0.35),
   gauge_face: std('#0a0a0b', 0.4), gauge_glow: std('#ff3a12', 0.4, 0, { emissive: '#ff2a00', emissiveIntensity: 1.2 }),
   white: std('#f2f2f2', 0.5), needle: std('#ff3320', 0.4, 0, { emissive: '#661100' }), plate: std('#f4f4f4', 0.4), plate_text: std('#111', 0.5),
-  grille: std('#0d0d0f', 0.85), glass_dark: std('#0e1216', 0.08, 0.3), chassis: std('#1b1b1c', 0.8), rim_black: std('#151517', 0.35, 0.4), black_satin: std('#1c1d20', 0.55, 0.2),
+  grille: std('#0d0d0f', 0.85), stripe: new THREE.MeshPhysicalMaterial({ color: '#2f7fe0', roughness: 0.3, metalness: 0.1, clearcoat: 1 }), stripe_dark: new THREE.MeshPhysicalMaterial({ color: '#1d3fae', roughness: 0.3, metalness: 0.1, clearcoat: 1 }),
+  wing_blue: new THREE.MeshPhysicalMaterial({ color: '#2347c4', roughness: 0.3, metalness: 0.1, clearcoat: 1 }), cloth_dark: std('#1e1f22', 0.95), leather_blue: std('#2456c8', 0.5), gauge_light: std('#d8d8d4', 0.5), screen_amber: std('#2a1a05', 0.3, 0, { emissive: '#c88a20', emissiveIntensity: 0.7 }), glass_dark: std('#0e1216', 0.08, 0.3), chassis: std('#1b1b1c', 0.8), rim_black: std('#151517', 0.35, 0.4), black_satin: std('#1c1d20', 0.55, 0.2),
   screen_blue: std('#0a1838', 0.3, 0, { emissive: '#1a3a8a', emissiveIntensity: 0.9 }), ambient: std('#2a5cff', 0.4, 0, { emissive: '#2a5cff', emissiveIntensity: 1.5 }), hair: std('#3a2717', 0.8), lamp_off: std('#3a2a10', 0.5), screen: std('#0c1a12', 0.3, 0, { emissive: '#103020' }), liner: std('#0c0c0c', 0.95), mirror: std('#dfe6ee', 0.05, 1), skin: std('#e2b08a', 0.7), jacket: std('#2a2c33', 0.8),
 };
 const missing = new Set();

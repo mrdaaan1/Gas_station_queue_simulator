@@ -20,6 +20,7 @@ static class Program
         Model model = which switch
         {
             "gelik" => GelikModel.Get(),
+            "skyline" => SkylineModel.Get(),
             _ => SupraModel.Get(),
         };
         Console.WriteLine($"build {sw.ElapsedMilliseconds} ms");
@@ -107,9 +108,9 @@ static class Program
     // Ищем детали салона, торчащие сквозь кузов: вершина внутреннего материала снаружи формы
     static void Poke(string name)
     {
-        CarBody shape = name == "gelik" ? GelikModel.Shape() : SupraModel.Shape();
-        var model = name == "gelik" ? GelikModel.Get() : SupraModel.Get();
-        var inner = new HashSet<string> { "carpet", "int_black", "int_grey", "int_door", "int_roof", "leather_red", "leather_black", "gauge_face", "gauge_glow", "jacket", "skin", "hair", "screen", "white", "needle", "lamp_off", "screen_blue", "ambient" };
+        CarBody shape = name == "gelik" ? GelikModel.Shape() : name == "skyline" ? (CarBody)SkylineModel.Shape() : SupraModel.Shape();
+        var model = name == "gelik" ? GelikModel.Get() : name == "skyline" ? SkylineModel.Get() : SupraModel.Get();
+        var inner = new HashSet<string> { "carpet", "int_black", "int_grey", "int_door", "int_roof", "leather_red", "leather_black", "gauge_face", "gauge_glow", "jacket", "skin", "hair", "screen", "white", "needle", "lamp_off", "screen_blue", "ambient", "cloth_dark", "leather_blue", "gauge_light", "screen_amber" };
         var stats = new Dictionary<string, (int n, float worst, Vector3 at)>();
         void Walk(ModelNode n)
         {

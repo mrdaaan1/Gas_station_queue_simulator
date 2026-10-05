@@ -109,6 +109,13 @@ namespace GasQueue
             switch (key)
             {
                 case "paint": return Surface(paint, paintSmoothness, paintSmoothness < 0.7f ? 0.45f : 0.25f);
+                case "stripe": return Surface(Hex("#2f7fe0"), 0.85f, 0.15f);
+                case "stripe_dark": return Surface(Hex("#1d3fae"), 0.85f, 0.15f);
+                case "wing_blue": return Surface(Hex("#2347c4"), 0.85f, 0.2f);
+                case "cloth_dark": return Surface(Hex("#1e1f22"), 0.05f, 0f);
+                case "leather_blue": return Surface(Hex("#2456c8"), 0.45f, 0f);
+                case "gauge_light": return Glow(Hex("#d8d8d4"), Hex("#3a3a36"));
+                case "screen_amber": return Glow(Hex("#2a1a05"), Hex("#c88a20") * 0.7f);
                 case "glass_dark": return Surface(Hex("#0e1216"), 0.92f, 0.3f);
                 case "chassis": return Surface(Hex("#1b1b1c"), 0.15f, 0f);
                 case "rim_black": return Surface(Hex("#151517"), 0.6f, 0.4f);

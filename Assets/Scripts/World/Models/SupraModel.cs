@@ -197,7 +197,7 @@ namespace GasQueue
                 OnBody(r.Item1, r.Item2, side, out var p, out var n);
                 var lf = Frame.Look(f.ToLocal(p), f.DirToLocal(n), Vector3.up);
                 float rad = Mathf.Lerp(0.031f, 0.024f, a);
-                var cup = new Frame { o = lf.o, x = lf.x, y = lf.z, z = lf.y };
+                var cup = new Frame { o = lf.o, x = lf.x, y = lf.z, z = -lf.y };
                 Geo.Lathe(node.M("reflector"), cup, new[] { new Vector2(rad, 0.012f), new Vector2(rad * 0.75f, 0.005f), new Vector2(rad * 0.3f, 0.003f) }, 20, true, true);
                 Geo.Torus(node.M("chrome"), cup.Mul(new Frame { o = new Vector3(0, 0.012f, 0), x = Vector3.right, y = Vector3.up, z = Vector3.forward }), rad, 0.0035f, 24, 6);
                 Geo.Lathe(node.M("lamp_glow"), cup, new[] { new Vector2(rad * 0.62f, 0.006f), new Vector2(rad * 0.45f, 0.013f), new Vector2(0f, 0.016f) }, 20);
