@@ -6,15 +6,24 @@
 # Запуск:  bash Tools/package_mac.sh [путь/к/игре.app]   (по умолчанию Builds/Mac/GasQueue.app)
 set -e
 PROJECT="$(cd "$(dirname "$0")/.." && pwd)"
-APP="${1:-$PROJECT/Builds/Mac/GasQueue.app}"
+APP="$1"
+if [ -z "$APP" ]; then
+  # Без аргумента — самое свежее .app в Builds/Mac (как бы его ни переименовали)
+  APP="$(ls -dt "$PROJECT"/Builds/Mac/*.app 2>/dev/null | head -1)"
+fi
+if [ -z "$APP" ] || [ ! -d "$APP" ]; then
+  echo "Не нашёл игру (.app) в $PROJECT/Builds/Mac."
+  echo "Положите туда собранную игру или укажите путь: перетащите .app в окно Терминала после команды."
+  exit 1
+fi
 APP="$(cd "$(dirname "$APP")" && pwd)/$(basename "$APP")"
-if [ ! -d "$APP" ]; then echo "Не нашёл приложение: $APP"; exit 1; fi
+echo "Игра: $APP"
 
-# Иконка
+echo "1/4 Ставлю иконку..."
 if [ -f "$PROJECT/Tools/Icon/AppIcon.icns" ]; then
   cp "$PROJECT/Tools/Icon/AppIcon.icns" "$APP/Contents/Resources/PlayerIcon.icns"
 fi
-# Права на запуск и подпись
+echo "2/4 Права на запуск и подпись (несколько секунд)..."
 chmod -R u+rwX,go+rX "$APP"
 chmod +x "$APP/Contents/MacOS/"*
 xattr -cr "$APP"
@@ -22,7 +31,7 @@ codesign --force --deep --sign - "$APP"
 codesign --verify --deep "$APP" && echo "Подпись в порядке."
 touch "$APP"
 
-# Архив: игра + инструкция
+echo "3/4 Готовлю архив с инструкцией..."
 NAME="$(basename "$APP" .app)"
 OUT="$(dirname "$APP")"
 STAGE="$(mktemp -d)/$NAME"
@@ -45,7 +54,8 @@ cat > "$STAGE/Как запустить.txt" <<TXT
 Управление: W/S — газ/тормоз, A/D — руль, F — выйти из машины, Tab — подсказки, Esc — пауза.
 TXT
 rm -f "$OUT/$NAME-Mac.zip"
+echo "4/4 Упаковываю (это самый долгий шаг)..."
 ditto -c -k --keepParent "$STAGE" "$OUT/$NAME-Mac.zip"
 rm -rf "$(dirname "$STAGE")"
-echo "Архив для друзей: $OUT/$NAME-Mac.zip"
+echo "Готово! Архив для друзей: $OUT/$NAME-Mac.zip"
 open "$OUT"
