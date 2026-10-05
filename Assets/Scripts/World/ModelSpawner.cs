@@ -132,11 +132,7 @@ namespace GasQueue
                 case "black_satin": return Surface(Hex("#1c1d20"), 0.45f, 0.2f);
                 case "screen_blue": return Glow(Hex("#0a1838"), Hex("#1a3a8a"));
                 case "ambient": return Glow(Hex("#2a5cff"), Hex("#2a5cff") * 1.4f);
-                case "glass":
-                {
-                    var g = new Material(MeshFactory.Glass) { color = new Color(0.12f, 0.16f, 0.2f, 0.42f) };
-                    return g;
-                }
+                case "glass": return CarGlass(new Color(0.12f, 0.16f, 0.2f, 0.45f));
                 case "lens": return new Material(MeshFactory.Glass) { color = new Color(0.85f, 0.9f, 0.95f, 0.12f) };
                 case "black": return Surface(Hex("#0b0b0d"), 0.25f, 0f);
                 case "liner": return Surface(Hex("#0c0c0c"), 0.05f, 0f);
@@ -180,6 +176,35 @@ namespace GasQueue
         }
 
         static Color Hex(string h) => Shapes.Hex(h);
+
+        /// <summary>
+        /// Стекло кузова: обычная прозрачность (отражение тоже ослабляется прозрачностью) и без зеркального
+        /// отражения неба. Иначе под острым углом (низ лобового, у стоек) стекло горело белым и закрывало торпеду.
+        /// </summary>
+        public static Material CarGlass(Color c)
+        {
+            var saved = Resources.Load<Material>("GasQueueGenerated/CarGlass"); // в сборке — с нужным вариантом шейдера
+            var m = new Material(saved != null ? saved : MeshFactory.Glass) { color = c };
+            SetupCarGlass(m);
+            return m;
+        }
+
+        public static void SetupCarGlass(Material m)
+        {
+            if (m.HasProperty("_Mode")) m.SetFloat("_Mode", 2f); // Built-in Standard: Fade
+            m.SetOverrideTag("RenderType", "Transparent");
+            m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            m.SetInt("_ZWrite", 0);
+            m.DisableKeyword("_ALPHATEST_ON");
+            m.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            m.EnableKeyword("_ALPHABLEND_ON");
+            m.EnableKeyword("_GLOSSYREFLECTIONS_OFF");
+            if (m.HasProperty("_GlossyReflections")) m.SetFloat("_GlossyReflections", 0f);
+            if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", 0.6f);
+            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.6f);
+            m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        }
 
         static Material Surface(Color c, float smoothness, float metallic)
         {

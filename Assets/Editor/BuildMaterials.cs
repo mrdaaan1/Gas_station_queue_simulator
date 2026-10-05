@@ -53,6 +53,11 @@ public class BuildMaterials : IPreprocessBuildWithReport
         GasQueue.MeshFactory.MakeTransparent(glass);
         Save("Glass", glass);
 
+        // Стекло спорткаров: прозрачность Fade и без отражения неба (варианты шейдера должны попасть в сборку)
+        var carGlass = new Material(def) { color = new Color(0.12f, 0.16f, 0.2f, 0.45f) };
+        GasQueue.CarMaterials.SetupCarGlass(carGlass);
+        Save("CarGlass", carGlass);
+
         // Светящиеся фонари и приборы спорткаров: без этого Unity вырежет вариант шейдера с подсветкой
         var glow = new Material(def);
         glow.EnableKeyword("_EMISSION");

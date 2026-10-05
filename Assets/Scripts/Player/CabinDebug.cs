@@ -18,6 +18,7 @@ namespace GasQueue
             "3 — материалы салона как у рук водителя",
             "4 — без глянца и отражений неба",
             "5 — зеркала выключены",
+            "6 — стёкла как раньше (глянцевые)",
         };
 
         int mode;
@@ -61,8 +62,19 @@ namespace GasQueue
                     for (int i = 0; i < mats.Length; i++)
                         if (mats[i] != null && mats[i].name.StartsWith("Car_") && mats[i].renderQueue < 2500 && !mats[i].IsKeywordEnabled("_EMISSION"))
                             mats[i] = mode == 3 ? Shapes.Mat(mats[i].color) : Matte(mats[i]);
+                if (mode == 6)
+                    for (int i = 0; i < mats.Length; i++)
+                        if (mats[i] != null && mats[i].name == "Car_glass") mats[i] = OldGlass();
                 r.sharedMaterials = mats;
             }
+        }
+
+        Material oldGlass;
+
+        Material OldGlass()
+        {
+            if (oldGlass == null) oldGlass = new Material(MeshFactory.Glass) { name = "OldGlass", color = new Color(0.12f, 0.16f, 0.2f, 0.42f) };
+            return oldGlass;
         }
 
         Material Matte(Material m)
