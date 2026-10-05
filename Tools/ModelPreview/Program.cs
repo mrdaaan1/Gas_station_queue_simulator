@@ -14,11 +14,12 @@ static class Program
     {
         string which = args.Length > 0 ? args[0] : "supra";
         if (which == "debug") { Debug(); return 0; }
-        if (which == "poke") { Poke(); return 0; }
+        if (which == "poke") { Poke(args.Length > 1 ? args[1] : "supra"); return 0; }
         string outPath = args.Length > 1 ? args[1] : "model.json";
         var sw = System.Diagnostics.Stopwatch.StartNew();
         Model model = which switch
         {
+            "gelik" => GelikModel.Get(),
             _ => SupraModel.Get(),
         };
         Console.WriteLine($"build {sw.ElapsedMilliseconds} ms");
@@ -104,11 +105,11 @@ static class Program
     }
 
     // Ищем детали салона, торчащие сквозь кузов: вершина внутреннего материала снаружи формы
-    static void Poke()
+    static void Poke(string name)
     {
-        var shape = SupraModel.Shape();
-        var model = SupraModel.Get();
-        var inner = new HashSet<string> { "carpet", "int_black", "int_grey", "int_door", "int_roof", "leather_red", "leather_black", "gauge_face", "gauge_glow", "jacket", "skin", "hair", "screen", "white", "needle", "lamp_off" };
+        CarBody shape = name == "gelik" ? GelikModel.Shape() : SupraModel.Shape();
+        var model = name == "gelik" ? GelikModel.Get() : SupraModel.Get();
+        var inner = new HashSet<string> { "carpet", "int_black", "int_grey", "int_door", "int_roof", "leather_red", "leather_black", "gauge_face", "gauge_glow", "jacket", "skin", "hair", "screen", "white", "needle", "lamp_off", "screen_blue", "ambient" };
         var stats = new Dictionary<string, (int n, float worst, Vector3 at)>();
         void Walk(ModelNode n)
         {

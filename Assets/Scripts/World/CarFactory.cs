@@ -59,6 +59,10 @@ namespace GasQueue
         public Vector3 shoulderL = new Vector3(-0.6f, 1.18f, -0.55f), shoulderR = new Vector3(-0.16f, 1.18f, -0.55f);
         /// <summary>Материалы поворотника (если null — простые цвета).</summary>
         public Material blinkOffMat, blinkOnMat;
+        /// <summary>Цифровые приборы (вместо стрелок): скорость и бензин на экране.</summary>
+        public TextMesh digitalSpeed, digitalFuel;
+        /// <summary>Ближняя граница камеры салонного зеркала: не показывать саму машину (заднюю дверь, запаску).</summary>
+        public float rearMirrorNear = 2.6f;
 
         float bounce;
         int shownBlinker;

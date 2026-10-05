@@ -10,9 +10,11 @@ namespace GasQueue
     public static class WheelModel
     {
         /// <summary>Пятиспицевый литой диск 17" как у «Супры» и шина.</summary>
-        public static void FiveSpoke(ModelNode node, float tireR, float width, int spokes = 5, float rimR = 0.216f)
+        public static void FiveSpoke(ModelNode node, float tireR, float width, int spokes = 5, float rimR = 0.216f,
+            string spokeMatName = "alloy", string lipMat = "chrome", float spokeWidth = 1f)
         {
             var f = Frame.Identity;
+            float sc = rimR / 0.216f; // размеры ступицы, спиц и тормоза — пропорционально диску
             float hw = width / 2f;
             // Шина
             var tire = node.M("rubber");
@@ -30,17 +32,17 @@ namespace GasQueue
 
             // Обод: полированная закраина и внутренняя «бочка», видная между спиц
             float face = hw - 0.012f;
-            Geo.Lathe(node.M("chrome"), f, new[]
+            Geo.Lathe(node.M(lipMat), f, new[]
             {
                 new Vector2(rimR - 0.016f, face - 0.012f), new Vector2(rimR - 0.004f, face - 0.002f), new Vector2(rimR + 0.006f, face + 0.002f),
                 new Vector2(rimR + 0.010f, face + 0.007f), new Vector2(rimR + 0.006f, face + 0.012f), new Vector2(rimR - 0.006f, face + 0.012f),
                 new Vector2(rimR - 0.016f, face + 0.004f),
             }, 40);
             Geo.Lathe(node.M("rim_inner"), f, new[] { new Vector2(rimR - 0.016f, face - 0.012f), new Vector2(rimR - 0.016f, -hw + 0.01f) }, 36, false, true);
-            Geo.Lathe(node.M("rim_inner"), f, new[] { new Vector2(rimR - 0.016f, -hw + 0.01f), new Vector2(0.09f, -hw + 0.03f) }, 36, false, true);
+            Geo.Lathe(node.M("rim_inner"), f, new[] { new Vector2(rimR - 0.016f, -hw + 0.01f), new Vector2(0.09f * sc, -hw + 0.03f) }, 36, false, true);
 
             // Спицы: от ступицы к ободу расширяются, лицо слегка вогнуто (ступица утоплена)
-            var spokeMat = node.M("alloy");
+            var spokeMat = node.M(spokeMatName);
             for (int k = 0; k < spokes; k++)
             {
                 float ang = k / (float)spokes * Mathf.PI * 2f + Mathf.PI / 2f;
@@ -48,8 +50,8 @@ namespace GasQueue
                 var perp = new Vector3(-dir.z, 0f, dir.x);
                 Vector3 P(float s, float c)
                 {
-                    float r = Mathf.Lerp(0.05f, rimR - 0.008f, s);
-                    float half = Mathf.Lerp(0.024f, 0.034f, s) + 0.02f * Mathf.Pow(s, 6f);
+                    float r = Mathf.Lerp(0.05f * sc, rimR - 0.008f, s);
+                    float half = (Mathf.Lerp(0.024f, 0.034f, s) + 0.02f * Mathf.Pow(s, 6f)) * sc * spokeWidth;
                     float top = Mathf.Lerp(face - 0.006f, face + 0.006f, s) - 0.006f * Mathf.Sin(s * Mathf.PI);
                     const float thick = 0.034f;
                     float phi = c * Mathf.PI * 2f;
@@ -62,10 +64,10 @@ namespace GasQueue
             }
 
             // Ступица с колпачком и гайками
-            Geo.Lathe(node.M("alloy"), f, new[]
+            Geo.Lathe(node.M(spokeMatName), f, new[]
             {
-                new Vector2(0.075f, face - 0.03f), new Vector2(0.075f, face - 0.005f), new Vector2(0.066f, face + 0.002f),
-                new Vector2(0.05f, face + 0.004f), new Vector2(0.034f, face + 0.004f),
+                new Vector2(0.075f * sc, face - 0.03f), new Vector2(0.075f * sc, face - 0.005f), new Vector2(0.066f * sc, face + 0.002f),
+                new Vector2(0.05f * sc, face + 0.004f), new Vector2(0.034f, face + 0.004f),
             }, 32);
             Geo.Lathe(node.M("chrome"), f, new[]
             {
@@ -74,7 +76,7 @@ namespace GasQueue
             for (int k = 0; k < 5; k++)
             {
                 float ang = (k + 0.5f) / 5f * Mathf.PI * 2f + Mathf.PI / 2f;
-                var c = new Vector3(Mathf.Cos(ang) * 0.046f, 0f, Mathf.Sin(ang) * 0.046f);
+                var c = new Vector3(Mathf.Cos(ang) * 0.046f * sc, 0f, Mathf.Sin(ang) * 0.046f * sc);
                 var lf = new Frame { o = c, x = Vector3.right, y = Vector3.up, z = Vector3.forward };
                 Geo.Cylinder(node.M("chrome"), lf, 0.0075f, face - 0.004f, face + 0.009f, 6);
             }
@@ -82,20 +84,20 @@ namespace GasQueue
             // Тормозной диск с вентиляцией и «колокол»
             Geo.Lathe(node.M("disc"), f, new[]
             {
-                new Vector2(0.09f, -0.002f), new Vector2(0.165f, -0.002f), new Vector2(0.165f, -0.03f), new Vector2(0.09f, -0.03f),
+                new Vector2(0.09f * sc, -0.002f), new Vector2(0.165f * sc, -0.002f), new Vector2(0.165f * sc, -0.03f), new Vector2(0.09f * sc, -0.03f),
             }, 36, false);
-            Geo.Lathe(node.M("rim_inner"), f, new[] { new Vector2(0.09f, -0.002f), new Vector2(0.09f, 0.03f), new Vector2(0.05f, 0.03f) }, 24, false);
+            Geo.Lathe(node.M("rim_inner"), f, new[] { new Vector2(0.09f * sc, -0.002f), new Vector2(0.09f * sc, 0.03f), new Vector2(0.05f * sc, 0.03f) }, 24, false);
         }
 
         /// <summary>Суппорт — висит на неподвижном узле колеса (поворотный кулак), сзади вверху.</summary>
-        public static void Caliper(ModelNode mount, float side)
+        public static void Caliper(ModelNode mount, float side, float scale = 1f)
         {
             var m = mount.M("caliper");
             float a = 150f * Mathf.Deg2Rad;
-            var pos = new Vector3(side * 0.006f, Mathf.Sin(a) * 0.15f, Mathf.Cos(a) * 0.15f);
+            var pos = new Vector3(side * 0.006f, Mathf.Sin(a) * 0.15f * scale, Mathf.Cos(a) * 0.15f * scale);
             var tangent = new Vector3(0f, Mathf.Cos(a), -Mathf.Sin(a));
             var f = Frame.Look(pos, tangent, new Vector3(side, 0f, 0f));
-            Geo.RoundBox(m, f, Vector3.zero, new Vector3(0.075f, 0.05f, 0.14f), 0.35f, 8);
+            Geo.RoundBox(m, f, Vector3.zero, new Vector3(0.075f, 0.05f, 0.14f) * scale, 0.35f, 8);
         }
     }
 }

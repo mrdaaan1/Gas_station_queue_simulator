@@ -180,7 +180,7 @@ namespace GasQueue
                 }
                 case CameraMode.Rear:
                 {
-                    transform.position = car.TransformPoint(new Vector3(0f, 1.9f, -1.6f));
+                    transform.position = car.TransformPoint(new Vector3(0f, Mathf.Max(1.9f, player.visual.height + 0.5f), -1.6f));
                     transform.rotation = car.rotation * Quaternion.Euler(8f + pitch * 0.5f, 180f + yaw * 0.5f, 0f);
                     break;
                 }

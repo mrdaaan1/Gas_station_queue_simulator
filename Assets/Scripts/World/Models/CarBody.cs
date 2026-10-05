@@ -119,14 +119,14 @@ namespace GasQueue
         }
 
         /// <summary>Точка контура (x, y) на сечении: x — в долях полуширины (потом умножается на w).</summary>
-        public static Vector2 EvalNorm(in Station s, int seg, float v)
+        public Vector2 EvalNorm(in Station s, int seg, float v)
         {
             Vector2 p0, p1;
             float a0, a1;
             switch (seg)
             {
-                case SegA: p0 = new Vector2(0f, s.ybot); p1 = new Vector2(RockerFrac, s.ybot + 0.004f); a0 = 0f; a1 = 1f; break;
-                case SegB: p0 = new Vector2(RockerFrac, s.ybot + 0.004f); p1 = new Vector2(1f, s.ymax); a0 = 1f; a1 = 90f; break;
+                case SegA: p0 = new Vector2(0f, s.ybot); p1 = new Vector2(RockerFrac, s.ybot + 0.004f); a0 = 0f; a1 = RockerAngle; break;
+                case SegB: p0 = new Vector2(RockerFrac, s.ybot + 0.004f); p1 = new Vector2(1f, s.ymax); a0 = RockerAngle; a1 = 90f; break;
                 case SegC: p0 = new Vector2(1f, s.ymax); p1 = new Vector2(s.fb, s.belt); a0 = 90f; a1 = s.angC; break;
                 case SegD: p0 = new Vector2(s.fb, s.belt); p1 = new Vector2(s.xr, s.yr); a0 = s.angD0; a1 = s.angD1; break;
                 default: p0 = new Vector2(s.xr, s.yr); p1 = new Vector2(0f, s.yc); a0 = s.angE0; a1 = 180f; break;
@@ -152,7 +152,8 @@ namespace GasQueue
             return new Vector2(r.x / sx, r.y);
         }
 
-        public static float RockerFrac = 0.88f;
+        /// <summary>Нижний угол порога (доля полуширины) и угол, под которым днище переходит в порог.</summary>
+        protected float RockerFrac = 0.88f, RockerAngle = 1f;
 
         public static void SegOf(float u, out int seg, out float v)
         {

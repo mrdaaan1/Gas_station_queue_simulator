@@ -8,6 +8,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 // Просмотр модели машины: материалы по ключам, как в игре (CarMaterials)
 const params = new URLSearchParams(location.search);
 const paint = params.get('paint') || '#c8141e';
+const satin = params.get('satin') === '1';
 const W = +(params.get('w') || 1000), H = +(params.get('h') || 620);
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
 renderer.setSize(W, H);
@@ -30,7 +31,7 @@ ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground)
 
 const std = (c, r = 0.5, m = 0, extra = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m, ...extra });
 const mats = {
-  paint: new THREE.MeshPhysicalMaterial({ color: paint, roughness: 0.32, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.05 }),
+  paint: satin ? new THREE.MeshPhysicalMaterial({ color: paint, roughness: 0.45, metalness: 0.35, clearcoat: 0.3, clearcoatRoughness: 0.5 }) : new THREE.MeshPhysicalMaterial({ color: paint, roughness: 0.32, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.05 }),
   glass: new THREE.MeshPhysicalMaterial({ color: '#1d2a33', roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.55 }),
   lens: new THREE.MeshPhysicalMaterial({ color: '#e8f0f6', roughness: 0.03, metalness: 0.1, transparent: true, opacity: 0.22 }),
   black: std('#0b0b0d', 0.55), trim: std('#151517', 0.7), rubber: std('#141414', 0.9), tread: std('#0a0a0a', 0.95),
@@ -42,7 +43,8 @@ const mats = {
   leather_black: std('#141416', 0.55), int_black: std('#1a1a1d', 0.7), int_grey: std('#8b8e93', 0.45, 0.35),
   gauge_face: std('#0a0a0b', 0.4), gauge_glow: std('#ff3a12', 0.4, 0, { emissive: '#ff2a00', emissiveIntensity: 1.2 }),
   white: std('#f2f2f2', 0.5), needle: std('#ff3320', 0.4, 0, { emissive: '#661100' }), plate: std('#f4f4f4', 0.4), plate_text: std('#111', 0.5),
-  grille: std('#0d0d0f', 0.85), hair: std('#3a2717', 0.8), lamp_off: std('#3a2a10', 0.5), screen: std('#0c1a12', 0.3, 0, { emissive: '#103020' }), liner: std('#0c0c0c', 0.95), mirror: std('#dfe6ee', 0.05, 1), skin: std('#e2b08a', 0.7), jacket: std('#2a2c33', 0.8),
+  grille: std('#0d0d0f', 0.85), glass_dark: std('#0e1216', 0.08, 0.3), chassis: std('#1b1b1c', 0.8), rim_black: std('#151517', 0.35, 0.4), black_satin: std('#1c1d20', 0.55, 0.2),
+  screen_blue: std('#0a1838', 0.3, 0, { emissive: '#1a3a8a', emissiveIntensity: 0.9 }), ambient: std('#2a5cff', 0.4, 0, { emissive: '#2a5cff', emissiveIntensity: 1.5 }), hair: std('#3a2717', 0.8), lamp_off: std('#3a2a10', 0.5), screen: std('#0c1a12', 0.3, 0, { emissive: '#103020' }), liner: std('#0c0c0c', 0.95), mirror: std('#dfe6ee', 0.05, 1), skin: std('#e2b08a', 0.7), jacket: std('#2a2c33', 0.8),
 };
 const missing = new Set();
 const data = await (await fetch(params.get('model') || 'model.json')).json();

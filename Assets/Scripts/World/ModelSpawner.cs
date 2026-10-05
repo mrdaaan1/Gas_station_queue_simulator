@@ -94,21 +94,27 @@ namespace GasQueue
         static readonly Dictionary<string, Material> cache = new Dictionary<string, Material>();
         static Material glowBase;
 
-        public static Material Get(string key, Color paint)
+        public static Material Get(string key, Color paint, float paintSmoothness = 0.82f)
         {
-            string id = key == "paint" ? "paint" + ColorUtility.ToHtmlStringRGB(paint) : key;
+            string id = key == "paint" ? "paint" + ColorUtility.ToHtmlStringRGB(paint) + paintSmoothness : key;
             if (cache.TryGetValue(id, out var m) && m != null) return m;
-            m = Create(key, paint);
+            m = Create(key, paint, paintSmoothness);
             m.name = "Car_" + id;
             cache[id] = m;
             return m;
         }
 
-        static Material Create(string key, Color paint)
+        static Material Create(string key, Color paint, float paintSmoothness)
         {
             switch (key)
             {
-                case "paint": return Surface(paint, 0.82f, 0.25f);
+                case "paint": return Surface(paint, paintSmoothness, paintSmoothness < 0.7f ? 0.45f : 0.25f);
+                case "glass_dark": return Surface(Hex("#0e1216"), 0.92f, 0.3f);
+                case "chassis": return Surface(Hex("#1b1b1c"), 0.15f, 0f);
+                case "rim_black": return Surface(Hex("#151517"), 0.6f, 0.4f);
+                case "black_satin": return Surface(Hex("#1c1d20"), 0.45f, 0.2f);
+                case "screen_blue": return Glow(Hex("#0a1838"), Hex("#1a3a8a"));
+                case "ambient": return Glow(Hex("#2a5cff"), Hex("#2a5cff") * 1.4f);
                 case "glass":
                 {
                     var g = new Material(MeshFactory.Glass) { color = new Color(0.12f, 0.16f, 0.2f, 0.42f) };

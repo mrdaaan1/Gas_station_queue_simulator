@@ -379,6 +379,12 @@ namespace GasQueue
             }
             if (visual.speedNeedle != null)
                 visual.speedNeedle.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(120f, -120f, SpeedKmh / visual.speedoMaxKmh));
+            if (visual.digitalSpeed != null)
+            {
+                visual.digitalSpeed.text = ignition ? Mathf.RoundToInt(SpeedKmh) + "\nкм/ч" : "";
+                visual.digitalFuel.text = ignition ? Mathf.RoundToInt(fuel * 100f) + "%\nбензин" : "";
+                visual.digitalFuel.color = fuel < 0.1f && Mathf.Repeat(lampBlink, 1f) < 0.6f ? LampFuel : Color.white;
+            }
             if (visual.tachNeedle != null)
             {
                 float rpm = ignition && Engine == EngineState.Running ? Rpm : 0f;

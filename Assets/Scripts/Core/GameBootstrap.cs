@@ -20,7 +20,7 @@ namespace GasQueue
         /// <summary>Машина игрока, выбранная в меню (запоминается между запусками).</summary>
         public static PlayerCarKind CarChoice
         {
-            get => (PlayerCarKind)Mathf.Clamp(PlayerPrefs.GetInt(CarKey, 0), 0, 1);
+            get => (PlayerCarKind)Mathf.Clamp(PlayerPrefs.GetInt(CarKey, 0), 0, System.Enum.GetValues(typeof(PlayerCarKind)).Length - 1);
             set => PlayerPrefs.SetInt(CarKey, (int)value);
         }
 
@@ -43,8 +43,8 @@ namespace GasQueue
             var city = CityBuilder.Build(root);
             var debris = Shapes.Group("Debris", root);
 
-            var playerVisual = CarChoice == PlayerCarKind.Supra
-                ? SportsCars.BuildSupra("PlayerCar", SportsCars.SupraRed)
+            var playerVisual = CarChoice == PlayerCarKind.Supra ? SportsCars.BuildSupra("PlayerCar", SportsCars.SupraRed)
+                : CarChoice == PlayerCarKind.Gelik ? SportsCars.BuildGelik("PlayerCar", SportsCars.GelikBlue)
                 : CarFactory.Build("PlayerCar", Shapes.Hex("#e3dccb"), CarModel.Vaz2107, true);
             playerVisual.transform.SetParent(root, false);
             var player = playerVisual.gameObject.AddComponent<PlayerCar>();

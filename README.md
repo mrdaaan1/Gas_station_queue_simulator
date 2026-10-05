@@ -90,7 +90,7 @@ Assets/
     World/   CityLayout (все координаты), CityBuilder (город и заправка), CarModels (2107, Rio-такси, Нива, Газель), CarFactory (машина игрока), TextureFactory, MeshFactory, StationProps,
              SportsCars (спорткары для игрока), ModelSpawner (сетка → объекты Unity, материалы CarMaterials)
     World/Models/  ModelKit (гладкие поверхности, тела вращения, трубки), CarBody (кузов по сечениям, фары/швы по поверхности),
-                   SupraModel (Тоёта Супра Mk4, правый руль), WheelModel (диски и шины) — чистый C# без Unity-объектов
+                   SportsCarModel (общие детали), SupraModel (Тоёта Супра Mk4, правый руль), GelikModel («Гелик» 2025), WheelModel (диски и шины) — чистый C# без Unity-объектов
   Resources/Shaders/WorldText.shader — шрифт с учётом глубины (надписи не просвечивают)
     Audio/   SoundFactory (звуки генерируются кодом), Radio
     UI/      Hud, PauseMenu, MainMenu
@@ -129,7 +129,7 @@ Assets/
 ## Просмотр моделей машин
 
 `Tools/ModelPreview` собирает модель из `World/Models` без Unity и рендерит её с нескольких ракурсов
-(three.js в headless-браузере): `bash Tools/ModelPreview/run.sh имя`. Так Claude проверяет форму кузова,
+(three.js в headless-браузере): `bash Tools/ModelPreview/run.sh имя` (`MODEL=gelik` — другая машина), `dotnet ModelPreview.dll poke gelik` — что из салона торчит сквозь кузов. Так Claude проверяет форму кузова,
 не запуская игру.
 
 ## Симулятор очереди

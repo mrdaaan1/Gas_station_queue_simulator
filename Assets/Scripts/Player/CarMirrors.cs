@@ -23,7 +23,7 @@ namespace GasQueue
             rig = cameraRig;
             // Салонное: смотрим назад над крышей сидений, всё, что ближе заднего бампера, не рисуем —
             // иначе в зеркале была бы спина собственного сиденья.
-            rear = Create(visual.mirrorRear, 384, 96, 13f, 2.6f, 0f, 1.5f);
+            rear = Create(visual.mirrorRear, 384, 96, 13f, visual.rearMirrorNear, 0f, 1.5f);
             left = Create(visual.mirrorLeft, 192, 128, 24f, 0.3f, 12f, 2f);
             right = Create(visual.mirrorRight, 192, 128, 24f, 0.3f, -14f, 2f);
         }

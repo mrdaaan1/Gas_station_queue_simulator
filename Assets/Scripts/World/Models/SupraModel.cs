@@ -10,7 +10,7 @@ namespace GasQueue
     /// фары с тремя линзами, четыре круглых фонаря с каждой стороны, «петля» антикрыла,
     /// пятиспицевые диски, салон с красной кожей и дополнительными приборами на стойке.
     /// </summary>
-    public class SupraModel : CarBody
+    public class SupraModel : SportsCarModel
     {
         public const float AxleF = 1.19f, AxleR = -1.36f;
         public const float WheelR = 0.322f, TrackF = 0.765f, TrackR = 0.775f;
@@ -126,34 +126,26 @@ namespace GasQueue
 
         // ---------- Сборка ----------
 
-        Model model;
-        ModelNode body;
-        readonly Dictionary<string, ModelNode> nodes = new Dictionary<string, ModelNode>();
-
-        ModelNode N(string name)
+        protected override Vector3 Pivot(string name)
         {
-            if (nodes.TryGetValue(name, out var n)) return n;
-            Vector3 pivot = Vector3.zero;
             switch (name)
             {
-                case "Hood": pivot = new Vector3(0f, 0.89f, Cowl + 0.02f); break;
-                case "Roof": pivot = new Vector3(0f, 1.26f, -0.6f); break;
-                case "Trunk": pivot = new Vector3(0f, 0.99f, Deck); break;
-                case "DoorL": pivot = new Vector3(-0.88f, 0.6f, -0.1f); break;
-                case "DoorR": pivot = new Vector3(0.88f, 0.6f, -0.1f); break;
-                case "BumperF": pivot = new Vector3(0f, 0.35f, 2.1f); break;
-                case "BumperR": pivot = new Vector3(0f, 0.45f, -2.1f); break;
+                case "Hood": return new Vector3(0f, 0.89f, Cowl + 0.02f);
+                case "Roof": return new Vector3(0f, 1.26f, -0.6f);
+                case "Trunk": return new Vector3(0f, 0.99f, Deck);
+                case "DoorL": return new Vector3(-0.88f, 0.6f, -0.1f);
+                case "DoorR": return new Vector3(0.88f, 0.6f, -0.1f);
+                case "BumperF": return new Vector3(0f, 0.35f, 2.1f);
+                case "BumperR": return new Vector3(0f, 0.45f, -2.1f);
             }
-            n = body.Child(name, pivot);
-            nodes[name] = n;
-            return n;
+            return Vector3.zero;
         }
+
+        protected override Vector3 Eyes => DriverEyes;
 
         Model Build()
         {
-            model = new Model();
-            body = model.root.Child("Body");
-            nodes["Shell"] = body.Child("Shell");
+            StartModel();
             Emit(N);
             ArchLiners(N("Shell"), "liner");
             for (int k = 0; k < 2; k++)
@@ -339,34 +331,6 @@ namespace GasQueue
             Geo.Box(shell.M("int_black"), Frame.Identity, new Vector3(0f, 0.42f, 1.15f), new Vector3(1.2f, 0.38f, 1.2f));
         }
 
-        void Plate(ModelNode node, Vector3 origin, Vector3 dir, string name)
-        {
-            OnBody(origin, dir, 1f, out var p, out var n);
-            var f = node.WorldFrame();
-            var pf = Frame.Look(f.ToLocal(p + n * 0.012f), f.DirToLocal(-n), Vector3.up);
-            var plateNode = node.Child(name, pf.o, LookEuler(-n));
-            Geo.RoundBox(plateNode.M("plate"), Frame.Identity, Vector3.zero, new Vector3(0.52f, 0.112f, 0.012f), 0.12f, 6);
-        }
-
-        /// <summary>Углы Эйлера (как в Unity), поворачивающие +Z в направление dir с осью Y вверх.</summary>
-        public static Vector3 LookEuler(Vector3 dir)
-        {
-            dir = dir.normalized;
-            float yaw = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg;
-            float pitch = -Mathf.Asin(Mathf.Clamp(dir.y, -1f, 1f)) * Mathf.Rad2Deg;
-            return new Vector3(pitch, yaw, 0f);
-        }
-
-        void Emblem(ModelNode node, Vector3 origin, Vector3 dir, float size)
-        {
-            OnBody(origin, dir, 1f, out var p, out var n);
-            var f = node.WorldFrame();
-            var lf = Frame.Look(f.ToLocal(p + n * 0.006f), f.DirToLocal(n), Vector3.up);
-            var ring = new Frame { o = lf.o, x = lf.x, y = lf.z, z = -lf.y * 0.62f };
-            Geo.Torus(node.M("chrome"), ring, size * 0.5f, 0.004f, 28, 6);
-            Geo.Torus(node.M("chrome"), ring, size * 0.24f, 0.0035f, 20, 6);
-        }
-
         // ---------- Бока ----------
 
         void SideDetails(float side)
@@ -495,11 +459,7 @@ namespace GasQueue
             foreach (float x in new[] { -0.38f, 0.38f })
                 Geo.RoundBox(cab.M("int_roof"), Frame.Euler(new Vector3(x, 1.205f, -0.30f), new Vector3(-10f, 0f, 0f)), Vector3.zero, new Vector3(0.40f, 0.022f, 0.16f), 0.4f, 6);
             // Водитель (туловище и голову прячем при виде из салона, руки достраивает игра)
-            var torso = body.Child("DriverTorso", new Vector3(DriverEyes.x, 0.78f, -0.95f), new Vector3(-16f, 0f, 0f));
-            Geo.RoundBox(torso.M("jacket"), Frame.Identity, Vector3.zero, new Vector3(0.42f, 0.5f, 0.24f), 0.45f, 10);
-            var head = body.Child("DriverHead", DriverEyes + new Vector3(0f, 0.02f, -0.05f));
-            Geo.RoundBox(head.M("skin"), Frame.Identity, Vector3.zero, new Vector3(0.19f, 0.24f, 0.22f), 0.9f, 12);
-            Geo.RoundBox(head.M("hair"), Frame.Identity, new Vector3(0f, 0.06f, -0.025f), new Vector3(0.2f, 0.15f, 0.21f), 0.85f, 12);
+            Driver(0.78f, -0.95f, -16f);
         }
 
         /// <summary>Торпеда: верх в красной коже, лицевая часть серебристая, у пассажира — вентиляция и бардачок.</summary>
@@ -567,28 +527,6 @@ namespace GasQueue
             Geo.RoundBox(fl.M("lamp_off"), Frame.Identity, Vector3.zero, new Vector3(0.022f, 0.012f, 0.004f), 0.3f, 4);
             var el = cab.Child("EngineLamp", c + new Vector3(-0.155f, -0.05f, 0.016f));
             Geo.RoundBox(el.M("lamp_off"), Frame.Identity, Vector3.zero, new Vector3(0.022f, 0.012f, 0.004f), 0.3f, 4);
-        }
-
-        /// <summary>Круглый прибор лицом к водителю; стрелка — отдельный узел «…Needle», крутится вокруг своей Z.</summary>
-        void Gauge(ModelNode parent, string name, Vector3 center, float r, bool ticks, string face = "gauge_face", string tickMat = "white")
-        {
-            var away = (center - DriverEyes).normalized;
-            var g = parent.Child("Gauge" + name, center, LookEuler(away));
-            var id = Frame.Identity;
-            Geo.Polygon(g.M(face), id, Geo.Circle(r, 28));
-            var ringF = new Frame { o = new Vector3(0, 0, -0.002f), x = Vector3.right, y = Vector3.back, z = Vector3.up };
-            Geo.Torus(g.M("chrome"), ringF, r + 0.004f, 0.0045f, 32, 6);
-            if (ticks)
-                for (int i = 0; i <= 12; i++)
-                {
-                    float a = Mathf.Lerp(210f, -30f, i / 12f) * Mathf.Deg2Rad;
-                    var dir = new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0f);
-                    var tf = Frame.Look(dir * r * 0.82f + new Vector3(0, 0, -0.002f), Vector3.back, dir);
-                    Geo.Box(g.M(tickMat), tf, Vector3.zero, new Vector3(0.003f, i % 2 == 0 ? r * 0.2f : r * 0.11f, 0.001f));
-                }
-            var needle = g.Child(name + "Needle", new Vector3(0f, 0f, -0.004f));
-            Geo.Box(needle.M("needle"), id, new Vector3(0f, r * 0.38f, 0f), new Vector3(0.0035f, r * 0.85f, 0.002f));
-            Geo.Cylinder(g.M("int_black"), new Frame { o = new Vector3(0, 0, -0.006f), x = Vector3.right, y = Vector3.back, z = Vector3.up }, 0.008f, 0f, 0.004f, 10);
         }
 
         /// <summary>Дополнительные приборы с красной подсветкой: три на правой стойке и три на торпеде.</summary>
