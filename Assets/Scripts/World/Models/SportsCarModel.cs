@@ -58,6 +58,39 @@ namespace GasQueue
         }
 
         /// <summary>Овальная эмблема без настоящего логотипа.</summary>
+        /// <summary>
+        /// Стекло бокового зеркала: скруглённое по форме корпуса и чуть меньше его, с тёмной окантовкой.
+        /// Узел стекла смотрит назад (−Z), как Geo.Quad; текстурные координаты 0…1 — под картинку с камеры.
+        /// </summary>
+        protected static ModelNode MirrorGlass(ModelNode mount, string name, Vector3 housing)
+        {
+            float back = -housing.z / 2f - 0.002f;
+            Oval(mount.M("black"), new Vector3(0f, 0f, back + 0.001f), housing.x * 0.88f, housing.y * 0.86f, 0f);
+            var glass = mount.Child(name, new Vector3(0f, 0f, back));
+            Oval(glass.M("mirror"), Vector3.zero, housing.x * 0.78f, housing.y * 0.72f, 0f);
+            return glass;
+        }
+
+        /// <summary>Плоский скруглённый прямоугольник (суперэллипс) лицом назад, UV 0…1.</summary>
+        static void Oval(MeshData m, Vector3 c, float w, float h, float z)
+        {
+            const int n = 40;
+            var nrm = Vector3.back;
+            int center = m.Add(c + new Vector3(0f, 0f, z), nrm, new Vector2(0.5f, 0.5f));
+            int first = -1, prev = -1;
+            for (int i = 0; i < n; i++)
+            {
+                float a = i * Mathf.PI * 2f / n;
+                float ca = Mathf.Cos(a), sa = Mathf.Sin(a);
+                float x = Mathf.Sign(ca) * Mathf.Sqrt(Mathf.Abs(ca)), y = Mathf.Sign(sa) * Mathf.Sqrt(Mathf.Abs(sa));
+                int k = m.Add(c + new Vector3(x * w / 2f, y * h / 2f, z), nrm, new Vector2(0.5f + x / 2f, 0.5f + y / 2f));
+                if (prev >= 0) m.Tri(center, k, prev);
+                else first = k;
+                prev = k;
+            }
+            m.Tri(center, first, prev);
+        }
+
         protected void Emblem(ModelNode node, Vector3 origin, Vector3 dir, float size)
         {
             OnBody(origin, dir, 1f, out var p, out var n);

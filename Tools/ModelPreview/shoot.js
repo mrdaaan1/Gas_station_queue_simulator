@@ -15,7 +15,7 @@ const server = http.createServer((req, res) => {
 (async () => {
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const page = await browser.newPage({ viewport: { width: 1000, height: 620 } });
-  page.on('console', m => { if (m.type() === 'error') console.log('console:', m.text()); });
+  page.on('console', m => { if (m.type() === 'error' || m.text().startsWith('id ')) console.log('console:', m.text()); });
   for (const [name, q] of Object.entries(views)) {
     const qs = new URLSearchParams(q);
     await page.setViewportSize({ width: +(qs.get('w') || 1000), height: +(qs.get('h') || 620) });

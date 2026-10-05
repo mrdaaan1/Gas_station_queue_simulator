@@ -403,10 +403,8 @@ namespace GasQueue
             Geo.RoundBox(mount.M("paint"), Frame.Identity, Vector3.zero, new Vector3(0.16f, 0.10f, 0.11f), 0.55f, 14);
             var from = df.ToLocal(basePt) - mount.pos;
             var to = new Vector3(-0.05f * side, -0.025f, 0.01f);
-            Geo.RoundBox(mount.M("paint"), Frame.Look((from + to) * 0.5f, to - from, Vector3.up), Vector3.zero, new Vector3(0.06f, 0.028f, (to - from).magnitude + 0.03f), 0.4f, 6);
-            float yaw = side < 0 ? -27f : 48f;
-            var glass = mount.Child(side < 0 ? "MirrorGlassL" : "MirrorGlassR", new Vector3(0f, 0.002f, -0.056f), new Vector3(0f, yaw * 0.25f, 0f));
-            Geo.Quad(glass.M("mirror"), Frame.Identity, 0.14f, 0.08f);
+            Geo.RoundBox(mount.M("paint"), Frame.Look((from + to) * 0.5f, to - from, Vector3.up), Vector3.zero, new Vector3(0.04f, 0.022f, (to - from).magnitude + 0.03f), 0.4f, 6);
+            MirrorGlass(mount, side < 0 ? "MirrorGlassL" : "MirrorGlassR", new Vector3(0.16f, 0.10f, 0.11f));
         }
 
         /// <summary>Открытый верх: дуги безопасности за сиденьями, крышка сложенного тента, перегородка.</summary>

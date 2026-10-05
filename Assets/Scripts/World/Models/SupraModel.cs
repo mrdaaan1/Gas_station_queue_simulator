@@ -398,12 +398,10 @@ namespace GasQueue
             var stalkFrom = df.ToLocal(basePt) - mount.pos;
             var stalkTo = new Vector3(-0.05f * side, -0.025f, 0.01f);
             var sf = Frame.Look((stalkFrom + stalkTo) * 0.5f, stalkTo - stalkFrom, Vector3.up);
-            Geo.RoundBox(mount.M("paint"), sf, Vector3.zero, new Vector3(0.06f, 0.028f, (stalkTo - stalkFrom).magnitude + 0.03f), 0.4f, 6);
+            Geo.RoundBox(mount.M("paint"), sf, Vector3.zero, new Vector3(0.04f, 0.022f, (stalkTo - stalkFrom).magnitude + 0.03f), 0.4f, 6);
             Geo.RoundBox(door.M("black"), Frame.Identity, df.ToLocal(basePt), new Vector3(0.05f, 0.03f, 0.09f), 0.4f, 6);
             // Стекло: смотрит назад, повёрнуто к водителю
-            float yaw = side > 0 ? 27f : -48f;
-            var glass = mount.Child(side < 0 ? "MirrorGlassL" : "MirrorGlassR", new Vector3(0f, 0.002f, -0.051f), new Vector3(0f, yaw * 0.25f, 0f));
-            Geo.Quad(glass.M("mirror"), Frame.Identity, 0.145f, 0.08f);
+            MirrorGlass(mount, side < 0 ? "MirrorGlassL" : "MirrorGlassR", new Vector3(0.165f, 0.10f, 0.10f));
         }
 
 

@@ -14,6 +14,8 @@ static class Program
     {
         string which = args.Length > 0 ? args[0] : "supra";
         if (which == "debug") { Debug(); return 0; }
+        if (which == "normals") { Normals(args.Length > 1 ? args[1] : "supra"); return 0; }
+        if (which == "ray") { Rays(args); return 0; }
         if (which == "poke") { Poke(args.Length > 1 ? args[1] : "supra"); return 0; }
         string outPath = args.Length > 1 ? args[1] : "model.json";
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -70,6 +72,51 @@ static class Program
         File.WriteAllText(outPath, sb.ToString());
         Console.WriteLine($"triangles {tris}, vertices {verts}");
         return 0;
+    }
+
+    static Model ByName(string which) => which switch
+    {
+        "gelik" => GelikModel.Get(),
+        "skyline" => SkylineModel.Get(),
+        "rx7" => Rx7Model.Get(),
+        "s2000" => S2000Model.Get(),
+        _ => SupraModel.Get(),
+    };
+
+    // Ищем испорченные нормали (нулевые, NaN) — в Unity такие пиксели горят белым или чёрным
+    static void Normals(string which)
+    {
+        var model = ByName(which);
+        var bad = new Dictionary<string, int>();
+        var where = new Dictionary<string, Vector3>();
+        void Walk(ModelNode n)
+        {
+            var f = n.WorldFrame();
+            for (int k = 0; k < n.meshes.Count; k++)
+            {
+                var m = n.meshes[k];
+                if (m.n.Count != m.v.Count || m.uv.Count != m.v.Count) Console.WriteLine($"COUNT {n.name}:{n.mats[k]} v={m.v.Count} n={m.n.Count} uv={m.uv.Count}");
+                int vc = 0; foreach (var mm in n.meshes) vc += mm.v.Count;
+                if (k == 0 && vc > 65000) Console.WriteLine($"BIG {n.name} {vc}");
+                var used = new HashSet<int>(m.t);
+                foreach (int i in used)
+                {
+                    var q = m.n[i];
+                    float len = q.magnitude;
+                    bool nan = float.IsNaN(q.x) || float.IsNaN(q.y) || float.IsNaN(q.z) || float.IsNaN(m.v[i].x) || float.IsNaN(m.v[i].y) || float.IsNaN(m.v[i].z);
+                    if (nan || len < 0.5f || len > 1.5f)
+                    {
+                        string key = n.name + ":" + n.mats[k] + (nan ? " NaN" : $" len~{Math.Round(len, 1)}");
+                        bad[key] = bad.TryGetValue(key, out int c) ? c + 1 : 1;
+                        where[key] = f.P(m.v[i]);
+                    }
+                }
+            }
+            foreach (var c in n.children) Walk(c);
+        }
+        Walk(model.root);
+        foreach (var kv in bad) Console.WriteLine($"{kv.Key}: {kv.Value}  e.g. {where[kv.Key]}");
+        Console.WriteLine($"bad groups: {bad.Count}");
     }
 
     // Сравнение: точка на формуле кузова и пересечение луча с готовой сеткой (ищем «утонувшие» накладки)
@@ -139,6 +186,49 @@ static class Program
         }
         Walk(model.root);
         foreach (var kv in stats) Console.WriteLine($"{kv.Key}: {kv.Value.n} verts outside, worst {kv.Value.worst * 100:F1} cm at {kv.Value.at}");
+    }
+
+    // Что видит глаз водителя в пикселе скриншота Unity: ray <model> eyeX eyeY eyeZ pitch W H fov px,py ...
+    static void Rays(string[] a)
+    {
+        var model = ByName(a[1]);
+        var eye = new Vector3(float.Parse(a[2], CultureInfo.InvariantCulture), float.Parse(a[3], CultureInfo.InvariantCulture), float.Parse(a[4], CultureInfo.InvariantCulture));
+        float pitch = float.Parse(a[5], CultureInfo.InvariantCulture) * Mathf.Deg2Rad;
+        float W = float.Parse(a[6]), H = float.Parse(a[7]), fov = float.Parse(a[8], CultureInfo.InvariantCulture);
+        var tris = new List<(Vector3, Vector3, Vector3, string)>();
+        void Walk(ModelNode n)
+        {
+            var f = n.WorldFrame();
+            for (int k = 0; k < n.meshes.Count; k++)
+            {
+                var m = n.meshes[k];
+                for (int i = 0; i < m.t.Count; i += 3)
+                    tris.Add((f.P(m.v[m.t[i]]), f.P(m.v[m.t[i + 1]]), f.P(m.v[m.t[i + 2]]), n.name + ":" + n.mats[k]));
+            }
+            foreach (var c in n.children) Walk(c);
+        }
+        Walk(model.root);
+        float th = Mathf.Tan(fov * 0.5f * Mathf.Deg2Rad);
+        var fwd = new Vector3(0, -Mathf.Sin(pitch), Mathf.Cos(pitch));
+        var up = new Vector3(0, Mathf.Cos(pitch), Mathf.Sin(pitch));
+        for (int i = 9; i < a.Length; i++)
+        {
+            var xy = a[i].Split(',');
+            float px = float.Parse(xy[0]), py = float.Parse(xy[1]);
+            float sx = (px - W / 2) / (H / 2) * th, sy = (H / 2 - py) / (H / 2) * th;
+            var d = (fwd + Vector3.right * sx + up * sy).normalized;
+            var hits = new List<(float, string)>();
+            foreach (var (p0, p1, p2, name) in tris)
+                if (RayTri(eye, d, p0, p1, p2, out float t))
+                {
+                    bool front = Vector3.Dot(Vector3.Cross(p1 - p0, p2 - p0), d) < 0;
+                    hits.Add((t, (front ? "F " : "b ") + name));
+                }
+            hits.Sort((x, y) => x.Item1.CompareTo(y.Item1));
+            var sb = new StringBuilder($"{a[i]} dir {d}: ");
+            for (int k = 0; k < Math.Min(5, hits.Count); k++) sb.Append($" [{hits[k].Item1:F2} {hits[k].Item2}]");
+            Console.WriteLine(sb);
+        }
     }
 
     static bool RayTri(Vector3 o, Vector3 d, Vector3 a, Vector3 b, Vector3 c, out float t)

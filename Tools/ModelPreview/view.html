@@ -51,6 +51,8 @@ const mats = {
 const missing = new Set();
 const data = await (await fetch(params.get('model') || 'model.json')).json();
 const car = new THREE.Group();
+const ids = params.get('ids') === '1';
+const idMats = {};
 const hide = (params.get('hide') || '').split(',').filter(Boolean);
 for (const m of data.meshes) {
   if (hide.some(h => m.node.startsWith(h) || m.mat === h)) continue;
@@ -60,6 +62,17 @@ for (const m of data.meshes) {
   g.setIndex(m.i);
   let mat = mats[m.mat];
   if (!mat) { missing.add(m.mat); mat = std('#ff00ff', 0.5); }
+  if (ids) {
+    // Отладка: каждый узел:материал своим цветом без освещения
+    const key = m.node + ':' + m.mat;
+    if (!idMats[key]) {
+      const k = Object.keys(idMats).length;
+      const c = new THREE.Color().setHSL((k * 0.618) % 1, 0.9, 0.35 + 0.3 * ((k * 0.37) % 1));
+      idMats[key] = new THREE.MeshBasicMaterial({ color: c });
+      console.log('id ' + key + ' #' + c.getHexString());
+    }
+    mat = idMats[key];
+  }
   const mesh = new THREE.Mesh(g, mat);
   mesh.castShadow = m.mat !== 'glass' && m.mat !== 'lens'; mesh.receiveShadow = true;
   car.add(mesh);
