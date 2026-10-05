@@ -28,8 +28,12 @@ public class GameManager : MonoBehaviour { public static GameManager Instance; p
  public void OnSomeoneGaveUp(bool a)=>Log("gave up"); public void OnVipArrived()=>Log("VIP arrived"); public void ShowMessage(string s)=>ShowMessage(s,6); public void OnPlayerHonkedAt(){Sim.HonkedAt++;} public void OnCutInBlocked()=>Log("cut-in blocked"); public void OnPlayerCutIn()=>Log("player cut-in!"); public void OnPlayerSqueezedIn()=>Log("player squeezed"); }
 // Игрок-бот: стоит в очереди как человек, заезжает на выданную колонку, «заправляется», уезжает
 public class PlayerCar : Vehicle { public override bool IsPlayer=>true; LanePath path; float s; int phase; float wait; public bool done; public static bool Sneaky; float lat; bool snuck;
- public void PlaceOnPath(LanePath p,float s0){path=p;s=s0;Place(p.PointAt(s0),p.TangentAt(s0));}
+ public void PlaceOnPath(LanePath p,float s0){path=p;s=s0;Place(p.PointAt(s0),p.TangentAt(s0)); if(traffic!=null && traffic.RaceMode) phase=10;}
  void Update(){ float dt=Time.deltaTime; var gm=GameManager.Instance; float free=float.MaxValue;
+  // Гонка: едем по своей полосе трассы (не быстрее профиля), потом встаём в очередь как все
+  if(phase==10){ if(!traffic.RaceStarted) return; free=float.MaxValue; foreach(var n in traffic.Npcs){ if(Obb.AheadDistance(Box,n.Box,1.2f,40f,out float d)) free=Mathf.Min(free,d-4f);} 
+    float vmax=traffic.ProfileFor(path).At(s)*0.9f; float sp=Mathf.Min(vmax, free>Speed*Speed/16f+1f ? Speed+6f*dt : Speed-9f*dt); sp=Mathf.Max(0,sp); float st=Mathf.Clamp(sp*dt,0,Mathf.Max(0,free)); Speed=st/dt; s=Mathf.Min(path.Length,s+st); Place(path.PointAt(s),path.TangentAt(s));
+    if(s>=path.Length-0.1f){ path=traffic.QueuePath; s=path.Project(Position,out _); phase=0; GameManager.Log($"player joined queue at z={Position.z:F0}"); } return; }
   // Сценарий «выехал из очереди и встраиваюсь ближе к заправке»
   if(Sneaky && !snuck && phase==0 && Time.time>20){ phase=-1; GameManager.Log("player leaves queue"); }
   if(phase==-1){ // выезжаем влево и едем по соседнему ряду
@@ -47,6 +51,7 @@ public class PlayerCar : Vehicle { public override bool IsPlayer=>true; LanePath
   else if(phase==1){ free=path.Length-s; if(free<0.05f){ wait+=dt; if(wait>30){ gm.PlayerFueled=true; path=traffic.PlayerPump.exitPath; s=0; phase=2; traffic.ReleasePlayerPump(); GameManager.Log("player fueled, leaving"); } } }
   else { free=path.Length-s; if(free<1){done=true;} }
   // избегаем NPC прямо перед собой
-  foreach(var n in traffic.Npcs){ if(Obb.AheadDistance(Box,n.Box,1.2f,20f,out float d)) free=Mathf.Min(free,d-2f); }
+  foreach(var n in traffic.Npcs){ if(Obb.AheadDistance(Box,n.Box,1.2f,20f,out float d)){ if(d-2f<free && Sim.Verbose && Mathf.Repeat(Time.time,10f)<dt) GameManager.Log($"bot blocked by {n.name} {n.Role} at ({n.Position.x:F1},{n.Position.z:F1}) d={d:F1}"); free=Mathf.Min(free,d-2f);} }
+  if(Sim.Verbose && Mathf.Repeat(Time.time,10f)<dt) GameManager.Log($"bot phase={phase} path={path.name} s={s:F1}/{path.Length:F1} free={free:F1}");
   float step=Mathf.Clamp(free,0,4f*dt); Speed=step/dt; s+=step; Place(path.PointAt(s),path.TangentAt(s)); } }
 }

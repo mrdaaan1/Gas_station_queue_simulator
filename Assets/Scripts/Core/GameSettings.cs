@@ -45,6 +45,14 @@ namespace GasQueue
         [Tooltip("Как часто кто-то пытается влезть в очередь из соседнего ряда.")]
         public float cutterInterval = 22f;
 
+        [Header("Гонка «Самая быстрая гонка»")]
+        [Tooltip("Сколько обычных машин уже стоит в очереди, когда приезжают гонщики.")]
+        public int raceQueueCars = 6;
+        [Tooltip("Бензин на старте гонки, литров.")]
+        public float raceStartFuelLiters = 6f;
+        [Tooltip("Расход спорткара в гонке, литров на 100 км (на холостых — ноль).")]
+        public float raceLitersPer100Km = 45f;
+
         [Header("Деньги")]
         public float startMoney = 3000f;
 

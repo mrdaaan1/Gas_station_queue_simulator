@@ -29,6 +29,9 @@ namespace GasQueue
         /// <summary>Уровень топлива от 0 до 1.</summary>
         [Range(0f, 1f)] public float fuel = 0.12f;
 
+        /// <summary>Режим гонки: на холостых бензин не тратится, а на ходу спорткар жрёт много (raceLitersPer100Km).</summary>
+        public bool raceFuel;
+
         /// <summary>Сидит ли игрок за рулём и можно ли управлять.</summary>
         public bool controlsEnabled = true;
 
@@ -321,7 +324,9 @@ namespace GasQueue
         {
             if (Engine != EngineState.Running) return;
             float gameHours = dt * GameManager.Instance.ClockRate / 3600f;
-            float liters = settings.idleLitersPerHour * gameHours + distance / 1000f * settings.drivingLitersPer100Km / 100f;
+            float liters = raceFuel
+                ? distance / 1000f * settings.raceLitersPer100Km / 100f
+                : settings.idleLitersPerHour * gameHours + distance / 1000f * settings.drivingLitersPer100Km / 100f;
             fuel = Mathf.Max(0f, fuel - liters / settings.tankLiters);
             if (fuel <= 0f)
             {
@@ -369,6 +374,8 @@ namespace GasQueue
                 return Mathf.Max(idle, Mathf.Lerp(low, 7600f, frac) + (throttle ? 300f : 0f));
             }
         }
+
+        public void SetFuelLiters(float liters) => fuel = Mathf.Clamp01(liters / settings.tankLiters);
 
         public void AddFuelLiters(float liters) => fuel = Mathf.Clamp01(fuel + liters / settings.tankLiters);
 

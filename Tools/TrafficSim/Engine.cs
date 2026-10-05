@@ -5,7 +5,7 @@ public class RangeAttribute : Attribute { public RangeAttribute(float a,float b)
 public class TooltipAttribute : Attribute { public TooltipAttribute(string s){} }
 public class HeaderAttribute : Attribute { public HeaderAttribute(string s){} }
 public class SerializeField : Attribute {} public class HideInInspector : Attribute {}
-public struct Color { public float r,g,b,a; public Color(float r,float g,float b,float a=1){this.r=r;this.g=g;this.b=b;this.a=a;} public static Color white=>new Color(1,1,1); }
+public struct Color { public float r,g,b,a; public Color(float r,float g,float b,float a=1){this.r=r;this.g=g;this.b=b;this.a=a;} public static Color white=>new Color(1,1,1); public static Color red=>new Color(1,0,0); }
 public struct Quaternion { public float x,y,z,w; public Quaternion(float x,float y,float z,float w){this.x=x;this.y=y;this.z=z;this.w=w;}
  public static Quaternion identity=>new Quaternion(0,0,0,1);
  static Quaternion Axis(Vector3 a,float deg){float h=deg*Mathf.Deg2Rad/2;float s=Mathf.Sin(h);return new Quaternion(a.x*s,a.y*s,a.z*s,Mathf.Cos(h));}

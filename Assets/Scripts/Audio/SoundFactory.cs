@@ -128,6 +128,26 @@ namespace GasQueue
             }
         }
 
+        static AudioClip beepLow, beepHigh;
+
+        /// <summary>Писк стартового светофора: низкий — «приготовиться», высокий — «старт».</summary>
+        public static AudioClip Beep(bool high)
+        {
+            if (high ? beepHigh != null : beepLow != null) return high ? beepHigh : beepLow;
+            float len = high ? 0.7f : 0.25f, freq = high ? 1320f : 880f;
+            int n = (int)(Rate * len);
+            var data = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / Rate;
+                float env = Mathf.Min(1f, t * 200f) * Mathf.Min(1f, (len - t) * 30f);
+                data[i] = (Mathf.Sin(2 * Mathf.PI * freq * t) > 0f ? 1f : -1f) * 0.25f * env;
+            }
+            var clip = Create(high ? "BeepHigh" : "BeepLow", data);
+            if (high) beepHigh = clip; else beepLow = clip;
+            return clip;
+        }
+
         static AudioClip siren;
 
         /// <summary>«Кряк» спецсигнала: тон, который быстро взлетает и падает.</summary>

@@ -14,6 +14,7 @@ namespace GasQueue
         Vip,       // депутат с мигалкой: едет к заправке мимо очереди
         ToGas,     // на газу: свернул из очереди к газовой колонке
         GasFueling,// заправляется газом
+        Racing,    // гонщик на трассе (режим «Самая быстрая гонка»)
     }
 
     /// <summary>
@@ -57,6 +58,19 @@ namespace GasQueue
         float shoutCooldown;
 
         public override bool IsPlayer => false;
+
+        // ---------- Гонка ----------
+
+        /// <summary>Соперник в гонке: после трассы стоит в очереди как все, потом едет к финишу.</summary>
+        public bool IsRacer { get; private set; }
+        public string RacerName { get; private set; }
+        public bool RaceFinished { get; private set; }
+        /// <summary>Ограничение скорости для обычной машины на трассе (0 — нет).</summary>
+        public float MaxSpeedCap;
+        float skill = 1f;
+        SpeedProfile profile;
+        float raceStuck;
+        float accel = Accel, decel = Decel, laneRate = LaneChangeRate;
 
         public NpcRole Role { get; private set; }
         public LanePath Path { get; private set; }
@@ -112,6 +126,52 @@ namespace GasQueue
             horn.pitch = Random.Range(0.8f, 1.15f);
         }
 
+        /// <summary>Гонщик на стартовой решётке.</summary>
+        public void SetupRacer(LanePath lane, float s, SpeedProfile speedProfile, string name, float racerSkill)
+        {
+            IsRacer = true;
+            RacerName = name;
+            skill = racerSkill;
+            profile = speedProfile;
+            accel = 6.8f * racerSkill;
+            decel = 10f;
+            laneRate = 3.2f;
+            Setup(NpcRole.Racing, lane, s, false);
+            moving = false;
+            Speed = 0f;
+            reactionDelay = Random.Range(0.1f, 0.6f); // реакция на зелёный
+        }
+
+        /// <summary>Трасса кончилась на правой полосе — в хвост очереди.</summary>
+        public void JoinQueueFromRace(LanePath queuePath)
+        {
+            Role = NpcRole.Queue;
+            Path = queuePath;
+            S = queuePath.Project(transform.position, out _);
+            Offset = targetOffset = 0f;
+            pathAfterLaneChange = null;
+            visual.blinker = 0;
+            StopAtEnd = true;
+            decel = 8f;
+        }
+
+        /// <summary>Трасса кончилась на левой полосе — едет к въезду и лезет «вторым рядом».</summary>
+        public void CutFromRace(LanePath middle)
+        {
+            Role = NpcRole.Cutter;
+            Path = middle;
+            S = middle.Project(transform.position, out _);
+            Offset = targetOffset = 0f;
+            pathAfterLaneChange = null;
+            visual.blinker = 0;
+            StopAtEnd = false;
+            Cut = CutState.Looking;
+            AimsAtEntrance = true;
+            cutTimer = 0f;
+            decel = 8f;
+            laneRate = LaneChangeRate;
+        }
+
         public void Setup(NpcRole role, LanePath path, float s, bool stopAtEnd)
         {
             Role = role;
@@ -126,16 +186,27 @@ namespace GasQueue
 
         float SpeedLimit()
         {
+            float limit;
             switch (Role)
             {
-                case NpcRole.Cutter: return Cut == CutState.Looking ? 6f : 4f;
-                case NpcRole.GivingUp: return Offset > -3f ? 3f : 10f;
-                case NpcRole.Vip: return S > Path.Length - 45f ? 5f : Path.speedLimit; // по территории — потише
-                default: return Path.speedLimit;
+                case NpcRole.Cutter: limit = Cut == CutState.Looking ? 6f : 4f; break;
+                case NpcRole.GivingUp: limit = Offset > -3f ? 3f : 10f; break;
+                case NpcRole.Vip: limit = S > Path.Length - 45f ? 5f : Path.speedLimit; break; // по территории — потише
+                case NpcRole.Racing: limit = profile != null ? profile.At(S) * skill : Path.speedLimit; break;
+                default: limit = Path.speedLimit; break;
             }
+            if (IsRacer)
+            {
+                // Гонщик и по городу спешит: до хвоста очереди, до въезда «вторым рядом», от выезда до финиша
+                if (Role == NpcRole.Queue && S < traffic.QueueRoadEndS - 25f) limit = 24f;
+                else if (Role == NpcRole.Cutter && Cut == CutState.Looking && S < traffic.SecondRowWaitS - 50f) limit = 22f;
+                else if (Role == NpcRole.Exiting && transform.position.x < 11f) limit = 34f * skill;
+            }
+            if (MaxSpeedCap > 0f) limit = Mathf.Min(limit, MaxSpeedCap);
+            return limit;
         }
 
-        float DesiredGap => Role == NpcRole.Through ? 5f : pressing ? 0.55f : 2f;
+        float DesiredGap => Role == NpcRole.Racing ? 4f + Speed * 0.3f : Role == NpcRole.Through ? 5f : pressing ? 0.55f : 2f;
 
         void Update()
         {
@@ -151,6 +222,9 @@ namespace GasQueue
                 moving = false;
                 return;
             }
+
+            // На старте ждём зелёного
+            if (Role == NpcRole.Racing && !traffic.RaceStarted) return;
 
             if (Role == NpcRole.GasFueling)
             {
@@ -209,6 +283,18 @@ namespace GasQueue
                     traffic.OnVipFueling();
                 }
             }
+            // Гонщик пересёк финиш
+            if (IsRacer && !RaceFinished && Role == NpcRole.Exiting && transform.position.z > RaceLayout.FinishZ && transform.position.x < 14f)
+            {
+                RaceFinished = true;
+                traffic.OnRacerFinished(this);
+            }
+            // Трасса кончилась — дальше очередь на заправку
+            if (Role == NpcRole.Racing && atEnd)
+            {
+                traffic.OnRacerReachedRoad(this);
+                return;
+            }
             if (atEnd && !StopAtEnd) traffic.Despawn(this);
         }
 
@@ -265,11 +351,13 @@ namespace GasQueue
             float step = 0f;
             if (moving)
             {
-                float stopDistance = Speed * Speed / (2f * Decel);
+                float stopDistance = Speed * Speed / (2f * decel);
+                // Разгон слабеет к максимальной скорости (у гонщиков заметно)
+                float push = IsRacer ? accel * Mathf.Clamp(1.15f - Speed / (RaceLayout.TopSpeed * 1.1f), 0.25f, 1f) : accel;
                 Speed = free <= stopDistance + 0.05f
-                    ? Mathf.Max(0f, Speed - Decel * dt)
-                    : Mathf.Min(limit, Speed + Accel * dt);
-                if (Speed > limit) Speed = Mathf.Max(limit, Speed - Decel * dt);
+                    ? Mathf.Max(0f, Speed - decel * dt)
+                    : Mathf.Min(limit, Speed + push * dt);
+                if (Speed > limit) Speed = Mathf.Max(limit, Speed - decel * dt);
 
                 step = Mathf.Min(Speed * dt, Mathf.Max(0f, free));
                 if (free < 0.08f && Speed < 0.4f)
@@ -283,14 +371,14 @@ namespace GasQueue
             if (StopAtEnd) newS = Mathf.Min(newS, Path.Length);
             float newOffset = Offset;
             if (changingLane)
-                newOffset = Mathf.MoveTowards(Offset, targetOffset, LaneChangeRate * dt);
+                newOffset = Mathf.MoveTowards(Offset, targetOffset, laneRate * dt);
 
             var pos = Path.PointAt(newS) + Path.RightAt(newS) * newOffset;
             var fwd = Path.TangentAt(newS);
             if (changingLane)
             {
                 // Нос машины поворачивает в сторону перестроения
-                float yaw = Mathf.Atan2(newOffset - Offset, Mathf.Max(step, LaneChangeRate * dt * 2f)) * Mathf.Rad2Deg;
+                float yaw = Mathf.Atan2(newOffset - Offset, Mathf.Max(step, laneRate * dt * 2f)) * Mathf.Rad2Deg;
                 fwd = Quaternion.Euler(0f, Mathf.Clamp(yaw, -14f, 14f), 0f) * fwd;
             }
 
@@ -331,6 +419,7 @@ namespace GasQueue
 
             UpdateHonking(dt, blocker);
             UpdateOvertake(dt, blocker);
+            UpdateRaceOvertake(dt, blocker);
             // Депутату мешают — «крякает» сиреной
             if (IsVip && vipLights != null && blocker != null && Speed < 1f) vipLights.Whoop();
         }
@@ -357,6 +446,23 @@ namespace GasQueue
                 StartLaneChange(CityLayout.LaneLeft - CityLayout.LaneMiddle, traffic.LeftPath);
                 stuckBehindTimer = 0f;
             }
+        }
+
+        /// <summary>Гонщик упёрся в медленную машину — на прямой уходит в соседнюю полосу трассы.</summary>
+        void UpdateRaceOvertake(float dt, Vehicle blocker)
+        {
+            if (Role != NpcRole.Racing || pathAfterLaneChange != null || profile == null) { raceStuck = 0f; return; }
+            bool slowAhead = blocker != null && (blocker.Position - Position).sqrMagnitude < 35f * 35f &&
+                             blocker.Speed < SpeedLimit() * 0.92f;
+            raceStuck = slowAhead ? raceStuck + dt : 0f;
+            if (raceStuck < 0.4f) return;
+            var other = traffic.OtherRaceLane(Path);
+            if (other == null || !profile.StraightAhead(S, 45f, RaceLayout.TopSpeed)) return;
+            float os = other.Project(Position, out _);
+            if (!traffic.LaneClearNear(other, os, 14f, this)) return;
+            float side = other == traffic.RaceRight ? 1f : -1f;
+            StartLaneChange(side * RaceLayout.LaneOffset * 2f, other);
+            raceStuck = 0f;
         }
 
         void FinishLaneChange()
@@ -634,6 +740,7 @@ namespace GasQueue
                         Cut = CutState.Aligning;
                         cutTimer = 0f;
                     }
+                    else if (IsRacer && cutTimer > 1.5f && traffic.QueueLaneFreeBeside(this)) StartTailMerge();
                     else if (cutTimer > 45f) GiveUpCutting();
                     break;
                 }
@@ -663,15 +770,32 @@ namespace GasQueue
                 {
                     // Если сосед успел поджать, а мы ещё не влезли наполовину — отказываемся.
                     // Если боком упёрлись в соседей — тоже отказываемся и возвращаемся в свой ряд.
-                    if ((Offset < 2f && !traffic.GapStillOpen(this, CutFollower, Length + 0.3f, out cutTargetS)) || laneBlockedTimer > 2.5f)
+                    if (tailMerge)
+                    {
+                        if (laneBlockedTimer > 2.5f) AbortCut();
+                    }
+                    else if ((Offset < 2f && !traffic.GapStillOpen(this, CutFollower, Length + 0.3f, out cutTargetS)) || laneBlockedTimer > 2.5f)
                         AbortCut();
                     break;
                 }
             }
         }
 
+        /// <summary>Гонщик во втором ряду: рядом в очереди пусто (хвост впереди) — просто перестраивается в хвост.</summary>
+        void StartTailMerge()
+        {
+            tailMerge = true;
+            Cut = CutState.Merging;
+            CutFollower = null;
+            cutTargetS = S + 6f;
+            StartLaneChange(CityLayout.LaneQueue - CityLayout.LaneMiddle, traffic.QueuePath);
+        }
+
+        bool tailMerge;
+
         void AbortCut()
         {
+            tailMerge = false;
             bool byPlayer = CutFollower != null && CutFollower.IsPlayer;
             if (Cut == CutState.Merging || Cut == CutState.Signaling)
             {
@@ -691,6 +815,14 @@ namespace GasQueue
 
         void GiveUpCutting()
         {
+            if (IsRacer)
+            {
+                // Гонщик не сдаётся: без бензина до финиша всё равно не доехать
+                Say("Пустите, у меня гонка!");
+                Honk();
+                cutTimer = 0f;
+                return;
+            }
             Say("Да ну вас!");
             Role = NpcRole.Through;
             visual.blinker = 0;

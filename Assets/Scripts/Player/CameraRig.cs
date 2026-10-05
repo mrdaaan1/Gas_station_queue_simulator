@@ -25,6 +25,8 @@ namespace GasQueue
 
         /// <summary>Витрина в главном меню: камера медленно облетает машину игрока.</summary>
         public bool Showcase;
+        /// <summary>С какой стороны машины витрина в меню (−1 — слева; на стартовой решётке гонки — справа, слева сосед).</summary>
+        public float ShowcaseSide = -1f;
         public bool CursorLocked => Cursor.lockState == CursorLockMode.Locked;
 
         /// <summary>Куда смотрит камера по горизонтали, когда игрок пешком (для ходьбы относительно камеры).</summary>
@@ -192,7 +194,7 @@ namespace GasQueue
         {
             var car = player.transform;
             float t = Time.unscaledTime;
-            float angle = -85f + Mathf.Sin(t * 0.13f) * 62f;
+            float angle = ShowcaseSide * 85f + Mathf.Sin(t * 0.13f) * 62f;
             var dir = Quaternion.Euler(0f, car.eulerAngles.y + angle, 0f) * Vector3.forward;
             var target = car.position + Vector3.up * 0.65f;
             transform.position = target + dir * 5.6f + Vector3.up * (0.9f + Mathf.Sin(t * 0.09f) * 0.3f);

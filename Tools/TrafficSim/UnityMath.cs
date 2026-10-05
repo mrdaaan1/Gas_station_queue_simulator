@@ -14,7 +14,8 @@ public struct Vector3 { public float x,y,z; public Vector3(float x,float y,float
  public static Vector3 operator*(Vector3 a,float f)=>new Vector3(a.x*f,a.y*f,a.z*f); public static Vector3 operator*(float f,Vector3 a)=>a*f; public static Vector3 operator/(Vector3 a,float f)=>new Vector3(a.x/f,a.y/f,a.z/f);
  public float sqrMagnitude=>x*x+y*y+z*z; public Vector3 normalized=>this/(float)Math.Sqrt(sqrMagnitude);
  public static float Dot(Vector3 a,Vector3 b)=>a.x*b.x+a.y*b.y+a.z*b.z; public static float Distance(Vector3 a,Vector3 b)=>(float)Math.Sqrt((a-b).sqrMagnitude);
- public static Vector3 Lerp(Vector3 a,Vector3 b,float t)=>a+(b-a)*t; public override string ToString()=>$"({x:F2},{y:F2},{z:F2})"; }
+ public static Vector3 Lerp(Vector3 a,Vector3 b,float t)=>a+(b-a)*t;
+ public static float Angle(Vector3 a,Vector3 b){ float d=(float)Math.Sqrt(a.sqrMagnitude*b.sqrMagnitude); if(d<1e-15f) return 0; float c=Dot(a,b)/d; c=c<-1?-1:c>1?1:c; return (float)Math.Acos(c)*Mathf.Rad2Deg; } public override string ToString()=>$"({x:F2},{y:F2},{z:F2})"; }
 public struct Vector2 { public float x,y; public Vector2(float x,float y){this.x=x;this.y=y;}
  public static Vector2 zero=>new Vector2(0,0); public static Vector2 operator*(float f,Vector2 a)=>a*f;
  public static Vector2 operator+(Vector2 a,Vector2 b)=>new Vector2(a.x+b.x,a.y+b.y); public static Vector2 operator-(Vector2 a,Vector2 b)=>new Vector2(a.x-b.x,a.y-b.y); public static Vector2 operator-(Vector2 a)=>new Vector2(-a.x,-a.y);

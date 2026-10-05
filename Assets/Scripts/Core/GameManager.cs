@@ -27,6 +27,8 @@ namespace GasQueue
         public PriceBoard PriceBoard { get; private set; }
 
         public GameState State { get; private set; } = GameState.Queueing;
+        /// <summary>Режим «Самая быстрая гонка» (правила гонки — в <see cref="RaceManager"/>).</summary>
+        public bool RaceMode { get; private set; }
         public bool FuelRanOut { get; private set; }
         public bool GaveUp { get; private set; }
         /// <summary>Машина разбита — игра проиграна.</summary>
@@ -169,9 +171,10 @@ namespace GasQueue
         int tankerPhase; // 0 — нет, 1 — едет к заправке, 2 — сливает, 3 — уезжает
 
         public void Init(GameSettings settings, TrafficManager traffic, PlayerCar player, WalkerController walker,
-            CameraRig rig, Radio radio, Barrier barrier, PriceBoard board, HumanRig cashier, System.Action restart)
+            CameraRig rig, Radio radio, Barrier barrier, PriceBoard board, HumanRig cashier, System.Action restart, bool race = false)
         {
             Instance = this;
+            RaceMode = race;
             Settings = settings;
             Traffic = traffic;
             Player = player;
@@ -195,6 +198,12 @@ namespace GasQueue
             breakSign.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
             breakSign.gameObject.SetActive(false);
 
+            if (race)
+            {
+                ShowMessage("САМАЯ БЫСТРАЯ ГОНКА. Старт по зелёному светофору: W — газ, A/D — руль.", 8f);
+                ShowMessage("Финиш — на главной дороге города. Esc — пауза, Tab — управление.", 8f);
+                return;
+            }
             ShowMessage("Вы в очереди на заправку. Подъезжайте за машиной впереди (W), рулите A/D.", 8f);
             ShowMessage("Не оставляйте дырку впереди — влезут! Esc — пауза, Tab — управление.", 8f);
         }
@@ -295,7 +304,7 @@ namespace GasQueue
                 ShowMessage("Свобода! Выезд — впереди слева, обратно на дорогу.", 6f);
             }
 
-            if (!OnFoot && carPos.z > CityLayout.FinishZ && carPos.x < CityLayout.LotMinX)
+            if (!RaceMode && !OnFoot && carPos.z > CityLayout.FinishZ && carPos.x < CityLayout.LotMinX)
             {
                 if (PlayerFueled) Finish(false);
                 else if (carPos.z > CityLayout.FinishZ + 60f) Finish(true); // уехал, так и не заправившись
@@ -963,7 +972,8 @@ namespace GasQueue
 
         public void OnPlayerRanDry()
         {
-            ShowMessage("Бензин кончился прямо в очереди! Мотор заглох.", 8f);
+            if (RaceMode && RaceManager.Instance != null && RaceManager.Instance.OnPlayerRanDry()) return;
+            ShowMessage(RaceMode ? "Бензин кончился! Мотор заглох." : "Бензин кончился прямо в очереди! Мотор заглох.", 8f);
             dryTimer = 0f;
         }
 
@@ -983,6 +993,9 @@ namespace GasQueue
             if (!running) EngineStops++;
             ShowMessage(running ? "Двигатель заведён." : "Двигатель заглушен. Экономим бензин. I — завести.");
         }
+
+        /// <summary>Гонка закончилась: финиш или сход.</summary>
+        public void FinishRace() => Finish(false);
 
         void Finish(bool gaveUp)
         {

@@ -186,12 +186,25 @@ namespace GasQueue
         {
             var timerRect = new Rect(w / 2 - 270 * k, 14 * k, 540 * k, 58 * k);
             Panel(timerRect, new Color(0, 0, 0, 0.5f));
-            GUI.Label(timerRect, "Вы в очереди: " + GameManager.FormatQueueTime(gm.QueueSeconds), timerStyle);
+            var race = RaceManager.Instance;
+            if (race != null && !race.Started)
+            {
+                // Обратный отсчёт до зелёного
+                int n = Mathf.CeilToInt(race.Countdown);
+                GUI.Label(timerRect, n > 3 ? "Приготовились..." : n.ToString(), timerStyle);
+                return;
+            }
+            GUI.Label(timerRect, race != null
+                ? $"Место: {race.Place} из {race.Total}   ·   {RaceManager.FormatTime(race.RaceTime)}"
+                : "Вы в очереди: " + GameManager.FormatQueueTime(gm.QueueSeconds), timerStyle);
 
             var t = gm.Traffic;
             string place;
             bool bad = false;
-            if (gm.State == GameState.DrivingAway || gm.PlayerFueled) place = "Свобода!";
+            if (race != null && gm.PlayerFueled) place = "Бак полный — на финиш!";
+            else if (race != null && !t.PlayerInQueue && t.PlayerPump == null && gm.Player.Position.z < RaceLayout.JoinZ)
+                place = race.FuelSignal ? "Лампочка бензина горит!" : "Гонка!";
+            else if (gm.State == GameState.DrivingAway || gm.PlayerFueled) place = "Свобода!";
             else if (t.PlayerPump != null) place = $"Ваша колонка: №{t.PlayerPump.Number}";
             else if (t.PlayerInQueue) place = t.PlayerQueueIndex == 0 ? "Вы первый в очереди!" : $"Машин впереди: {t.PlayerQueueIndex}";
             else { place = "Вы вне очереди!"; bad = true; }
@@ -315,9 +328,39 @@ namespace GasQueue
                 "Tab — скрыть подсказки", smallStyle);
         }
 
+        void DrawRaceFinal(GameManager gm, RaceManager race, float w, float h, float k)
+        {
+            string title = gm.CarWrecked ? "МАШИНА РАЗБИТА — СХОД"
+                : race.RanDry ? "БЕНЗИН КОНЧИЛСЯ — СХОД"
+                : race.Place == 1 ? "ПОБЕДА! ВЫ ПЕРВЫЙ!" : $"ФИНИШ! ВЫ {race.Place}-Й ИЗ {race.Total}";
+            GUI.Label(new Rect(0, h * 0.06f, w, 90 * k), title, bannerStyle);
+
+            var order = gm.Traffic.FinishOrder;
+            string results = "";
+            for (int i = 0; i < order.Count; i++) results += $"{i + 1}. {order[i]}\n";
+            if (order.Count == 0) results = "Никто не финишировал.\n";
+            string stats =
+                $"Время гонки: {RaceManager.FormatTime(race.RaceTime)}\n" +
+                $"Из них в очереди на заправку: {RaceManager.FormatTime(race.QueueTime)}\n" +
+                (race.RanDry ? $"Не хватило до финиша: {Mathf.RoundToInt(race.DryMetersToFinish)} м\n" : "") +
+                $"Аварий: {gm.Crashes}   ·   Бибикнули: {gm.Honks}   ·   Прочность машины: {Mathf.RoundToInt(gm.Player.damage.Health)}%\n" +
+                $"Залили: {gm.LitersFilled:0.0} л на {gm.MoneySpent:0} руб.";
+            GUI.Label(new Rect(w / 2 - 560 * k, h * 0.16f, 1120 * k, 200 * k), stats, bigStyle);
+            if (achStyle == null) achStyle = new GUIStyle(bigStyle) { fontSize = Mathf.RoundToInt(bigStyle.fontSize * 0.85f) };
+            GUI.Label(new Rect(w / 2 - 450 * k, h * 0.38f, 900 * k, h * 0.42f), "Финишировали:\n" + results, achStyle);
+            GUI.Label(new Rect(0, h - 170 * k, w, 50 * k),
+                race.QueueTime > race.RaceTime * 0.5f ? "Самая быстрая гонка: больше половины времени — в очереди за бензином." : "Гонщики заправляются тоже по очереди.", accentStyle);
+        }
+
         void DrawFinal(GameManager gm, float w, float h, float k)
         {
             Panel(new Rect(0, 0, w, h), new Color(0.05f, 0.06f, 0.08f, 0.88f));
+            if (RaceManager.Instance != null)
+            {
+                DrawRaceFinal(gm, RaceManager.Instance, w, h, k);
+                DrawFinalButtons(k, w, h);
+                return;
+            }
             string title = gm.StationExploded ? "БА-БАХ! ВЫ ВЗОРВАЛИ ЗАПРАВКУ" : gm.CarWrecked ? "МАШИНА РАЗБИТА — ВЫ ПРОИГРАЛИ" : gm.GaveUp ? "ВЫ СДАЛИСЬ" : "ВЫ ЗАПРАВИЛИСЬ!";
             GUI.Label(new Rect(0, h * 0.06f, w, 90 * k), title, bannerStyle);
 
@@ -342,6 +385,11 @@ namespace GasQueue
                 gm.StationExploded ? "Бензин на заправке закончился окончательно. Очередь расходится..." :
                 gm.CarWrecked ? "Эвакуатор приедет через три часа. В очередь." : "А через километр — пустая заправка без очереди...", accentStyle);
 
+            DrawFinalButtons(k, w, h);
+        }
+
+        void DrawFinalButtons(float k, float w, float h)
+        {
             if (finalButton == null)
             {
                 finalButton = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(26 * k) };

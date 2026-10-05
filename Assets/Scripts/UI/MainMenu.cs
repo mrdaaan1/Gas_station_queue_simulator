@@ -15,14 +15,16 @@ namespace GasQueue
 
         CameraRig rig;
         System.Action<PlayerCarKind> changeCar;
+        System.Action<GameMode> changeMode;
         bool showHelp;
         GUIStyle title, text, button, carStyle;
         float builtForHeight;
 
-        public void Open(CameraRig cameraRig, System.Action<PlayerCarKind> onCarChange = null)
+        public void Open(CameraRig cameraRig, System.Action<PlayerCarKind> onCarChange = null, System.Action<GameMode> onModeChange = null)
         {
             rig = cameraRig;
             changeCar = onCarChange;
+            changeMode = onModeChange;
             rig.Showcase = true;
             open = this;
             GameInput.Paused = true;
@@ -77,10 +79,19 @@ namespace GasQueue
 
             title.wordWrap = true;
             title.alignment = TextAnchor.LowerLeft;
-            GUI.Label(new Rect(40 * k, h * 0.04f, panel - 80 * k, h * 0.21f), "СИМУЛЯТОР ОЧЕРЕДИ НА ЗАПРАВКУ", title);
+            var mode = GameBootstrap.Mode;
+            GUI.Label(new Rect(40 * k, h * 0.04f, panel - 80 * k, h * 0.21f),
+                mode == GameMode.Race ? "САМАЯ БЫСТРАЯ ГОНКА" : "СИМУЛЯТОР ОЧЕРЕДИ НА ЗАПРАВКУ", title);
 
             float bw = panel - 80 * k, bh = 64 * k, x = 40 * k, y = h * 0.3f;
-            if (GUI.Button(new Rect(x, y, bw, bh), "Начать", button)) Close();
+            if (GUI.Button(new Rect(x, y, bw, bh), mode == GameMode.Race ? "Начать гонку" : "Начать", button)) Close();
+            y += bh + 16 * k;
+
+            // Режим: очередь или гонка
+            float arrowW = bh;
+            if (GUI.Button(new Rect(x, y, arrowW, bh), "◀", button) || GUI.Button(new Rect(x + bw - arrowW, y, arrowW, bh), "▶", button))
+                SwitchMode(mode);
+            GUI.Label(new Rect(x + arrowW, y, bw - arrowW * 2, bh), mode == GameMode.Race ? "Режим: гонка" : "Режим: очередь", carStyle);
             y += bh + 16 * k;
 
             // Выбор машины: ◀ название ▶
@@ -120,6 +131,13 @@ namespace GasQueue
                     "F — сесть в машину\n" +
                     "Esc — пауза, Tab — подсказки", Rich(text));
             }
+        }
+
+        void SwitchMode(GameMode current)
+        {
+            var next = current == GameMode.Race ? GameMode.Queue : GameMode.Race;
+            if (changeMode != null) changeMode(next);
+            else GameBootstrap.Mode = next;
         }
 
         void Switch(PlayerCarKind current, int dir)

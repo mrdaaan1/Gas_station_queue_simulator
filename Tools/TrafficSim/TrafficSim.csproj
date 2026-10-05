@@ -6,6 +6,7 @@
     <Compile Include="../../Assets/Scripts/Traffic/NpcCar.cs" />
     <Compile Include="../../Assets/Scripts/Traffic/TrafficManager.cs" />
     <Compile Include="../../Assets/Scripts/World/CityLayout.cs" />
+    <Compile Include="../../Assets/Scripts/World/RaceLayout.cs" />
     <Compile Include="../../Assets/Scripts/Core/GameSettings.cs" />
     <Compile Include="*.cs" />
   </ItemGroup>
