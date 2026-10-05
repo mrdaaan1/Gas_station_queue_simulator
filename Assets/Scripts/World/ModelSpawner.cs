@@ -39,6 +39,8 @@ namespace GasQueue
                 for (int i = 0; i < node.mats.Count; i++)
                     if (node.meshes[i].t.Count > 0) mats.Add(material(node.mats[i]));
                 r.sharedMaterials = mats.ToArray();
+                // Внутренняя обшивка кузова не отбрасывает тень (иначе пятна на краске)
+                if (node.name.EndsWith("Inner")) r.shadowCastingMode = ShadowCastingMode.Off;
             }
             foreach (var c in node.children) Build(c, t, material, map);
         }

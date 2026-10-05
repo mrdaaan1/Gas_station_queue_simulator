@@ -14,6 +14,7 @@ static class Program
     {
         string which = args.Length > 0 ? args[0] : "supra";
         if (which == "debug") { Debug(); return 0; }
+        if (which == "poke") { Poke(); return 0; }
         string outPath = args.Length > 1 ? args[1] : "model.json";
         var sw = System.Diagnostics.Stopwatch.StartNew();
         Model model = which switch
@@ -100,6 +101,40 @@ static class Program
             }
             Console.WriteLine($"y={y} x={x}: formula z={p.z:F4} x={p.x:F4} | mesh:{hits}");
         }
+    }
+
+    // Ищем детали салона, торчащие сквозь кузов: вершина внутреннего материала снаружи формы
+    static void Poke()
+    {
+        var shape = SupraModel.Shape();
+        var model = SupraModel.Get();
+        var inner = new HashSet<string> { "carpet", "int_black", "int_grey", "int_door", "int_roof", "leather_red", "leather_black", "gauge_face", "gauge_glow", "jacket", "skin", "hair", "screen", "white", "needle", "lamp_off" };
+        var stats = new Dictionary<string, (int n, float worst, Vector3 at)>();
+        void Walk(ModelNode n)
+        {
+            var f = n.WorldFrame();
+            for (int k = 0; k < n.meshes.Count; k++)
+            {
+                if (!inner.Contains(n.mats[k])) continue;
+                foreach (var lv in n.meshes[k].v)
+                {
+                    var p = f.P(lv);
+                    if (shape.Inside(p)) continue;
+                    // насколько снаружи: ищем ближайшую точку внутри по направлению к оси
+                    float d = 0f;
+                    var c = new Vector3(0, 0.7f, p.z);
+                    var dir = (c - p).normalized;
+                    for (float t = 0.002f; t < 0.3f; t += 0.002f) if (shape.Inside(p + dir * t)) { d = t; break; }
+                    string key = n.name + ":" + n.mats[k];
+                    stats.TryGetValue(key, out var s);
+                    if (d > s.worst) s = (s.n + 1, d, p); else s.n++;
+                    stats[key] = s;
+                }
+            }
+            foreach (var c in n.children) Walk(c);
+        }
+        Walk(model.root);
+        foreach (var kv in stats) Console.WriteLine($"{kv.Key}: {kv.Value.n} verts outside, worst {kv.Value.worst * 100:F1} cm at {kv.Value.at}");
     }
 
     static bool RayTri(Vector3 o, Vector3 d, Vector3 a, Vector3 b, Vector3 c, out float t)

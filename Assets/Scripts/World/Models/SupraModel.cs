@@ -119,7 +119,7 @@ namespace GasQueue
             if (seg <= SegC && z < -2.02f && p.y < 0.72f) node = "BumperR";
 
             // Изнанка в салоне и в багажнике
-            if (mat != "glass" && seg >= SegB && z < Cowl && z > Deck - 0.32f && p.y > 0.24f)
+            if (mat != "glass" && seg >= SegB && z < Cowl && z > Deck - 0.32f && p.y > 0.24f && !(seg == SegD && z < Deck + 0.04f))
                 inner = seg == SegE || seg == SegD ? "int_roof" : "int_door";
             return new CellInfo { node = node, mat = mat, innerMat = inner };
         }
@@ -421,12 +421,20 @@ namespace GasQueue
         void Mirror(float side)
         {
             var door = N(side < 0 ? "DoorL" : "DoorR");
-            OnBody(new Vector3(0.3f, 0.955f, 0.36f), Vector3.right, side, out var p, out var n);
+            // Крепится к чёрному треугольнику в начале двери, на линии окон, и выносится наружу
+            const float mz = 0.36f;
+            var st = Sec(mz);
+            var basePt = new Vector3(st.fb * st.w * side, st.belt + 0.015f, mz);
             var df = door.WorldFrame();
-            var mount = door.Child(side < 0 ? "MirrorL" : "MirrorR", df.ToLocal(p + new Vector3(0.105f * side, 0.035f, -0.03f)));
+            var center = basePt + new Vector3(0.135f * side, 0.075f, -0.035f);
+            var mount = door.Child(side < 0 ? "MirrorL" : "MirrorR", df.ToLocal(center));
             Geo.RoundBox(mount.M("paint"), Frame.Identity, Vector3.zero, new Vector3(0.165f, 0.10f, 0.10f), 0.55f, 14);
-            // Ножка
-            Geo.RoundBox(mount.M("paint"), Frame.Identity, new Vector3(-0.075f * side, -0.035f, 0.005f), new Vector3(0.07f, 0.03f, 0.06f), 0.4f, 6);
+            // Ножка: от двери к корпусу, наклонная
+            var stalkFrom = df.ToLocal(basePt) - mount.pos;
+            var stalkTo = new Vector3(-0.05f * side, -0.025f, 0.01f);
+            var sf = Frame.Look((stalkFrom + stalkTo) * 0.5f, stalkTo - stalkFrom, Vector3.up);
+            Geo.RoundBox(mount.M("paint"), sf, Vector3.zero, new Vector3(0.06f, 0.028f, (stalkTo - stalkFrom).magnitude + 0.03f), 0.4f, 6);
+            Geo.RoundBox(door.M("black"), Frame.Identity, df.ToLocal(basePt), new Vector3(0.05f, 0.03f, 0.09f), 0.4f, 6);
             // Стекло: смотрит назад, повёрнуто к водителю
             float yaw = side > 0 ? 27f : -48f;
             var glass = mount.Child(side < 0 ? "MirrorGlassL" : "MirrorGlassR", new Vector3(0f, 0.002f, -0.051f), new Vector3(0f, yaw * 0.25f, 0f));
@@ -467,7 +475,7 @@ namespace GasQueue
                 Geo.RoundBox(cab.M("leather_red"), id, new Vector3(x, 0.40f, -1.33f), new Vector3(0.5f, 0.11f, 0.36f), 0.35f, 8);
                 Geo.RoundBox(cab.M("leather_red"), Frame.Euler(new Vector3(x, 0.42f, -1.52f), new Vector3(-28f, 0f, 0f)), new Vector3(0f, 0.2f, 0f), new Vector3(0.5f, 0.42f, 0.1f), 0.35f, 8);
             }
-            Geo.Box(cab.M("carpet"), id, new Vector3(0f, 0.58f, -1.95f), new Vector3(1.3f, 0.03f, 0.55f));
+            Geo.Box(cab.M("carpet"), id, new Vector3(0f, 0.58f, -1.88f), new Vector3(1.1f, 0.03f, 0.36f));
             Geo.Box(cab.M("int_black"), id, new Vector3(0f, 0.42f, -1.68f), new Vector3(1.3f, 0.32f, 0.04f));
             // Подлокотники на дверях
             foreach (float side in new[] { -1f, 1f })
@@ -478,7 +486,7 @@ namespace GasQueue
                 Geo.RoundBox(door.M("int_grey"), Frame.Identity, df.ToLocal(new Vector3(0.775f * side, 0.74f, -0.1f)), new Vector3(0.04f, 0.04f, 0.18f), 0.4f, 6);
             }
             // Салонное зеркало: стекло повёрнуто к водителю справа
-            Geo.Cylinder(cab.M("int_black"), Frame.Euler(new Vector3(0f, 1.2f, -0.185f), Vector3.zero), 0.012f, -0.03f, 0.04f, 8);
+            Geo.Cylinder(cab.M("int_black"), Frame.Euler(new Vector3(0f, 1.2f, -0.185f), Vector3.zero), 0.012f, -0.03f, 0.015f, 8);
             var rm = cab.Child("RearMirror", new Vector3(0f, 1.155f, -0.19f), new Vector3(0f, -21f, 0f));
             Geo.RoundBox(rm.M("int_black"), Frame.Identity, new Vector3(0f, 0f, 0.016f), new Vector3(0.27f, 0.075f, 0.035f), 0.5f, 10);
             var rmGlass = rm.Child("RearMirrorGlass", new Vector3(0f, 0f, -0.0025f));
@@ -591,7 +599,7 @@ namespace GasQueue
             var pod = cab.Child("PillarPod");
             for (int i = 0; i < 3; i++)
             {
-                var p = Vector3.Lerp(baseP, topP, 0.2f + i * 0.2f) + new Vector3(-0.055f, -0.01f, -0.035f);
+                var p = Vector3.Lerp(baseP, topP, 0.2f + i * 0.2f) + new Vector3(-0.085f, -0.015f, -0.05f);
                 Geo.Cylinder(pod.M("int_black"), Frame.Look(p, (p - DriverEyes).normalized, Vector3.up).Mul(new Frame { o = Vector3.zero, x = Vector3.right, y = Vector3.forward, z = Vector3.down }), 0.036f, 0f, 0.06f, 18);
                 Gauge(pod, "Pillar" + i, p - (p - DriverEyes).normalized * 0.003f, 0.031f, true, "gauge_glow", "int_black");
             }
@@ -633,12 +641,12 @@ namespace GasQueue
             Geo.RoundBox(cab.M("leather_red"), id, new Vector3(x, 0.37f, -0.8f), new Vector3(0.34f, 0.08f, 0.5f), 0.4f, 8);
             foreach (float b in new[] { -1f, 1f })
                 Geo.RoundBox(cab.M("leather_black"), id, new Vector3(x + b * 0.2f, 0.385f, -0.82f), new Vector3(0.1f, 0.12f, 0.48f), 0.5f, 8);
-            var back = cab.Child(side > 0 ? "SeatBackR" : "SeatBackL", new Vector3(x, 0.36f, -1.06f), new Vector3(-17f, 0f, 0f));
-            Geo.RoundBox(back.M("leather_black"), id, new Vector3(0f, 0.33f, -0.02f), new Vector3(0.5f, 0.68f, 0.12f), 0.35f, 8);
-            Geo.RoundBox(back.M("leather_red"), id, new Vector3(0f, 0.3f, 0.035f), new Vector3(0.32f, 0.52f, 0.06f), 0.4f, 8);
+            var back = cab.Child(side > 0 ? "SeatBackR" : "SeatBackL", new Vector3(x, 0.36f, -1.04f), new Vector3(-13f, 0f, 0f));
+            Geo.RoundBox(back.M("leather_black"), id, new Vector3(0f, 0.31f, -0.02f), new Vector3(0.48f, 0.62f, 0.12f), 0.35f, 8);
+            Geo.RoundBox(back.M("leather_red"), id, new Vector3(0f, 0.28f, 0.035f), new Vector3(0.3f, 0.48f, 0.06f), 0.4f, 8);
             foreach (float b in new[] { -1f, 1f })
-                Geo.RoundBox(back.M("leather_black"), id, new Vector3(b * 0.21f, 0.27f, 0.05f), new Vector3(0.1f, 0.5f, 0.14f), 0.5f, 8);
-            Geo.RoundBox(back.M("leather_black"), id, new Vector3(0f, 0.75f, -0.01f), new Vector3(0.28f, 0.2f, 0.11f), 0.55f, 8);
+                Geo.RoundBox(back.M("leather_black"), id, new Vector3(b * 0.2f, 0.25f, 0.05f), new Vector3(0.09f, 0.46f, 0.14f), 0.5f, 8);
+            Geo.RoundBox(back.M("leather_black"), id, new Vector3(0f, 0.68f, -0.01f), new Vector3(0.26f, 0.18f, 0.11f), 0.55f, 8);
         }
 
         // ---------- Антикрыло ----------

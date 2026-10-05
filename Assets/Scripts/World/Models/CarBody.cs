@@ -472,7 +472,12 @@ namespace GasQueue
                     if (info.mat == null) continue;
                     var node = nodeByName(info.node);
                     EmitQuad(node, node.M(info.mat), i, j, seg, side, patch, pz, pu, cache, false);
-                    if (info.innerMat != null) EmitQuad(node, node.M(info.innerMat), i, j, seg, side, patch, pz, pu, cache, true);
+                    if (info.innerMat != null)
+                    {
+                        // Обшивка — отдельный узел без теней: иначе она в 1–2 см под краской «пятнает» кузов тенью
+                        var innerNode = node.children.Find(ch => ch.name == node.name + "Inner") ?? node.Child(node.name + "Inner");
+                        EmitQuad(innerNode, innerNode.M(info.innerMat), i, j, seg, side, patch, pz, pu, cache, true);
+                    }
                 }
             }
         }
@@ -491,7 +496,7 @@ namespace GasQueue
                 var nrm = NormalSeg(z, seg, v, patch);
                 if (inner)
                 {
-                    p -= nrm * 0.025f;
+                    p -= nrm * 0.015f;
                     nrm = -nrm;
                 }
                 p.x *= side;
