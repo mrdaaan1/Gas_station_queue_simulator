@@ -1,0 +1,224 @@
+<title>Запуск игры на Mac</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=Unbounded:wght@600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: одна колонка-инструкция; шаги — сверху вниз, от простого способа к сложному; команды — тёмные «терминальные» плашки с кнопкой копирования */
+:root {
+  --bg: #f6f4f3;
+  --surface: #ffffff;
+  --fg: #1d1a1a;
+  --muted: #6b6362;
+  --line: #e4dedc;
+  --accent: #c8312b;        /* красный «ЛУКАВОЙЛ» */
+  --accent-soft: #fbe9e7;
+  --term-bg: #1f1d1d;
+  --term-fg: #f3efe9;
+  --term-prompt: #ffcf4a;
+  --ok: #2e7d4f;
+  --ok-soft: #e6f3eb;
+  --display: "Unbounded", "Golos Text", system-ui, sans-serif;
+  --body: "Golos Text", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161414; --surface: #211e1e; --fg: #f1ecea; --muted: #a59d9b; --line: #3a3434;
+    --accent: #ff6b5e; --accent-soft: #3a2220; --term-bg: #0e0d0d; --term-fg: #f3efe9; --term-prompt: #ffcf4a;
+    --ok: #6fd39a; --ok-soft: #1d3326; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161414; --surface: #211e1e; --fg: #f1ecea; --muted: #a59d9b; --line: #3a3434;
+  --accent: #ff6b5e; --accent-soft: #3a2220; --term-bg: #0e0d0d; --term-fg: #f3efe9; --term-prompt: #ffcf4a;
+  --ok: #6fd39a; --ok-soft: #1d3326; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 16px/1.6 var(--body);
+  padding-inline: 16px;
+  padding-block: 32px 64px;
+}
+.wrap { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+
+header { display: flex; flex-direction: column; gap: 12px; }
+.badge {
+  align-self: flex-start;
+  font: 600 12px/1 var(--body); letter-spacing: .08em; text-transform: uppercase;
+  color: var(--accent); background: var(--accent-soft);
+  padding: 7px 10px; border-radius: 6px;
+}
+h1 { font: 700 clamp(26px, 5vw, 36px)/1.15 var(--display); margin: 0; text-wrap: balance; }
+.lead { margin: 0; color: var(--muted); max-width: 62ch; }
+
+.why {
+  border-left: 3px solid var(--accent);
+  padding: 4px 0 4px 16px; margin: 0; color: var(--fg); max-width: 62ch;
+}
+
+section.way {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 22px 20px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.way-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.way-num {
+  font: 700 13px/1 var(--display); color: var(--surface); background: var(--accent);
+  border-radius: 999px; padding: 6px 10px; flex: none;
+}
+h2 { font: 600 20px/1.3 var(--display); margin: 0; text-wrap: balance; }
+.hint { margin: 0; color: var(--muted); font-size: 14px; }
+
+ol.steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 12px; }
+ol.steps li { padding-left: 4px; min-width: 0; }
+ol.steps li::marker { color: var(--accent); font-weight: 600; }
+.path { font-weight: 600; }
+kbd {
+  font: 500 13px/1 var(--mono); background: var(--bg); border: 1px solid var(--line);
+  border-bottom-width: 2px; border-radius: 5px; padding: 3px 6px; white-space: nowrap;
+}
+
+.cmd {
+  display: flex; align-items: stretch; gap: 0;
+  background: var(--term-bg); color: var(--term-fg);
+  border-radius: 10px; overflow: hidden; margin-top: 8px;
+}
+.cmd pre {
+  margin: 0; padding: 14px 16px; flex: 1; min-width: 0;
+  overflow-x: auto; font: 400 13.5px/1.55 var(--mono); white-space: pre-wrap; word-break: break-word;
+}
+.cmd pre::before { content: "$ "; color: var(--term-prompt); }
+.copy {
+  flex: none; border: 0; cursor: pointer;
+  background: var(--accent); color: #fff;
+  font: 600 14px/1 var(--body); padding: 0 16px; min-width: 124px;
+}
+.copy:hover { filter: brightness(1.08); }
+.copy:focus-visible { outline: 3px solid var(--term-prompt); outline-offset: -3px; }
+.copy.done { background: var(--ok); }
+
+.after { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
+
+.success {
+  background: var(--ok-soft); color: var(--fg); border-radius: 12px;
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 6px;
+}
+.success strong { color: var(--ok); }
+
+footer { color: var(--muted); font-size: 14px; display: flex; flex-direction: column; gap: 6px; }
+footer p { margin: 0; max-width: 62ch; }
+
+@media (max-width: 480px) {
+  .cmd { flex-direction: column; }
+  .copy { padding: 12px 16px; min-width: 0; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .copy { transition: background-color .15s ease, filter .15s ease; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="badge">Симулятор очереди на заправку · macOS</span>
+    <h1>Как запустить игру на Mac</h1>
+    <p class="lead">Игра не заверена в Apple (это платная подписка разработчика), поэтому при первом запуске macOS её блокирует и пишет «Не удаётся открыть программу» или «Не удаётся проверить разработчика». Ниже три способа — пробуйте по порядку и остановитесь на том, который сработал.</p>
+  </header>
+
+  <section class="way" aria-labelledby="w0">
+    <div class="way-head"><span class="way-num">Сначала</span><h2 id="w0">Распакуйте архив</h2></div>
+    <ol class="steps">
+      <li>Дважды кликните по скачанному <span class="path">.zip</span> — рядом появится папка с игрой.</li>
+      <li>Перетащите игру (значок с колонкой «БЕНЗИНА НЕТ») в папку <span class="path">Программы</span>. Можно оставить и в <span class="path">Загрузках</span> — команды ниже найдут её в обеих папках.</li>
+    </ol>
+  </section>
+
+  <section class="way" aria-labelledby="w1">
+    <div class="way-head"><span class="way-num">Способ 1</span><h2 id="w1">Кнопка «Всё равно открыть»</h2></div>
+    <p class="hint">Без Терминала. Работает, если macOS ругается на «неизвестного разработчика».</p>
+    <ol class="steps">
+      <li>Откройте игру двойным кликом. Появится предупреждение — нажмите <span class="path">Готово</span> (или <span class="path">OK</span>).</li>
+      <li>Откройте меню  → <span class="path">Системные настройки</span> → <span class="path">Конфиденциальность и безопасность</span>.</li>
+      <li>Пролистайте вниз до раздела «Безопасность»: там будет строка про игру и кнопка <span class="path">Всё равно открыть</span>. Нажмите её и введите пароль от Mac.</li>
+      <li>Снова откройте игру и нажмите <span class="path">Открыть</span>.</li>
+    </ol>
+    <p class="hint">Кнопки нет, или ошибка «Не удаётся открыть программу» с одной кнопкой OK — переходите к способу 2.</p>
+  </section>
+
+  <section class="way" aria-labelledby="w2">
+    <div class="way-head"><span class="way-num">Способ 2</span><h2 id="w2">Одна команда в Терминале</h2></div>
+    <p class="hint">Снимает с игры пометку «скачано из интернета», возвращает права на запуск и заново подписывает её прямо на вашем Mac. Ничего устанавливать не нужно.</p>
+    <ol class="steps">
+      <li>Откройте Терминал: нажмите <kbd>⌘</kbd> + <kbd>Пробел</kbd>, наберите <span class="path">Терминал</span> и нажмите <kbd>Enter</kbd>.</li>
+      <li>Скопируйте команду и вставьте её в Терминал (<kbd>⌘</kbd> + <kbd>V</kbd>), затем нажмите <kbd>Enter</kbd>:
+        <div class="cmd">
+          <pre id="c-auto">find ~/Downloads ~/Desktop /Applications -maxdepth 3 -name "*.app" \( -name "*аправк*" -o -name "GasQueue*" \) 2>/dev/null | while IFS= read -r a; do xattr -cr "$a"; chmod +x "$a"/Contents/MacOS/*; codesign --force --deep --sign - "$a" && echo "Готово: $a"; done; echo "Поиск закончен"</pre>
+          <button class="copy" type="button" data-target="c-auto">Скопировать</button>
+        </div>
+        <p class="after">Должна появиться строка «Готово: …» с путём к игре. Строка «replacing existing signature» — это нормально.</p>
+      </li>
+      <li>Откройте игру двойным кликом. Если macOS снова спросит — нажмите <span class="path">Открыть</span> или сделайте способ 1.</li>
+    </ol>
+    <p class="hint">Появилось только «Поиск закончен», без «Готово»? Значит, игра лежит в другой папке — используйте способ 3.</p>
+  </section>
+
+  <section class="way" aria-labelledby="w3">
+    <div class="way-head"><span class="way-num">Способ 3</span><h2 id="w3">Те же команды вручную</h2></div>
+    <p class="hint">Для любой папки. Каждую команду: скопировать → вставить в Терминал → <strong>перетащить игру из Finder прямо в окно Терминала</strong> (путь подставится сам) → <kbd>Enter</kbd>.</p>
+    <ol class="steps">
+      <li>Снять пометку «скачано из интернета»:
+        <div class="cmd"><pre id="c1">xattr -cr </pre><button class="copy" type="button" data-target="c1">Скопировать</button></div>
+      </li>
+      <li>Вернуть права на запуск. После вставки перетащите игру, затем допишите в конце <span class="path">/Contents/MacOS/*</span> без пробела:
+        <div class="cmd"><pre id="c2">chmod +x </pre><button class="copy" type="button" data-target="c2">Скопировать</button></div>
+        <div class="cmd"><pre id="c2b">/Contents/MacOS/*</pre><button class="copy" type="button" data-target="c2b">Скопировать</button></div>
+      </li>
+      <li>Подписать игру заново на этом Mac:
+        <div class="cmd"><pre id="c3">codesign --force --deep --sign - </pre><button class="copy" type="button" data-target="c3">Скопировать</button></div>
+      </li>
+      <li>Откройте игру. Если спросит — <span class="path">Открыть</span>.</li>
+    </ol>
+  </section>
+
+  <div class="success">
+    <strong>Запустилось?</strong>
+    <span>Управление: <kbd>W</kbd>/<kbd>S</kbd> — газ и тормоз, <kbd>A</kbd>/<kbd>D</kbd> — руль, <kbd>F</kbd> — выйти из машины, <kbd>Tab</kbd> — подсказки, <kbd>Esc</kbd> — пауза. Делать всё это нужно только один раз.</span>
+  </div>
+
+  <footer>
+    <p>Не помогло ни одно? Пришлите автору скриншот ошибки и модель Mac:  → <span class="path">Об этом Mac</span> (например, «MacBook Air M1, macOS 15»). Если в Терминале были красные строки — их тоже.</p>
+  </footer>
+</div>
+
+<script>
+document.querySelectorAll(".copy").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    var pre = document.getElementById(btn.dataset.target);
+    var text = pre.textContent;
+    function done() {
+      btn.textContent = "Скопировано";
+      btn.classList.add("done");
+      setTimeout(function () { btn.textContent = "Скопировать"; btn.classList.remove("done"); }, 1800);
+    }
+    function fallback() {
+      // Буфер обмена недоступен — выделяем текст, чтобы скопировать ⌘C
+      var range = document.createRange();
+      range.selectNodeContents(pre);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      btn.textContent = "Нажмите ⌘C";
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, fallback);
+    } else {
+      fallback();
+    }
+  });
+});
+</script>

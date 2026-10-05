@@ -53,6 +53,15 @@ cat > "$STAGE/Как запустить.txt" <<TXT
 
 Управление: W/S — газ/тормоз, A/D — руль, F — выйти из машины, Tab — подсказки, Esc — пауза.
 TXT
+# Та же инструкция страницей с кнопками «Скопировать» (Tools/mac_howto.html)
+if [ -f "$PROJECT/Tools/mac_howto.html" ]; then
+  {
+    echo '<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+    echo '</head><body>'
+    cat "$PROJECT/Tools/mac_howto.html"
+    echo '</body></html>'
+  } > "$STAGE/Как запустить.html"
+fi
 rm -f "$OUT/$NAME-Mac.zip"
 echo "4/4 Упаковываю (это самый долгий шаг)..."
 ditto -c -k --keepParent "$STAGE" "$OUT/$NAME-Mac.zip"
