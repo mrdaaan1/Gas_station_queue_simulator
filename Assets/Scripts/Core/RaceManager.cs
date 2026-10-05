@@ -44,7 +44,7 @@ namespace GasQueue
         }
 
         /// <summary>Нужно ли сейчас кричать «заправься»: лампочка горит, бак не залит, в очереди и у колонки не стоим.</summary>
-        public bool NeedsFuel => FuelSignal && !gm.PlayerFueled && !traffic.PlayerInQueue && traffic.PlayerPump == null && !gm.Paid;
+        public bool NeedsFuel => FuelSignal && !gm.PlayerFueled && !traffic.PlayerInQueue && !traffic.PlayerIsHead && traffic.PlayerPump == null && !gm.Paid;
 
         bool warnedLow, warnedCritical;
         TrafficManager traffic;

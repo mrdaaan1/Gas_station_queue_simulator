@@ -536,6 +536,11 @@ namespace GasQueue
                 if (queue[i].v == Player) PlayerQueueIndex = i;
 
             PlayerIsHead = PlayerQueueIndex == 0 && ps > QueuePath.Length - 25f;
+            if (PlayerInQueue) lastPlayerQueueIndex = PlayerQueueIndex;
+            // Гонка: шлагбаума нет, и игрок, стоявший первым, легко проезжает мимо головы очереди к колонкам.
+            // Он всё равно первый — пока впереди никто не встал.
+            if (RaceMode && !PlayerIsHead && !PlayerInQueue && lastPlayerQueueIndex == 0 && !served && PlayerInStationLot())
+                PlayerIsHead = !NpcAheadOfPlayerInQueue();
 
             float gapAhead = 0f;
             if (PlayerQueueIndex > 0)
@@ -570,6 +575,22 @@ namespace GasQueue
             wasInQueue = PlayerInQueue;
         }
 
+        int lastPlayerQueueIndex = -1;
+
+        bool PlayerInStationLot()
+        {
+            var p = Player.Position;
+            return p.x > CityLayout.LotMinX - 4f && p.x < CityLayout.ShopMinX && p.z > CityLayout.EntranceMinZ && p.z < CityLayout.IslandZ + 10f;
+        }
+
+        /// <summary>Кто-то из очереди уже у самой головы (значит, игрок проехал мимо него без очереди).</summary>
+        bool NpcAheadOfPlayerInQueue()
+        {
+            foreach (var e in queue)
+                if (e.v is NpcCar && e.s > QueuePath.Length - 6f) return true;
+            return false;
+        }
+
         public bool IsDirectlyBehindPlayer(NpcCar npc) =>
             PlayerQueueIndex >= 0 && PlayerQueueIndex + 1 < queue.Count && queue[PlayerQueueIndex + 1].v == npc;
 
@@ -579,7 +600,7 @@ namespace GasQueue
         {
             if (Barrier.IsDown) return;
 
-            if (queue.Count > 0 && queue[0].v is NpcCar head && head.S >= QueuePath.Length - 1.5f && head.Speed < 0.2f)
+            if (!PlayerIsHead && queue.Count > 0 && queue[0].v is NpcCar head && head.S >= QueuePath.Length - 1.5f && head.Speed < 0.2f)
             {
                 var pump = FreePump();
                 if (pump != null) head.GoToPump(pump);
@@ -595,7 +616,7 @@ namespace GasQueue
                 }
                 else if (PlayerPump == null)
                 {
-                    var pump = FreePump();
+                    var pump = RaceMode ? NearestFreePump() : FreePump();
                     if (pump != null)
                     {
                         pump.reservedForPlayer = true;
@@ -629,6 +650,20 @@ namespace GasQueue
             foreach (var npc in Npcs)
                 if (Obb.Overlap(box, npc.Box)) return false;
             return true;
+        }
+
+        /// <summary>Свободная колонка поближе к машине игрока (в гонке — чтобы не гонять его по всей заправке).</summary>
+        Pump NearestFreePump()
+        {
+            Pump best = null;
+            float bestD = float.MaxValue;
+            foreach (var p in Pumps)
+            {
+                if (p.Occupant != null || p.reservedForPlayer) continue;
+                float d = Vector3.Distance(Player.Position, p.spot);
+                if (d < bestD) { bestD = d; best = p; }
+            }
+            return best;
         }
 
         Pump FreePump()

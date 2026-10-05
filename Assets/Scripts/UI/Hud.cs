@@ -212,7 +212,9 @@ namespace GasQueue
                 return;
             }
             if (race != null && gm.PlayerFueled) place = "Бак полный — на финиш!";
-            else if (race != null && (t.PlayerInQueue || t.PlayerPump != null) && !gm.PlayerFueled && t.PlayerPump == null)
+            else if (race != null && t.PlayerIsHead && t.PlayerPump == null && !gm.PlayerFueled)
+                place = "Вы первый! Ждите свободную колонку";
+            else if (race != null && t.PlayerInQueue && !gm.PlayerFueled && t.PlayerPump == null)
                 place = t.PlayerQueueIndex == 0 ? "Очередь на заправку: вы первый!" : $"Очередь на заправку: впереди {t.PlayerQueueIndex}";
             else if (race != null && !t.PlayerInQueue && t.PlayerPump == null && gm.Player.Position.z < RaceLayout.JoinZ)
                 place = race.FuelSignal ? "Лампочка бензина горит!" : "Гонка!";

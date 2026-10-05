@@ -47,7 +47,11 @@ public class PlayerCar : Vehicle { public override bool IsPlayer=>true; LanePath
     else if(wait>8){ s+=0.5f; }
     Speed=0; return; }
   if(phase==0){ foreach(var n in traffic.Npcs) if(n.Path==path && n.Role==NpcRole.Queue && n.S>s && Mathf.Abs(n.Offset)<1.2f) free=Mathf.Min(free,(n.S-n.Length/2)-(s+Length/2)-2.2f);
-     free=Mathf.Min(free,path.Length-s); if(traffic.PlayerPump!=null){ path=traffic.PlayerPump.enterPath; s=0; phase=1; free=0; GameManager.Log("player -> pump"); } }
+     free=Mathf.Min(free,path.Length-s);
+     // Сценарий «проехал мимо головы очереди прямо к колонкам» (в гонке шлагбаума нет)
+     if(System.Environment.GetEnvironmentVariable("SIM_OVERSHOOT")!=null && traffic.PlayerPump==null && s>=path.Length-0.3f && traffic.PlayerQueueIndex==0){ Place(new Vector3(24f,0,-6f),Vector3.forward); phase=5; GameManager.Log("player rolled past the head to the pumps"); return; }
+     if(traffic.PlayerPump!=null){ path=traffic.PlayerPump.enterPath; s=0; phase=1; free=0; GameManager.Log("player -> pump"); } }
+  else if(phase==5){ if(traffic.PlayerPump!=null){ path=traffic.PlayerPump.enterPath; s=path.Project(Position,out _); phase=1; GameManager.Log($"player granted from the lot: pump {traffic.PlayerPump.Number}"); } return; }
   else if(phase==1){ free=path.Length-s; if(free<0.05f){ wait+=dt; if(wait>30){ gm.PlayerFueled=true; path=traffic.PlayerPump.exitPath; s=0; phase=2; traffic.ReleasePlayerPump(); GameManager.Log("player fueled, leaving"); } } }
   else { free=path.Length-s; if(free<1){done=true;} }
   // избегаем NPC прямо перед собой
