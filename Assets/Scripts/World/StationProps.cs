@@ -72,18 +72,25 @@ namespace GasQueue
         TextMesh text;
         TextMesh shadow;
 
-        public static void Show(Transform car, string phrase, float height)
+        static readonly Color DefaultColor = Shapes.Hex("#ffe14d");
+
+        public static void Show(Transform car, string phrase, float height) =>
+            Show(car, phrase, height, Vector3.zero, DefaultColor, 3f);
+
+        /// <summary>Реплика над объектом. offset — сдвиг вбок (кто говорит: водитель или пассажир), color — цвет говорящего.</summary>
+        public static void Show(Transform car, string phrase, float height, Vector3 offset, Color color, float seconds)
         {
             var old = car.GetComponentInChildren<SpeechBubble>();
             if (old != null) Destroy(old.gameObject);
 
             var go = new GameObject("Speech");
             go.transform.SetParent(car, false);
-            go.transform.localPosition = new Vector3(0, height + 0.9f, 0);
+            go.transform.localPosition = new Vector3(0, height + 0.9f, 0) + offset;
             go.AddComponent<Billboard>();
             var bubble = go.AddComponent<SpeechBubble>();
+            bubble.life = seconds;
             bubble.shadow = Fonts.WorldText(go.transform, new Vector3(0.02f, -0.02f, 0.01f), phrase, Color.black, 0.035f, onTop: true);
-            bubble.text = Fonts.WorldText(go.transform, Vector3.zero, phrase, Shapes.Hex("#ffe14d"), 0.035f, onTop: true);
+            bubble.text = Fonts.WorldText(go.transform, Vector3.zero, phrase, color, 0.035f, onTop: true);
         }
 
         void Update()

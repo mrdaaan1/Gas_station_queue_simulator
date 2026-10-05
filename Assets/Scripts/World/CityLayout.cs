@@ -55,6 +55,14 @@ namespace GasQueue
         /// <summary>Заправщик стоит у торца первого островка, лицом к шлагбауму.</summary>
         public static readonly Vector3 AttendantSpot = new Vector3(22f, 0f, -1.7f);
 
+        // Газовая колонка (пропан-бутан) — справа от въезда, в юго-восточном углу участка.
+        // Газовые машины стоят в общей очереди только до въезда, потом сворачивают сюда.
+        public static readonly Vector3 GasSpot = new Vector3(30.5f, 0f, -28f);       // машина у колонки (носом к +X)
+        public static readonly Vector3 GasDispenser = new Vector3(30.5f, 0f, -30.4f); // колонка справа от машины
+        public static readonly Vector3 GasBranch = new Vector3(10.2f, 0f, -34f);      // где сворачивают из очереди
+        /// <summary>Проезд к выезду вдоль западной стены магазина (в газоне у шлагбаума для него проём).</summary>
+        public const float GasExitX = 35.25f;
+
         public const float TankerLaneX = 46.5f;
         public static readonly Vector3 TankerStop = new Vector3(46.5f, 0f, 2f);
 
@@ -117,6 +125,17 @@ namespace GasQueue
         {
             VipSpot, P(37f, 41f), P(40f, 37.5f), P(39f, 31f), P(33f, 28.5f), P(24f, 28f), P(17.5f, 31f),
             P(12.5f, 35.8f), P(9.6f, 40f), P(LaneQueue, 46f), P(LaneQueue, RoadEndZ),
+        });
+
+        public static LanePath GasInPath() => new LanePath("ToGas", 4.5f, new[]
+        {
+            GasBranch, P(13.6f, -32.6f), P(18.5f, -31.2f), P(24f, -29f), GasSpot,
+        });
+
+        public static LanePath GasOutPath() => new LanePath("FromGas", 6f, new[]
+        {
+            GasSpot, P(33.6f, -27.6f), P(GasExitX, -23f), P(GasExitX, -12f), P(GasExitX, 10f), P(31.5f, 16.5f),
+            P(24f, 21.5f), P(19.5f, 24.5f), P(16f, 30f), P(12.5f, 35.5f), P(9.6f, 40f), P(LaneQueue, 46f), P(LaneQueue, RoadEndZ),
         });
 
         public static LanePath TankerArrivePath() =>

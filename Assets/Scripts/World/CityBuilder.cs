@@ -277,11 +277,111 @@ namespace GasQueue
             vipLabel.transform.localRotation = Quaternion.Euler(0, 0, 0);
             Obstacles.AddBox(vip.position, 3f, 1.1f, "служебная колонка");
 
+            BuildPropane(st);
+
             // Указатели въезда и выезда
             Sign(st, new Vector3(12.8f, 0, CityLayout.EntranceMinZ - 2f), "ВЪЕЗД", Shapes.Hex("#1f5fbf"));
             Sign(st, new Vector3(12.8f, 0, CityLayout.ExitMaxZ + 2f), "ВЫЕЗД", Shapes.Hex("#1f5fbf"));
 
             return new Result { barrier = barrier, priceBoard = board, cashier = cashier };
+        }
+
+        /// <summary>
+        /// АГЗС «пропан-бутан»: две белые цистерны с красной полосой за сеткой, жёлтые трубы,
+        /// синяя колонка под синим полукруглым навесом. Очереди тут нет — на газу мало кто ездит.
+        /// </summary>
+        static void BuildPropane(Transform st)
+        {
+            var blue = Shapes.Hex("#1f4fb8");
+            var yellow = Shapes.Hex("#e8c21a");
+            var tankWhite = Shapes.Hex("#eeeeea");
+            var g = Shapes.Group("Propane", st);
+
+            // Площадка
+            Shapes.Box(g, new Vector3(34.5f, 0.02f, -27.5f), new Vector3(16f, 0.04f, 15f), Shapes.Hex("#8f8b84"), name: "Pad");
+
+            // Цистерны на синих опорах
+            foreach (float z in new[] { -33.6f, -30.9f })
+            {
+                var tank = Shapes.Group("Tank", g, new Vector3(39.5f, 1.15f, z));
+                Shapes.Make(PrimitiveType.Cylinder, tank, Vector3.zero, new Vector3(1.9f, 2.3f, 1.9f), tankWhite, new Vector3(0, 0, 90f), "Body");
+                Shapes.Make(PrimitiveType.Sphere, tank, new Vector3(-2.3f, 0, 0), new Vector3(0.9f, 1.9f, 1.9f), tankWhite, name: "Cap");
+                Shapes.Make(PrimitiveType.Sphere, tank, new Vector3(2.3f, 0, 0), new Vector3(0.9f, 1.9f, 1.9f), tankWhite, name: "Cap");
+                // Полоса и надписи — на стороне, которую видно из очереди (север)
+                Shapes.Box(tank, new Vector3(0f, 0f, 0.96f), new Vector3(4.2f, 0.18f, 0.02f), Red, name: "Stripe");
+                var label = Fonts.WorldText(tank, new Vector3(0f, 0.35f, 0.97f), "ПРОПАН-БУТАН", Shapes.Hex("#1a1a1a"), 0.045f);
+                label.fontStyle = FontStyle.Bold;
+                label.transform.localRotation = Quaternion.Euler(0, 180f, 0);
+                var warn = Fonts.WorldText(tank, new Vector3(-0.9f, -0.32f, 0.97f), "ОГНЕОПАСНО", Red, 0.022f);
+                warn.transform.localRotation = Quaternion.Euler(0, 180f, 0);
+                Shapes.Box(tank, new Vector3(0f, 1.0f, 0f), new Vector3(0.6f, 0.25f, 0.6f), Shapes.Hex("#bdbdb6"), name: "Hatch");
+                foreach (float x in new[] { -1.6f, 1.6f })
+                    Shapes.Box(tank, new Vector3(x, -0.85f, 0f), new Vector3(0.3f, 0.6f, 1.3f), blue, name: "Support");
+            }
+            // Трубы к колонке
+            Shapes.Box(g, new Vector3(35.6f, 0.5f, -30.9f), new Vector3(3.6f, 0.08f, 0.08f), yellow, name: "Pipe");
+            Shapes.Box(g, new Vector3(33.8f, 0.5f, -30.65f), new Vector3(0.08f, 0.08f, 0.5f), yellow, name: "Pipe");
+            Shapes.Box(g, new Vector3(32.3f, 0.5f, -30.4f), new Vector3(3.0f, 0.08f, 0.08f), Shapes.Hex("#f0f0f0"), name: "Pipe");
+            Shapes.Make(PrimitiveType.Cylinder, g, new Vector3(36.1f, 0.85f, -32.2f), new Vector3(0.08f, 0.7f, 0.08f), yellow, name: "Pipe");
+            foreach (float x in new[] { 34.6f, 36.6f })
+                Shapes.Make(PrimitiveType.Cylinder, g, new Vector3(x, 0.5f, -30.9f), new Vector3(0.22f, 0.04f, 0.22f), Red, new Vector3(0, 0, 90f), "Valve");
+
+            // Сетчатое ограждение вокруг цистерн
+            var mesh = Shapes.Hex("#6d7470");
+            // Ограда: столбики и тонкие перекладины — цистерны за ней видно
+            void Net(Vector3 a, Vector3 b)
+            {
+                var c = (a + b) / 2f;
+                float sx = Mathf.Max(0.04f, Mathf.Abs(b.x - a.x)), sz = Mathf.Max(0.04f, Mathf.Abs(b.z - a.z));
+                foreach (float y in new[] { 0.35f, 1.0f, 1.7f })
+                    Shapes.Box(g, new Vector3(c.x, y, c.z), new Vector3(sx, 0.04f, sz), mesh, name: "Rail");
+                float len = Vector3.Distance(a, b);
+                int posts = Mathf.Max(2, Mathf.CeilToInt(len / 1.5f) + 1);
+                for (int i = 0; i < posts; i++)
+                {
+                    var p = Vector3.Lerp(a, b, i / (float)(posts - 1));
+                    Shapes.Box(g, new Vector3(p.x, 0.9f, p.z), new Vector3(0.06f, 1.8f, 0.06f), mesh, name: "Post");
+                }
+                Obstacles.AddBox(c, Mathf.Max(0.2f, sx), Mathf.Max(0.2f, sz), "ограждение цистерн");
+            }
+            Net(new Vector3(36.4f, 0, -35.4f), new Vector3(36.4f, 0, -29.3f));
+            Net(new Vector3(36.4f, 0, -29.3f), new Vector3(42.8f, 0, -29.3f));
+
+            // Колонка и навес
+            var d = CityLayout.GasDispenser;
+            Shapes.Box(g, new Vector3(d.x, 0.1f, d.z), new Vector3(2.4f, 0.2f, 1.0f), Grey, name: "Island");
+            Shapes.Box(g, new Vector3(d.x, 1.0f, d.z), new Vector3(0.8f, 1.6f, 0.55f), blue, name: "GasDispenser");
+            Shapes.Box(g, new Vector3(d.x, 1.45f, d.z + 0.28f), new Vector3(0.55f, 0.35f, 0.02f), Shapes.Hex("#16181c"), name: "Display");
+            var price = Fonts.WorldText(g, new Vector3(d.x, 1.45f, d.z + 0.3f), "ГАЗ 26.90", Shapes.Hex("#ff5a3c"), 0.016f);
+            price.transform.localRotation = Quaternion.Euler(0, 180f, 0);
+            Shapes.Box(g, new Vector3(d.x + 0.45f, 0.95f, d.z + 0.1f), new Vector3(0.08f, 0.25f, 0.1f), Dark, name: "Nozzle");
+            Obstacles.AddBox(d, 2.4f, 1.0f, "газовая колонка");
+            foreach (float x in new[] { d.x - 2.6f, d.x + 2.6f })
+            {
+                Shapes.Box(g, new Vector3(x, 1.8f, d.z - 0.4f), new Vector3(0.18f, 3.6f, 0.18f), blue, name: "CanopyPost");
+                Obstacles.AddBox(new Vector3(x, 0, d.z - 0.4f), 0.25f, 0.25f, "стойка навеса");
+            }
+            // Полукруглый навес из нескольких наклонных пластин
+            for (int i = 0; i < 5; i++)
+            {
+                float a = -50f + i * 25f;
+                float r = 2.4f;
+                var pos = new Vector3(d.x, 3.4f + Mathf.Cos(a * Mathf.Deg2Rad) * r * 0.35f, d.z + 1.2f + Mathf.Sin(a * Mathf.Deg2Rad) * r);
+                Shapes.Box(g, pos, new Vector3(6.2f, 0.06f, 1.1f), blue, new Vector3(-a * 0.7f, 0, 0), "Canopy");
+            }
+            var sign = Fonts.WorldText(g, new Vector3(d.x, 4.35f, d.z - 1.3f), "АГЗС  ПРОПАН", Shapes.Hex("#ffffff"), 0.05f);
+            sign.fontStyle = FontStyle.Bold;
+            Shapes.Box(g, new Vector3(d.x, 4.35f, d.z - 1.25f), new Vector3(4.2f, 0.6f, 0.05f), blue, name: "SignBoard");
+
+            // Оператор АГЗС
+            var op = HumanRig.Build("Gas operator", g, new HumanRig.Look
+            {
+                shirt = blue, pants = Shapes.Hex("#2b2f3a"), skin = Shapes.Hex("#d9a47c"),
+                hair = Shapes.Hex("#6b6b6b"), shoes = Shapes.Hex("#1b1b1b"),
+            });
+            op.transform.position = new Vector3(d.x + 2.0f, 0f, d.z - 1.4f);
+            op.transform.rotation = Quaternion.Euler(0, -30f, 0);
+            Obstacles.AddBox(op.transform.position, 0.5f, 0.5f, "оператор");
         }
 
         static void BuildFences(Transform st)
@@ -310,7 +410,9 @@ namespace GasQueue
             // Газон-разделитель перед колонками, в нём проезд со шлагбаумом
             float bz = CityLayout.BarrierZ;
             float gapL = CityLayout.BarrierPostX - CityLayout.BarrierArmLength - 0.2f;
-            foreach (var (a, b) in new[] { (x0, gapL), (CityLayout.BarrierPostX + 0.4f, CityLayout.ShopMinX) })
+            // Второй проём — у магазина: по нему уезжают с газовой колонки
+            float gasGap0 = CityLayout.GasExitX - 1.3f;
+            foreach (var (a, b) in new[] { (x0, gapL), (CityLayout.BarrierPostX + 0.4f, gasGap0) })
             {
                 var c = new Vector3((a + b) / 2f, 0, bz);
                 Shapes.Box(st, new Vector3(c.x, 0.12f, bz), new Vector3(b - a, 0.24f, 1.2f), Grey, name: "Divider");

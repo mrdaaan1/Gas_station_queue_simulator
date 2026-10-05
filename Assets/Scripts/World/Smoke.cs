@@ -7,6 +7,7 @@ namespace GasQueue
     public class Smoke : MonoBehaviour
     {
         public float intensity;
+        public float sizeScale = 1f; // 1 — дым из-под капота; меньше — сигаретный
         Transform emitter;
         Transform world;
         float timer;
@@ -35,13 +36,13 @@ namespace GasQueue
             {
                 timer = Mathf.Lerp(0.5f, 0.08f, intensity);
                 var shade = Mathf.Round(Mathf.Lerp(0.62f, 0.12f, intensity) * 10f) / 10f; // немного оттенков — немного материалов
-                var go = Shapes.Make(PrimitiveType.Sphere, world, emitter.position + Random.insideUnitSphere * 0.15f, Vector3.one * 0.2f,
+                var go = Shapes.Make(PrimitiveType.Sphere, world, emitter.position + Random.insideUnitSphere * 0.15f * sizeScale, Vector3.one * 0.2f * sizeScale,
                     new Color(shade, shade, shade), name: "Puff");
                 puffs.Add(new Puff
                 {
                     t = go.transform,
                     life = Random.Range(1.8f, 3f),
-                    size = Mathf.Lerp(0.6f, 1.6f, intensity),
+                    size = Mathf.Lerp(0.6f, 1.6f, intensity) * sizeScale,
                     drift = new Vector3(Random.Range(-0.3f, 0.3f), Random.Range(0.8f, 1.4f), Random.Range(-0.3f, 0.3f)),
                 });
             }

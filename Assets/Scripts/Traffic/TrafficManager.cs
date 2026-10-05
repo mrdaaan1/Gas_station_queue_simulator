@@ -61,6 +61,10 @@ namespace GasQueue
 
         public LanePath QueuePath { get; private set; }
         public LanePath MiddlePath { get; private set; }
+        public LanePath GasInPath { get; private set; }
+        public LanePath GasOutPath { get; private set; }
+        /// <summary>Где на маршруте очереди газовые машины сворачивают к пропану (у въезда на территорию).</summary>
+        public float GasBranchS { get; private set; }
         public readonly List<Pump> Pumps = new List<Pump>();
         public readonly List<NpcCar> Npcs = new List<NpcCar>();
 
@@ -149,6 +153,11 @@ namespace GasQueue
             VipOutPath = CityLayout.VipOutPath();
             allPaths.Add(vipPath);
             allPaths.Add(VipOutPath);
+            GasInPath = CityLayout.GasInPath();
+            GasOutPath = CityLayout.GasOutPath();
+            allPaths.Add(GasInPath);
+            allPaths.Add(GasOutPath);
+            GasBranchS = QueuePath.Project(CityLayout.GasBranch, out _);
             foreach (var p in allPaths) lanes[p] = new List<PathEntry>();
 
             QueueRoadEndS = QueuePath.Project(CityLayout.P(CityLayout.LaneQueue, -44f), out _);
@@ -164,15 +173,138 @@ namespace GasQueue
         {
             var model = CarModels.Random(out bool taxi);
             if (tag == "Cutter" && Random.value < 0.35f) { model = CarModel.Rio; taxi = true; } // таксисты наглее всех
-            var visual = CarFactory.Build($"{(taxi ? "Taxi" : tag)} {++carCounter}", CarModels.RandomPaint(model, taxi), model, false, taxi);
+            var service = tag == "Queue" ? RollService() : ServiceKind.None;
+            var paint = CarModels.RandomPaint(model, taxi);
+            if (service != ServiceKind.None)
+            {
+                model = service == ServiceKind.Ambulance ? CarModel.Gazelle : CarModel.Rio;
+                taxi = false;
+                paint = new Color(0.95f, 0.95f, 0.93f);
+            }
+            var visual = CarFactory.Build($"{(service != ServiceKind.None ? service.ToString() : taxi ? "Taxi" : tag)} {++carCounter}", paint, model, false, taxi, service);
             visual.transform.SetParent(transform, false);
             var npc = visual.gameObject.AddComponent<NpcCar>();
             npc.visual = visual;
             npc.traffic = this;
             npc.damage = visual.gameObject.AddComponent<CarDamage>();
             npc.damage.Init(visual, WorldRoot);
+            npc.Service = service;
             Npcs.Add(npc);
             return npc;
+        }
+
+        // ---------- Газ ----------
+
+        static readonly string[] GasQueueLines =
+        {
+            "Пропустите, у меня газ!", "Мне только на газ, я быстро!", "Чего стоим? У меня пропан!",
+            "Газ — это вам не бензин.", "Мужики, я не за бензином, пустите!",
+        };
+        static readonly string[] GasReplies =
+        {
+            "Ага, щас! Стой как все.", "Газовщик хренов...", "Вот гад, а.", "У всех газ, когда очередь.", "Тут один въезд на всех!",
+        };
+
+        float gasBanterTimer = 30f;
+        NpcCar gasReplyFrom;
+        float gasReplyTimer;
+        bool gasAnnounced;
+
+        NpcCar SpawnGasCar()
+        {
+            var npc = SpawnNpc("Gas");
+            npc.IsGas = true;
+            CarModels.GasSticker(npc.visual);
+            return npc;
+        }
+
+        public void OnGasCarBranched(NpcCar npc)
+        {
+            if (gasAnnounced || Gm == null || Vector3.Distance(npc.Position, Player.Position) > 60f) return;
+            gasAnnounced = true;
+            Gm.ShowMessage("Машина на газу свернула к пропановой колонке справа. Там очереди нет — на газу мало кто ездит.", 8f);
+        }
+
+        /// <summary>Газовые машины в очереди просят их пропустить, им огрызаются (по очереди, не хором).</summary>
+        void UpdateGasBanter(float dt)
+        {
+            if (gasReplyFrom != null)
+            {
+                gasReplyTimer -= dt;
+                if (gasReplyTimer <= 0f)
+                {
+                    if (gasReplyFrom != null) gasReplyFrom.Say(GasReplies[Random.Range(0, GasReplies.Length)]);
+                    gasReplyFrom = null;
+                }
+                return;
+            }
+            gasBanterTimer -= dt;
+            if (gasBanterTimer > 0f) return;
+            gasBanterTimer = Random.Range(20f, 35f);
+            for (int i = 1; i < queue.Count; i++)
+            {
+                if (!(queue[i].v is NpcCar gasCar) || !gasCar.IsGas) continue;
+                if (Vector3.Distance(gasCar.Position, Player.Position) > 35f) continue;
+                gasCar.Say(GasQueueLines[Random.Range(0, GasQueueLines.Length)]);
+                gasCar.Honk();
+                gasReplyFrom = queue[i - 1].v as NpcCar; // отвечает тот, кто впереди (если это не игрок)
+                gasReplyTimer = 3.6f;
+                return;
+            }
+        }
+
+        // ---------- Скорая и ДПС в общей очереди ----------
+
+        static readonly string[] AmbulanceLines =
+        {
+            "Мы на вызов вообще-то. Но без бензина — не вызов.", "Пациент подождёт, у нас очередь.",
+            "Колонка «для своих»? Мы не свои, мы врачи.", "Скорая тоже стоит. Как все.", "Держитесь там. И мы держимся.",
+        };
+        static readonly string[] PoliceLines =
+        {
+            "Стоим как все, граждане.", "Мигалку включили — не помогает. Бензина-то нет.",
+            "Служебная колонка? Это не для нас, мы просто полиция.", "Документики... Шучу. Стоим.", "Без нарушений, без бензина.",
+        };
+        static readonly string[] AmbulanceHonk = { "Тише! У нас пациент спит.", "Бибикнете ещё — и вам скорая понадобится.", "Мы бы рады, да некуда." };
+        static readonly string[] PoliceHonk = { "Гражданин, не нарушаем!", "Ещё раз — оформлю за шум.", "Сигнал подавать без необходимости запрещено!" };
+
+        float serviceLineTimer = 20f;
+        bool serviceAnnounced;
+
+        ServiceKind RollService()
+        {
+            bool hasAmb = false, hasPol = false;
+            foreach (var n in Npcs)
+            {
+                if (n.Service == ServiceKind.Ambulance) hasAmb = true;
+                if (n.Service == ServiceKind.Police) hasPol = true;
+            }
+            float r = Random.value;
+            if (r < 0.05f && !hasAmb) return ServiceKind.Ambulance;
+            if (r > 0.95f && !hasPol) return ServiceKind.Police;
+            return ServiceKind.None;
+        }
+
+        /// <summary>Скорая и ДПС рядом с игроком иногда комментируют происходящее.</summary>
+        void UpdateServices(float dt)
+        {
+            serviceLineTimer -= dt;
+            if (serviceLineTimer > 0f) return;
+            serviceLineTimer = Random.Range(25f, 40f);
+            foreach (var n in Npcs)
+            {
+                if (n.Service == ServiceKind.None || Vector3.Distance(n.Position, Player.Position) > 35f) continue;
+                if (!serviceAnnounced && Gm != null)
+                {
+                    serviceAnnounced = true;
+                    Gm.ShowMessage(n.Service == ServiceKind.Ambulance
+                        ? "В очереди стоит скорая. С мигалкой. Колонка «для своих» — только для депутатов."
+                        : "Даже ДПС стоит в общей очереди. Служебная колонка — не для них.", 8f);
+                }
+                var lines = n.Service == ServiceKind.Ambulance ? AmbulanceLines : PoliceLines;
+                n.Say(lines[Random.Range(0, lines.Length)]);
+                return;
+            }
         }
 
         void SpawnInitial()
@@ -180,7 +312,11 @@ namespace GasQueue
             float spacing = Settings.carSpacing;
             float s = QueuePath.Length;
             for (int i = 0; i < Settings.carsAhead; i++, s -= spacing)
-                SpawnNpc("Queue").Setup(NpcRole.Queue, QueuePath, s, true);
+            {
+                // Среди тех, кто впереди, есть газовые — увидите, как они свернут к пропану у въезда
+                var npc = i > 2 && Random.value < 0.15f ? SpawnGasCar() : SpawnNpc("Queue");
+                npc.Setup(NpcRole.Queue, QueuePath, s, true);
+            }
 
             Player.PlaceOnPath(QueuePath, s);
             s -= spacing;
@@ -415,7 +551,10 @@ namespace GasQueue
                 foreach (var e in list)
                 {
                     if (e.v == me || e.s <= me.S || e.s >= bestS) continue;
-                    if (Mathf.Abs(e.offset - me.Offset) > 2.4f) continue;
+                    // Наглец, который перестраивается из нашего ряда (или передумал и возвращается),
+                    // держит своё место — иначе задний заедет туда, и вернуться будет некуда
+                    bool holdsSlot = e.v is NpcCar c && c.Role == NpcRole.Cutter;
+                    if (Mathf.Abs(e.offset - me.Offset) > 2.4f && !holdsSlot) continue;
                     bestS = e.s;
                     float f = (e.s - e.v.Length / 2f) - (me.S + me.Length / 2f) - desiredGap;
                     if (f < free)
@@ -423,6 +562,22 @@ namespace GasQueue
                         free = f;
                         blocker = e.v;
                     }
+                }
+            }
+
+            // Кто уже наполовину перестроился в наш ряд — для нас он уже впереди
+            foreach (var other in Npcs)
+            {
+                if (other == me || other.TargetPath != me.Path || Mathf.Abs(other.Offset) < 1f) continue;
+                var d = other.Position - me.Position;
+                if (d.x * d.x + d.z * d.z > 400f) continue;
+                float os = me.Path.Project(other.Position, out _);
+                if (os <= me.S) continue;
+                float f = (os - other.Length / 2f) - (me.S + me.Length / 2f) - desiredGap;
+                if (f < free)
+                {
+                    free = f;
+                    blocker = other;
                 }
             }
 
@@ -645,7 +800,12 @@ namespace GasQueue
                         target = npc;
                     }
             }
-            if (target != null) target.React(AnswersToHonk[Random.Range(0, AnswersToHonk.Length)]);
+            if (target != null)
+            {
+                var lines = target.Service == ServiceKind.Ambulance ? AmbulanceHonk
+                    : target.Service == ServiceKind.Police ? PoliceHonk : AnswersToHonk;
+                target.React(lines[Random.Range(0, lines.Length)]);
+            }
         }
 
         static readonly string[] RoofLines =
@@ -687,7 +847,9 @@ namespace GasQueue
                     float spawnS = queue[queue.Count - 1].s - Settings.carSpacing * 4f;
                     if (spawnS > 5f && LaneClearNear(QueuePath, spawnS, 8f))
                     {
-                        var npc = SpawnNpc("Queue");
+                        // Каждая седьмая-восьмая — на газу (чаще такси): встаёт в хвост, чтобы доехать до въезда
+                        bool gas = Random.value < 0.14f;
+                        var npc = gas ? SpawnGasCar() : SpawnNpc("Queue");
                         npc.Setup(NpcRole.Queue, QueuePath, spawnS, true);
                         npc.StartRolling(5f);
                     }
@@ -724,6 +886,8 @@ namespace GasQueue
             UpdateRumor(dt);
             UpdatePlayerSignal(dt);
             UpdateVip(dt);
+            UpdateServices(dt);
+            UpdateGasBanter(dt);
 
             // Кто-то в очереди не выдерживает
             giveUpTimer += dt;

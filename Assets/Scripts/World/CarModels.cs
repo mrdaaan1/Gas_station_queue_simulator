@@ -119,7 +119,7 @@ namespace GasQueue
             return list[UnityEngine.Random.Range(0, list.Length)];
         }
 
-        public static CarVisual Build(string name, CarModel model, Color paint, bool taxi)
+        public static CarVisual Build(string name, CarModel model, Color paint, bool taxi, ServiceKind service = ServiceKind.None)
         {
             var spec = Get(model);
             var root = new GameObject(name).transform;
@@ -161,6 +161,17 @@ namespace GasQueue
                 Vector3.one * 0.25f, look.skin, name: "Head").transform;
             Shapes.Make(PrimitiveType.Sphere, visual.driverHead, new Vector3(0, 0.25f, -0.08f), new Vector3(1.03f, 0.75f, 1.03f), look.hair, name: "Hair");
 
+            // Пассажир справа — примерно в половине машин. С ним водитель болтает (CarChatter)
+            if (model != CarModel.Maybach && UnityEngine.Random.value < 0.5f)
+            {
+                var pl = HumanRig.RandomLook();
+                visual.passengerTorso = Shapes.Box(body, new Vector3(0.36f, beltY - 0.02f, spec.seatZ - 0.08f), new Vector3(0.44f, 0.5f, 0.26f), pl.shirt, name: "PassengerTorso").transform;
+                visual.passengerHead = Shapes.Make(PrimitiveType.Sphere, body, new Vector3(0.36f, Mathf.Min(beltY + 0.36f, spec.roofY - 0.17f), spec.seatZ - 0.05f),
+                    Vector3.one * 0.25f, pl.skin, name: "PassengerHead").transform;
+                Shapes.Make(PrimitiveType.Sphere, visual.passengerHead, new Vector3(0, 0.25f, -0.08f), new Vector3(1.03f, 0.75f, 1.03f), pl.hair, name: "Hair");
+                root.gameObject.AddComponent<CarChatter>().Init(visual);
+            }
+
             // Лицо машины: решётка, фары, бамперы, фонари, номера
             switch (model)
             {
@@ -180,6 +191,7 @@ namespace GasQueue
             if (model == CarModel.Rio) ExtrasRio(body, spec);
 
             if (taxi) TaxiDress(body, spec);
+            if (service != ServiceKind.None) ServiceDress(root, body, spec, service);
             if (model == CarModel.Gazelle && UnityEngine.Random.value < 0.6f) RouteSign(body, spec);
             return visual;
         }
@@ -472,6 +484,51 @@ namespace GasQueue
             var t1 = Fonts.WorldText(roofSign, new Vector3(0, -0.02f, -0.12f), "ТАКСИ", Black, 0.012f);
             var t2 = Fonts.WorldText(roofSign, new Vector3(0, -0.02f, 0.12f), "ТАКСИ", Black, 0.012f);
             t2.transform.localRotation = Quaternion.Euler(0, 180, 0);
+        }
+
+        /// <summary>Наклейка «ГАЗ» на заднем стекле — машина на пропане.</summary>
+        public static void GasSticker(CarVisual v)
+        {
+            if (v == null || v.body == null) return;
+            // На крышке багажника справа — её видно, когда стоишь сзади в очереди
+            var at = new Vector3(0.45f, 0.82f, -v.length / 2f - 0.012f);
+            var g = Shapes.Group("GasSticker", v.body, at);
+            Shapes.Box(g, Vector3.zero, new Vector3(0.24f, 0.12f, 0.01f), Shapes.Hex("#1f4fb8"));
+            Fonts.WorldText(g, new Vector3(0f, 0f, -0.01f), "ГАЗ", Color.white, 0.02f);
+        }
+
+        /// <summary>Скорая («Газель») или ДПС: полоса по борту, надписи и мигалки на крыше (горят, но без сирены — стоят в очереди).</summary>
+        static void ServiceDress(Transform root, Transform body, Spec s, ServiceKind kind)
+        {
+            bool ambulance = kind == ServiceKind.Ambulance;
+            var stripe = ambulance ? Shapes.Hex("#d0201a") : Shapes.Hex("#1f4fa8");
+            string word = ambulance ? "СКОРАЯ" : "ДПС";
+            string sub = ambulance ? "медицинская помощь  03" : "ПОЛИЦИЯ";
+            float side = s.halfWidth + 0.008f;
+            float stripeY = ambulance ? 0.98f : 0.68f;
+            float len = s.length * 0.82f;
+            foreach (float sign in new[] { -1f, 1f })
+            {
+                Shapes.Box(body, new Vector3(sign * side, stripeY, 0f), new Vector3(0.01f, ambulance ? 0.16f : 0.12f, len), stripe, name: "Stripe");
+                var t = Fonts.WorldText(body, new Vector3(sign * (side + 0.01f), stripeY - (ambulance ? 0.22f : 0.17f), ambulance ? -0.6f : -0.3f),
+                    word, stripe, ambulance ? 0.03f : 0.026f);
+                t.transform.localRotation = Quaternion.Euler(0f, sign > 0 ? -90f : 90f, 0f);
+                var t2 = Fonts.WorldText(body, new Vector3(sign * (side + 0.01f), stripeY + (ambulance ? 0.16f : 0.13f), ambulance ? -0.6f : -0.3f),
+                    sub, stripe, 0.012f);
+                t2.transform.localRotation = Quaternion.Euler(0f, sign > 0 ? -90f : 90f, 0f);
+            }
+            var back = Fonts.WorldText(body, new Vector3(0f, s.lightY + 0.35f, -s.length / 2f - 0.02f), ambulance ? "03" : "ДПС", stripe, 0.03f);
+            back.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
+
+            // Мигалки: красная и синяя попеременно
+            var top = s.cabin[2];
+            var bar = Shapes.Group("LightBar", body, new Vector3(0f, s.roofY + 0.07f, top.x - 0.15f));
+            Shapes.Box(bar, new Vector3(0f, -0.04f, 0f), new Vector3(1.0f, 0.04f, 0.22f), Black, name: "BarBase");
+            var red = Shapes.Box(bar, new Vector3(-0.27f, 0.03f, 0f), new Vector3(0.42f, 0.1f, 0.2f), Shapes.Hex("#7a1010"), name: "Red");
+            var blue = Shapes.Box(bar, new Vector3(0.27f, 0.03f, 0f), new Vector3(0.42f, 0.1f, 0.2f), Shapes.Hex("#10307a"), name: "Blue");
+            var lights = root.gameObject.AddComponent<ServiceLights>();
+            lights.red = red.GetComponent<Renderer>();
+            lights.blue = blue.GetComponent<Renderer>();
         }
 
         /// <summary>Маршрутка: табличка с номером маршрута в лобовом стекле.</summary>

@@ -126,7 +126,17 @@ namespace GasQueue
         const int BribePrice = 1000;
         const float LiterLimit = 20f;
 
-        enum DialogWith { Cashier, Attendant }
+        enum DialogWith { Cashier, Attendant, Driver }
+        NpcCar talkNpc;
+        static readonly string[] CigaretteGive =
+        {
+            "На, держи. Последняя, между прочим.", "Бери, не жалко. Только отойди с ней.", "Держи. Мне шурин из Китая привёз.",
+            "На. Аккуратнее, она тяжёлая.",
+        };
+        static readonly string[] CigaretteRefuse =
+        {
+            "Сам стреляю.", "Бросил. Третий раз за неделю.", "Нету. Иди на кассу, там продают.", "Самому мало.",
+        };
         DialogWith dialogWith;
         HumanRig attendant;
         float attendantLineTimer = 8f;
@@ -145,6 +155,7 @@ namespace GasQueue
         bool priceWarned;
         bool wrongSide;
         bool exitTipShown;
+        bool gasHintShown;
         Pump paidPump;
         Transform hose;
 
@@ -251,6 +262,13 @@ namespace GasQueue
                     if (Vector3.Distance(npc.Position, carPos) < 15f && Random.value < 0.5f) npc.Honk();
             }
             if (Traffic.PlayerPump != null) CheatedIn = false;
+
+            // Подъехал к газовой колонке — а у нас бензиновая «семёрка»
+            if (!OnFoot && !gasHintShown && Vector3.Distance(carPos, CityLayout.GasSpot) < 5f)
+            {
+                gasHintShown = true;
+                ShowMessage("Оператор АГЗС: «Это газ, командир. У тебя «семёрка» на бензине. В общую очередь!»", 8f);
+            }
 
             // Заправились и отъехали от колонки — едем к выезду
             if (PlayerFueled && State == GameState.Queueing && !OnFoot && paidPump != null &&
@@ -390,11 +408,7 @@ namespace GasQueue
             else if (nearNpc != null)
             {
                 Prompt = "E — поговорить с водителем";
-                if (GameInput.InteractPressed)
-                {
-                    Talks++;
-                    nearNpc.Say(Rumors[Random.Range(0, Rumors.Length)]);
-                }
+                if (GameInput.InteractPressed) OpenDriverDialog(nearNpc);
             }
 
             if (GameInput.CarDoorPressed && nearCar) EnterCar();
@@ -442,6 +456,7 @@ namespace GasQueue
         {
             OnFoot = false;
             CloseDialog();
+            if (Walker.DropCigarette()) ShowMessage("Сигарету пришлось выбросить: в салоне не курим.");
             Walker.Hide();
             Player.controlsEnabled = true;
             CameraRig.SetOnFoot(false);
@@ -449,7 +464,64 @@ namespace GasQueue
 
         // ---------- Касса ----------
 
-        Vector3 DialogAnchor => dialogWith == DialogWith.Cashier ? CityLayout.CounterFront : CityLayout.AttendantSpot;
+        Vector3 DialogAnchor => dialogWith == DialogWith.Cashier ? CityLayout.CounterFront
+            : dialogWith == DialogWith.Driver && talkNpc != null ? talkNpc.DriverDoor : CityLayout.AttendantSpot;
+
+        // ---------- Водители в очереди ----------
+
+        public int CigarettesBummed { get; private set; }
+
+        void OpenDriverDialog(NpcCar npc)
+        {
+            talkNpc = npc;
+            dialogWith = DialogWith.Driver;
+            DialogOpen = true;
+            DialogTitle = "Водитель опускает стекло: «Чего?»";
+            DialogOptions.Clear();
+            DialogOptions.Add("Спросить, что слышно про завоз");
+            DialogOptions.Add(Walker.Smoking ? "Попросить ещё одну сигаретку" : "Попросить сигаретку");
+            DialogOptions.Add("Уйти");
+        }
+
+        void DriverSays(string text)
+        {
+            if (talkNpc != null) talkNpc.Say(text);
+            DialogTitle = $"Водитель: «{text}»";
+        }
+
+        void ChooseDriver(int choice)
+        {
+            if (talkNpc == null) { CloseDialog(); return; }
+            switch (choice)
+            {
+                case 1:
+                    Talks++;
+                    DriverSays(Rumors[Random.Range(0, Rumors.Length)]);
+                    break;
+                case 2:
+                    if (Walker.Smoking) { DriverSays("У тебя ж в руках целое бревно ещё дымится!"); break; }
+                    if (Random.value < 0.7f)
+                    {
+                        CigarettesBummed++;
+                        DriverSays(CigaretteGive[Random.Range(0, CigaretteGive.Length)]);
+                        Walker.GiveCigarette();
+                        ShowMessage(CigarettesBummed == 1
+                            ? "Водитель протянул сигарету. Она... несколько крупнее, чем вы ожидали."
+                            : "Ещё одна сигаретка. Такая же огромная.", 7f);
+                        CloseDialog();
+                    }
+                    else DriverSays(CigaretteRefuse[Random.Range(0, CigaretteRefuse.Length)]);
+                    break;
+                default:
+                    CloseDialog();
+                    break;
+            }
+        }
+
+        public void OnCigaretteFinished()
+        {
+            ShowMessage("Сигарета догорела. Вы чувствуете себя на пять минут старше и на три часа терпеливее.", 7f);
+        }
 
         void OpenCashierDialog()
         {
@@ -559,6 +631,11 @@ namespace GasQueue
             if (dialogWith == DialogWith.Attendant)
             {
                 ChooseAttendant(choice);
+                return;
+            }
+            if (dialogWith == DialogWith.Driver)
+            {
+                ChooseDriver(choice);
                 return;
             }
             switch (choice)
@@ -1036,6 +1113,7 @@ namespace GasQueue
             if (CarKicks >= 5) list.Add("Машина-боксёрская груша");
             if (CarJumps >= 1) list.Add("Паркур в очереди");
             if (CarJumps >= 10) list.Add("Король крыш");
+            if (CigarettesBummed >= 1) list.Add("Стрельнул по-крупному");
             if (Bribes >= 1 && !BribeScammed) list.Add("Всё решается");
             if (BribeScammed) list.Add("Кинули на тысячу");
             if (HitLiterLimit) list.Add("20 литров в одни руки");

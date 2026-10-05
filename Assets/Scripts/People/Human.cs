@@ -73,6 +73,7 @@ namespace GasQueue
         public bool Guard;          // стойка: кулаки у лица
         public bool Limping;        // после драки хромает
         public bool Airborne;       // в прыжке: ноги поджаты, руки вверх
+        public bool HoldingBig;     // держит двумя руками у рта огромную сигарету
         float punchTimer, kickTimer, flinchTimer;
         bool punchRight;
         float fall;                 // 0 — стоит, 1 — лежит
@@ -197,13 +198,20 @@ namespace GasQueue
                 head.localRotation = Quaternion.Euler(flinch * 1.5f, 0, 0);
             }
 
+            // Огромная сигарета: обе руки вперёд-вверх к лицу
+            if (HoldingBig && punchTimer <= 0f && fall <= 0.001f)
+            {
+                armL.localRotation = Quaternion.Euler(-118f, 0f, 24f);
+                armR.localRotation = Quaternion.Euler(-118f, 0f, -24f);
+            }
+
             // Прыжок: одна нога вперёд, другая назад, руки вверх и в стороны
             air = Mathf.MoveTowards(air, Airborne ? 1f : 0f, dt * 8f);
             if (air > 0.001f && fall <= 0.001f)
             {
                 legL.localRotation = Quaternion.Slerp(legL.localRotation, Quaternion.Euler(-45f, 0, 0), air);
                 legR.localRotation = Quaternion.Slerp(legR.localRotation, Quaternion.Euler(25f, 0, 0), air);
-                if (punchTimer <= 0f)
+                if (punchTimer <= 0f && !HoldingBig)
                 {
                     armL.localRotation = Quaternion.Slerp(armL.localRotation, Quaternion.Euler(-150f, 0, -35f), air);
                     armR.localRotation = Quaternion.Slerp(armR.localRotation, Quaternion.Euler(-150f, 0, 35f), air);

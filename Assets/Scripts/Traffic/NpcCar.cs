@@ -12,6 +12,8 @@ namespace GasQueue
         Cutter,    // пытается вклиниться в очередь из соседнего ряда
         GivingUp,  // не выдержал, перестраивается и уезжает
         Vip,       // депутат с мигалкой: едет к заправке мимо очереди
+        ToGas,     // на газу: свернул из очереди к газовой колонке
+        GasFueling,// заправляется газом
     }
 
     /// <summary>
@@ -40,6 +42,19 @@ namespace GasQueue
         };
         static readonly string[] CutInThanks = { "Спасибо, брат!", "Хе-хе, успел", "Мне только спросить!", "Я тут стоял!" };
         static readonly string[] CutInFail = { "Ну и стой!", "Жлоб!", "Да пропусти ты!", "Пф-ф..." };
+        static readonly string[] IntolerantShouts =
+        {
+            "Иди нахер!", "Куда лезешь?!", "Ага, щас!", "Хрен тебе, а не место!", "В конец очереди, умник!",
+            "Я тут с утра стою!", "Даже не думай!", "Самый умный, да?!",
+        };
+
+        /// <summary>
+        /// «Нетерпила»: увидел, что перед ним кто-то лезет, — сразу поджимается к машине впереди почти вплотную
+        /// и орёт в окно. Примерно половина очереди такие.
+        /// </summary>
+        public bool Intolerant { get; private set; }
+        bool pressing;
+        float shoutCooldown;
 
         public override bool IsPlayer => false;
 
@@ -89,6 +104,7 @@ namespace GasQueue
 
         protected override void Awake()
         {
+            Intolerant = Random.value < 0.5f;
             base.Awake();
             reactionDelay = Random.Range(0.4f, 1.4f);
             horn = SoundFactory.Source3D(gameObject, 0.8f);
@@ -119,19 +135,27 @@ namespace GasQueue
             }
         }
 
-        float DesiredGap => Role == NpcRole.Through ? 5f : 2f;
+        float DesiredGap => Role == NpcRole.Through ? 5f : pressing ? 0.55f : 2f;
 
         void Update()
         {
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
             if (cutCooldown > 0f) cutCooldown -= dt;
+            if (shoutCooldown > 0f) shoutCooldown -= dt;
 
             if (holdTimer > 0f)
             {
                 holdTimer -= dt;
                 Speed = 0f;
                 moving = false;
+                return;
+            }
+
+            if (Role == NpcRole.GasFueling)
+            {
+                serviceTimer += dt;
+                if (serviceTimer >= serviceDuration) StartGasExit();
                 return;
             }
 
@@ -172,8 +196,12 @@ namespace GasQueue
                 S = Path.Length;
                 Place(Path.PointAt(S), Path.TangentAt(S));
             }
+            // Газовая машина доехала до въезда — сворачивает из очереди к пропану
+            if (IsGas && Role == NpcRole.Queue && Path == traffic.QueuePath && S >= traffic.GasBranchS) BranchToGas();
+
             if (atEnd && !moving)
             {
+                if (Role == NpcRole.ToGas) StartGasFueling();
                 if (Role == NpcRole.ToPump) StartFueling();
                 else if (Role == NpcRole.Vip)
                 {
@@ -206,8 +234,17 @@ namespace GasQueue
             bool changingLane = Mathf.Abs(targetOffset - Offset) > 0.01f;
             float limit = SpeedLimit();
 
-            // Невежливый сосед, перед которым кто-то моргает поворотником, спешит поджать дырку
-            if (!moving && traffic.IsCutterTarget(this)) reactionDelay = Mathf.Min(reactionDelay, 0.15f);
+            // Невежливый сосед, перед которым кто-то моргает поворотником, спешит поджать дырку.
+            // Нетерпила ещё и прижимается к машине впереди почти вплотную и ругается.
+            bool targeted = traffic.IsCutterTarget(this);
+            pressing = targeted && Intolerant;
+            if (!moving && targeted) reactionDelay = Mathf.Min(reactionDelay, Intolerant ? 0.05f : 0.15f);
+            if (pressing && shoutCooldown <= 0f)
+            {
+                shoutCooldown = 8f;
+                Say(IntolerantShouts[Random.Range(0, IntolerantShouts.Length)]);
+                Honk();
+            }
 
             if (!moving)
             {
@@ -405,6 +442,18 @@ namespace GasQueue
         /// <summary>Депутат с мигалкой: по левому ряду и через выезд — к месту ожидания у магазина.</summary>
         /// <summary>Это депутатская машина (остаётся таковой и у колонки, и на выезде).</summary>
         public bool IsVip { get; private set; }
+
+        /// <summary>Скорая или ДПС — стоят в общей очереди, как все.</summary>
+        public ServiceKind Service;
+
+        /// <summary>Ездит на газу: стоит в общей очереди только до въезда, потом сворачивает к пропану.</summary>
+        public bool IsGas;
+
+        static readonly string[] GasBranchLines =
+        {
+            "Пока, лохи! У меня газ!", "Удачи с бензином!", "Бензина нет? А газ есть!", "Газ — сила, бензин — могила!",
+            "Всем привет, я на пропан!", "Учитесь, пока я жив!",
+        };
         VipLights vipLights;
 
         public void SetupVip(LanePath path)
@@ -471,6 +520,40 @@ namespace GasQueue
             }
         }
 
+        // ---------- Газ ----------
+
+        void BranchToGas()
+        {
+            Role = NpcRole.ToGas;
+            Path = traffic.GasInPath;
+            S = Path.Project(transform.position, out _);
+            Offset = targetOffset = 0f;
+            StopAtEnd = true;
+            Say(GasBranchLines[Random.Range(0, GasBranchLines.Length)]);
+            if (Random.value < 0.5f) Honk();
+            traffic.OnGasCarBranched(this);
+        }
+
+        void StartGasFueling()
+        {
+            Role = NpcRole.GasFueling;
+            serviceDuration = traffic.Settings.PumpServiceTime * Random.Range(0.25f, 0.4f); // газ льют быстро, без кассы
+            serviceTimer = 0f;
+            Speed = 0f;
+            moving = false;
+        }
+
+        void StartGasExit()
+        {
+            Role = NpcRole.Exiting;
+            Path = traffic.GasOutPath;
+            S = 0f;
+            StopAtEnd = false;
+            moving = false;
+            reactTimer = 0f;
+            reactionDelay = Random.Range(0.3f, 1f);
+        }
+
         void StartExit()
         {
             Role = NpcRole.Exiting;
@@ -488,7 +571,7 @@ namespace GasQueue
         {
             Honk();
             Say(CursesAfterCrash[Random.Range(0, CursesAfterCrash.Length)]);
-            bool parked = Role == NpcRole.Queue || Role == NpcRole.Fueling || Role == NpcRole.ToPump;
+            bool parked = Role == NpcRole.Queue || Role == NpcRole.Fueling || Role == NpcRole.ToPump || Role == NpcRole.GasFueling;
             if (impactSpeed > 1.8f && parked)
             {
                 // Водитель выходит разбираться
@@ -628,7 +711,8 @@ namespace GasQueue
         void UpdateGivingUp(float dt)
         {
             giveUpTimer += dt;
-            if (pathAfterLaneChange != null && laneBlockedTimer > 4f)
+            // Отказываемся раньше, чем включится «протиснуться» (3 с), пока ещё больше чем наполовину в своём ряду
+            if (pathAfterLaneChange != null && laneBlockedTimer > (Mathf.Abs(Offset) < 2f ? 2.5f : 4f))
             {
                 // Боком не протиснуться — передумал, возвращается на место в очереди
                 targetOffset = 0f;

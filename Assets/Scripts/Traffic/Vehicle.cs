@@ -2,6 +2,9 @@ using UnityEngine;
 
 namespace GasQueue
 {
+    /// <summary>Спецмашины, которые стоят в очереди со всеми: колонка «для своих» — только для депутатов.</summary>
+    public enum ServiceKind { None, Ambulance, Police }
+
     /// <summary>Любая машина на дороге: и NPC, и машина игрока.</summary>
     public abstract class Vehicle : MonoBehaviour
     {

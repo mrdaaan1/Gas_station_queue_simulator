@@ -17,6 +17,7 @@ namespace GasQueue
         public Transform steeringWheel;
         public Transform driverEyes;
         public Transform driverHead;
+        public Transform passengerHead, passengerTorso;          // пассажир справа (есть не у всех)
         public Transform mirrorRear, mirrorLeft, mirrorRight; // стёкла зеркал машины игрока (CarMirrors)
         public Transform driverTorso;
         public Transform leftHand, rightHand, leftArm, rightArm;
@@ -132,10 +133,10 @@ namespace GasQueue
         };
 
         /// <summary>Машина игрока (с полным салоном) или NPC одной из моделей <see cref="CarModels"/>.</summary>
-        public static CarVisual Build(string name, Color paint, CarModel model, bool isPlayer, bool taxi = false)
+        public static CarVisual Build(string name, Color paint, CarModel model, bool isPlayer, bool taxi = false, ServiceKind service = ServiceKind.None)
         {
             if (isPlayer) return BuildPlayer(name, paint);
-            return CarModels.Build(name, model, paint, taxi);
+            return CarModels.Build(name, model, paint, taxi, service);
         }
 
         /// <summary>«Лицо» машины игрока в стиле ВАЗ-2107: хромированная решётка, прямоугольные фары, хромированные бамперы.</summary>

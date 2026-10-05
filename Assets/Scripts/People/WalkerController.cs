@@ -72,6 +72,25 @@ namespace GasQueue
 
         public void Hide() => gameObject.SetActive(false);
 
+        GiantCigarette cigarette;
+        public bool Smoking => cigarette != null;
+
+        public void GiveCigarette()
+        {
+            if (cigarette != null) return;
+            cigarette = gameObject.AddComponent<GiantCigarette>();
+            cigarette.Init(Rig, traffic.WorldRoot);
+        }
+
+        /// <summary>Выбросить сигарету. Возвращает true, если она была.</summary>
+        public bool DropCigarette()
+        {
+            if (cigarette == null) return false;
+            cigarette.Throw();
+            cigarette = null;
+            return true;
+        }
+
         void Update()
         {
             float dt = Time.deltaTime;
@@ -80,6 +99,11 @@ namespace GasQueue
             var input = GameInput.Move;
             var gm = GameManager.Instance;
             if (gm != null && gm.DialogOpen) input = Vector2.zero;
+            if (cigarette != null && cigarette.Finished)
+            {
+                DropCigarette();
+                gm?.OnCigaretteFinished();
+            }
             if (Fighter.Down)
             {
                 // Лежим, пока не очухаемся (если сбили на крыше — падаем на асфальт)

@@ -2,6 +2,22 @@ using UnityEngine;
 
 namespace GasQueue
 {
+    /// <summary>Красно-синие мигалки скорой и ДПС. Сирена молчит: в очереди стоят как все.</summary>
+    public class ServiceLights : MonoBehaviour
+    {
+        public Renderer red, blue;
+        static readonly Color RedOn = new Color(1f, 0.15f, 0.12f), RedOff = new Color(0.35f, 0.05f, 0.05f);
+        static readonly Color BlueOn = new Color(0.25f, 0.5f, 1f), BlueOff = new Color(0.06f, 0.12f, 0.35f);
+
+        void Update()
+        {
+            if (red == null || blue == null) return;
+            bool phase = Mathf.Repeat(Time.time * 2.5f + transform.position.z * 0.1f, 1f) < 0.5f;
+            red.sharedMaterial = Shapes.Mat(phase ? RedOn : RedOff);
+            blue.sharedMaterial = Shapes.Mat(phase ? BlueOff : BlueOn);
+        }
+    }
+
     /// <summary>Синяя мигалка и сирена депутатского автомобиля.</summary>
     public class VipLights : MonoBehaviour
     {
