@@ -121,6 +121,11 @@ namespace GasQueue
                 case "stripe_yellow": return Surface(Hex("#f2c81a"), 0.6f, 0f);
                 case "leather_tan": return Surface(Hex("#c49a6c"), 0.4f, 0f);
                 case "carbon": return Surface(Hex("#2b2d31"), 0.8f, 0.3f);
+                case "stripe_white": return Surface(Hex("#f7f7f7"), 0.7f, 0f);
+                case "stripe_magenta": return Surface(Hex("#c2188a"), 0.75f, 0f);
+                case "stripe_purple": return Surface(Hex("#6b1f8e"), 0.75f, 0f);
+                case "fur_pink": return Surface(Hex("#f3d6dc"), 0f, 0f);
+                case "tail_smoke": return Glow(Hex("#3a0c10"), Hex("#2a0004"));
                 case "glass_dark": return Surface(Hex("#0e1216"), 0.92f, 0.3f);
                 case "chassis": return Surface(Hex("#1b1b1c"), 0.15f, 0f);
                 case "rim_black": return Surface(Hex("#151517"), 0.6f, 0.4f);

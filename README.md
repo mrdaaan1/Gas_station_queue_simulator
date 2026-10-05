@@ -90,7 +90,7 @@ Assets/
     World/   CityLayout (все координаты), CityBuilder (город и заправка), CarModels (2107, Rio-такси, Нива, Газель), CarFactory (машина игрока), TextureFactory, MeshFactory, StationProps,
              SportsCars (спорткары для игрока), ModelSpawner (сетка → объекты Unity, материалы CarMaterials)
     World/Models/  ModelKit (гладкие поверхности, тела вращения, трубки), CarBody (кузов по сечениям, фары/швы по поверхности),
-                   SportsCarModel (общие детали), SupraModel (Тоёта Супра Mk4, правый руль), GelikModel («Гелик» 2025), SkylineModel (R34 из «Двойного форсажа»), Rx7Model (RX-7 Доминика), WheelModel (диски и шины) — чистый C# без Unity-объектов
+                   SportsCarModel (общие детали), SupraModel (Тоёта Супра Mk4, правый руль), GelikModel («Гелик» 2025), SkylineModel (R34 из «Двойного форсажа»), Rx7Model (RX-7 Доминика), S2000Model (родстер Суки), WheelModel (диски и шины) — чистый C# без Unity-объектов
   Resources/Shaders/WorldText.shader — шрифт с учётом глубины (надписи не просвечивают)
     Audio/   SoundFactory (звуки генерируются кодом), Radio
     UI/      Hud, PauseMenu, MainMenu
