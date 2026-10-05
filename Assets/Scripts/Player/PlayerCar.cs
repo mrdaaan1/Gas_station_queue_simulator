@@ -11,11 +11,9 @@ namespace GasQueue
     /// </summary>
     public class PlayerCar : Vehicle
     {
-        const float Accel = 3.6f;
         const float ReverseAccel = 2.5f;
         const float BrakeDecel = 9f;
         const float CoastDecel = 1.2f;
-        const float MaxSpeed = 16f;
         const float MaxReverse = 4f;
         const float Wheelbase = 2.6f;
         const float MaxSteer = 34f;
@@ -97,11 +95,11 @@ namespace GasQueue
             // Газ, тормоз, задний ход
             // Побитая машина тянет хуже
             float power = Mathf.Lerp(0.4f, 1f, Mathf.Clamp01(damage.Health / 60f));
-            float maxSpeed = MaxSpeed * power;
+            float maxSpeed = visual.maxSpeed * power;
             if (gas)
             {
                 if (Speed < -0.1f) Speed = Mathf.Min(0f, Speed + BrakeDecel * dt);
-                else if (running) Speed = Mathf.Min(maxSpeed, Speed + Accel * power * (1f - Speed / (maxSpeed * 1.2f)) * dt);
+                else if (running) Speed = Mathf.Min(maxSpeed, Speed + visual.accel * power * (1f - Speed / (maxSpeed * 1.2f)) * dt);
             }
             else if (back)
             {
@@ -111,7 +109,9 @@ namespace GasQueue
             else Speed = Mathf.MoveTowards(Speed, 0f, CoastDecel * dt);
 
             // Руль: быстрее возвращается в ноль, на скорости поворачивается меньше
-            float maxSteer = Mathf.Lerp(MaxSteer, 14f, Mathf.Clamp01(Mathf.Abs(Speed) / MaxSpeed));
+            // Спорткар на большой скорости рулит ещё аккуратнее
+            float maxSteer = Mathf.Lerp(MaxSteer, 14f, Mathf.Clamp01(Mathf.Abs(Speed) / 16f));
+            if (Mathf.Abs(Speed) > 16f) maxSteer = Mathf.Lerp(14f, 5f, Mathf.Clamp01((Mathf.Abs(Speed) - 16f) / 30f));
             float targetSteer = steerInput * maxSteer;
             float rate = Mathf.Abs(targetSteer) < Mathf.Abs(SteerAngle) ? SteerSpeed * 1.6f : SteerSpeed;
             SteerAngle = Mathf.MoveTowards(SteerAngle, targetSteer, rate * dt);
@@ -134,7 +134,10 @@ namespace GasQueue
 
             UpdateBlinkers(dt);
             UpdateDashboard(dt);
-            engine.pitch = 0.8f + Mathf.Abs(Speed) / MaxSpeed * 1.1f + (gas && running ? 0.15f : 0f);
+            engine.pitch = visual.sporty
+                ? 0.7f + Rpm / 7000f * 1.3f
+                : 0.8f + Mathf.Abs(Speed) / visual.maxSpeed * 1.1f + (gas && running ? 0.15f : 0f);
+            throttle = gas && running;
         }
 
         // ---------- Поворотники ----------
@@ -339,6 +342,29 @@ namespace GasQueue
             GameManager.Instance.OnCarKicked(report);
         }
 
+        bool throttle;
+        float shownRpm;
+
+        /// <summary>Обороты мотора: шесть передач, на каждой стрелка тахометра бежит от ~3000 до отсечки.</summary>
+        public float Rpm
+        {
+            get
+            {
+                if (Engine != EngineState.Running) return 0f;
+                float v = Mathf.Abs(Speed);
+                const int gears = 6;
+                float top = visual.maxSpeed;
+                float idle = throttle ? 1900f : 950f;
+                if (v < 0.3f) return idle;
+                // Передача i ведёт от top·(i−1)/6 до top·i/6
+                float g = Mathf.Clamp(v / top * gears, 0f, gears - 0.001f);
+                int gear = (int)g;
+                float frac = g - gear;
+                float low = gear == 0 ? 1200f : 3200f;
+                return Mathf.Max(idle, Mathf.Lerp(low, 7600f, frac) + (throttle ? 300f : 0f));
+            }
+        }
+
         public void AddFuelLiters(float liters) => fuel = Mathf.Clamp01(fuel + liters / settings.tankLiters);
 
         void UpdateDashboard(float dt)
@@ -352,7 +378,13 @@ namespace GasQueue
                 visual.fuelNeedle.localRotation = Quaternion.Euler(0, 0, Mathf.MoveTowards(current, target, dt * 60f));
             }
             if (visual.speedNeedle != null)
-                visual.speedNeedle.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(120f, -120f, SpeedKmh / 120f));
+                visual.speedNeedle.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(120f, -120f, SpeedKmh / visual.speedoMaxKmh));
+            if (visual.tachNeedle != null)
+            {
+                float rpm = ignition && Engine == EngineState.Running ? Rpm : 0f;
+                shownRpm = Mathf.MoveTowards(shownRpm, rpm, dt * 9000f);
+                visual.tachNeedle.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(120f, -120f, shownRpm / 9000f));
+            }
 
             lampBlink += dt;
             bool reserve = ignition && fuel < 0.1f && Mathf.Repeat(lampBlink, 1f) < 0.6f;
@@ -361,7 +393,7 @@ namespace GasQueue
 
             // Руль в салоне крутится вместе с колёсами (в 8 раз сильнее, как у настоящей машины)
             if (visual.steeringWheel != null)
-                visual.steeringWheel.localRotation = Quaternion.Euler(-65f, 0, 0) * Quaternion.Euler(0, SteerAngle * 8f, 0);
+                visual.steeringWheel.localRotation = Quaternion.Euler(visual.steeringTilt, 0, 0) * Quaternion.Euler(0, SteerAngle * 8f, 0);
             visual.UpdateArms();
         }
     }

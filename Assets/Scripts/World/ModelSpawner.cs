@@ -1,0 +1,178 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+
+namespace GasQueue
+{
+    /// <summary>
+    /// Превращает модель из <see cref="ModelKit"/> (чистые данные) в объекты Unity.
+    /// Сетки строятся один раз и переиспользуются всеми экземплярами (у каждой машины свои только материалы).
+    /// </summary>
+    public static class ModelSpawner
+    {
+        static readonly Dictionary<ModelNode, Mesh> meshes = new Dictionary<ModelNode, Mesh>();
+
+        /// <summary>Создать дерево объектов под parent. Возвращает узлы по именам.</summary>
+        public static Dictionary<string, Transform> Spawn(ModelNode node, Transform parent, Func<string, Material> material)
+        {
+            var map = new Dictionary<string, Transform>();
+            Build(node, parent, material, map);
+            return map;
+        }
+
+        static void Build(ModelNode node, Transform parent, Func<string, Material> material, Dictionary<string, Transform> map)
+        {
+            var go = new GameObject(node.name);
+            var t = go.transform;
+            t.SetParent(parent, false);
+            t.localPosition = node.pos;
+            t.localRotation = Quaternion.Euler(node.euler);
+            if (!map.ContainsKey(node.name)) map[node.name] = t;
+
+            var mesh = MeshOf(node);
+            if (mesh != null)
+            {
+                go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var r = go.AddComponent<MeshRenderer>();
+                var mats = new List<Material>();
+                for (int i = 0; i < node.mats.Count; i++)
+                    if (node.meshes[i].t.Count > 0) mats.Add(material(node.mats[i]));
+                r.sharedMaterials = mats.ToArray();
+            }
+            foreach (var c in node.children) Build(c, t, material, map);
+        }
+
+        static Mesh MeshOf(ModelNode node)
+        {
+            // Сетку могли уничтожить при выходе из Play (если домен не перезагружается) — тогда строим заново
+            if (meshes.TryGetValue(node, out var cached) && cached != null) return cached;
+            Mesh mesh = null;
+            int total = 0, subs = 0;
+            foreach (var m in node.meshes)
+            {
+                if (m.t.Count == 0) continue;
+                total += m.v.Count;
+                subs++;
+            }
+            if (subs > 0)
+            {
+                var v = new List<Vector3>(total);
+                var n = new List<Vector3>(total);
+                var uv = new List<Vector2>(total);
+                var tris = new List<int[]>();
+                foreach (var m in node.meshes)
+                {
+                    if (m.t.Count == 0) continue;
+                    int start = v.Count;
+                    v.AddRange(m.v);
+                    n.AddRange(m.n);
+                    uv.AddRange(m.uv);
+                    var t = new int[m.t.Count];
+                    for (int i = 0; i < t.Length; i++) t[i] = m.t[i] + start;
+                    tris.Add(t);
+                }
+                mesh = new Mesh { name = node.name };
+                if (v.Count > 65000) mesh.indexFormat = IndexFormat.UInt32;
+                mesh.SetVertices(v);
+                mesh.SetNormals(n);
+                mesh.SetUVs(0, uv);
+                mesh.subMeshCount = tris.Count;
+                for (int i = 0; i < tris.Count; i++) mesh.SetTriangles(tris[i], i);
+                mesh.RecalculateBounds();
+            }
+            meshes[node] = mesh;
+            return mesh;
+        }
+    }
+
+    /// <summary>Материалы спорткаров по ключам из моделей: глянцевая краска, хром, кожа, светящиеся фонари.</summary>
+    public static class CarMaterials
+    {
+        static readonly Dictionary<string, Material> cache = new Dictionary<string, Material>();
+        static Material glowBase;
+
+        public static Material Get(string key, Color paint)
+        {
+            string id = key == "paint" ? "paint" + ColorUtility.ToHtmlStringRGB(paint) : key;
+            if (cache.TryGetValue(id, out var m) && m != null) return m;
+            m = Create(key, paint);
+            m.name = "Car_" + id;
+            cache[id] = m;
+            return m;
+        }
+
+        static Material Create(string key, Color paint)
+        {
+            switch (key)
+            {
+                case "paint": return Surface(paint, 0.82f, 0.25f);
+                case "glass":
+                {
+                    var g = new Material(MeshFactory.Glass) { color = new Color(0.12f, 0.16f, 0.2f, 0.42f) };
+                    return g;
+                }
+                case "lens": return new Material(MeshFactory.Glass) { color = new Color(0.85f, 0.9f, 0.95f, 0.12f) };
+                case "black": return Surface(Hex("#0b0b0d"), 0.45f, 0f);
+                case "liner": return Surface(Hex("#0c0c0c"), 0.05f, 0f);
+                case "grille": return Surface(Hex("#0d0d0f"), 0.2f, 0f);
+                case "rubber": return Surface(Hex("#151515"), 0.12f, 0f);
+                case "tread": return Surface(Hex("#0a0a0a"), 0.05f, 0f);
+                case "chrome": return Surface(Hex("#e8ecf0"), 0.92f, 0.85f);
+                case "mirror": return Surface(Hex("#cfd6de"), 0.95f, 0.9f);
+                case "alloy": return Surface(Hex("#cfd2d6"), 0.8f, 0.75f);
+                case "rim_inner": return Surface(Hex("#74787d"), 0.5f, 0.6f);
+                case "disc": return Surface(Hex("#6a6c70"), 0.5f, 0.7f);
+                case "caliper": return Surface(Hex("#b5161b"), 0.6f, 0.1f);
+                case "housing": return Surface(Hex("#202328"), 0.75f, 0.3f);
+                case "reflector": return Surface(Hex("#f0f2f4"), 0.95f, 0.9f);
+                case "lamp_glow": return Glow(Hex("#fff7e0"), Hex("#ffe9b8") * 0.6f);
+                case "amber": return Glow(Hex("#ff8a1c"), Hex("#4a2000"));
+                case "tail_red": return Glow(Hex("#d0141c"), Hex("#5a0005"));
+                case "tail_clear": return Surface(Hex("#e2e8ee"), 0.85f, 0.3f);
+                case "plate": return Surface(Hex("#f4f4f2"), 0.4f, 0f);
+                case "int_door": return Surface(Hex("#1d1d20"), 0.2f, 0f);
+                case "int_roof": return Surface(Hex("#3c3c41"), 0.05f, 0f);
+                case "carpet": return Surface(Hex("#161616"), 0f, 0f);
+                case "leather_red": return Surface(Hex("#9e1219"), 0.45f, 0f);
+                case "leather_black": return Surface(Hex("#141416"), 0.45f, 0f);
+                case "int_black": return Surface(Hex("#1a1a1d"), 0.3f, 0f);
+                case "int_grey": return Surface(Hex("#8b8e93"), 0.55f, 0.35f);
+                case "gauge_face": return Surface(Hex("#0a0a0b"), 0.6f, 0f);
+                case "gauge_glow": return Glow(Hex("#ff4a1a"), Hex("#ff3000") * 0.9f);
+                case "white": return Glow(Hex("#f2f2f2"), Hex("#606060"));
+                case "needle": return Glow(Hex("#ff3320"), Hex("#801500"));
+                case "screen": return Glow(Hex("#0c1a12"), Hex("#0c2a18"));
+                case "lamp_off": return Surface(Hex("#3a2a10"), 0.3f, 0f);
+                case "skin": return Surface(Hex("#e2b08a"), 0.1f, 0f);
+                case "hair": return Surface(Hex("#3a2717"), 0.1f, 0f);
+                case "jacket": return Surface(Hex("#2a2c33"), 0.1f, 0f);
+                default: return Surface(Color.magenta, 0.3f, 0f);
+            }
+        }
+
+        static Color Hex(string h) => Shapes.Hex(h);
+
+        static Material Surface(Color c, float smoothness, float metallic)
+        {
+            var m = new Material(Shapes.Mat(Color.white)) { color = c };
+            if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", smoothness);
+            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", smoothness);
+            if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", metallic);
+            return m;
+        }
+
+        /// <summary>Светится сам по себе (фонари, подсветка приборов). Основа — материал из Resources, чтобы вариант шейдера с подсветкой попал в сборку.</summary>
+        static Material Glow(Color c, Color emission)
+        {
+            if (glowBase == null) glowBase = Resources.Load<Material>("GasQueueGenerated/Glow");
+            var m = glowBase != null ? new Material(glowBase) { color = c } : Surface(c, 0.6f, 0f);
+            if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", 0.7f);
+            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.7f);
+            m.EnableKeyword("_EMISSION");
+            if (m.HasProperty("_EmissionColor")) m.SetColor("_EmissionColor", emission);
+            m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+            return m;
+        }
+    }
+}

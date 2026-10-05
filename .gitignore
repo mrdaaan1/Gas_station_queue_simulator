@@ -39,9 +39,10 @@ crashlytics-build.properties
 Thumbs.db
 desktop.ini
 
-# Сборка симулятора
+# Сборка симулятора и просмотрщика моделей
 Tools/**/bin/
 Tools/**/obj/
+Tools/**/node_modules/
 !Tools/**/*.csproj
 
 # Материалы, которые редактор сохраняет перед сборкой (свои для каждого проекта)

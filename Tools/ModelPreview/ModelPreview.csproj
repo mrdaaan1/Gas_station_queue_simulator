@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><LangVersion>9.0</LangVersion><EnableDefaultCompileItems>false</EnableDefaultCompileItems><Nullable>disable</Nullable><Optimize>true</Optimize><NoWarn>CS0414;CS0649;CS0169</NoWarn></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Assets/Scripts/World/Models/*.cs" />
+    <Compile Include="*.cs" />
+  </ItemGroup>
+</Project>

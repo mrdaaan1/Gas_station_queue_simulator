@@ -87,7 +87,10 @@ Assets/
     People/  Human (человечек: ходьба, удары, прыжок, падение, синяки), Fighter (здоровье и драка), Brawler (возмущённый водитель), Vendor (продавцы),
              PumpCustomer (водитель NPC идёт платить), CashierLine (очередь в кассу), CarChatter (диалоги водителя и пассажира),
              GiantCigarette (огромная сигарета), WalkerController (игрок пешком: прыжки, залезть на машину)
-    World/   CityLayout (все координаты), CityBuilder (город и заправка), CarModels (2107, Rio-такси, Нива, Газель), CarFactory (машина игрока), TextureFactory, MeshFactory, StationProps
+    World/   CityLayout (все координаты), CityBuilder (город и заправка), CarModels (2107, Rio-такси, Нива, Газель), CarFactory (машина игрока), TextureFactory, MeshFactory, StationProps,
+             SportsCars (спорткары для игрока), ModelSpawner (сетка → объекты Unity, материалы CarMaterials)
+    World/Models/  ModelKit (гладкие поверхности, тела вращения, трубки), CarBody (кузов по сечениям, фары/швы по поверхности),
+                   SupraModel (Тоёта Супра Mk4, правый руль), WheelModel (диски и шины) — чистый C# без Unity-объектов
   Resources/Shaders/WorldText.shader — шрифт с учётом глубины (надписи не просвечивают)
     Audio/   SoundFactory (звуки генерируются кодом), Radio
     UI/      Hud, PauseMenu, MainMenu
@@ -122,6 +125,12 @@ Assets/
 - **Нажимаю Play, а там пусто**: проверьте, что открыта сцена `Prototype` (меню **Gas Queue → Open Prototype Scene**).
 - **Клавиши не работают**: кликните по окну Game, чтобы оно получило фокус.
 - **Любая красная ошибка в Console**: скопируйте её текст целиком и пришлите Claude.
+
+## Просмотр моделей машин
+
+`Tools/ModelPreview` собирает модель из `World/Models` без Unity и рендерит её с нескольких ракурсов
+(three.js в headless-браузере): `bash Tools/ModelPreview/run.sh имя`. Так Claude проверяет форму кузова,
+не запуская игру.
 
 ## Симулятор очереди
 

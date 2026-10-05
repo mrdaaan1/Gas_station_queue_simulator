@@ -22,6 +22,9 @@ namespace GasQueue
         public CameraMode Mode { get; private set; } = CameraMode.Cabin;
         public bool FootFirstPerson { get; private set; }
         public bool OnFoot => onFoot;
+
+        /// <summary>Витрина в главном меню: камера медленно облетает машину игрока.</summary>
+        public bool Showcase;
         public bool CursorLocked => Cursor.lockState == CursorLockMode.Locked;
 
         /// <summary>Куда смотрит камера по горизонтали, когда игрок пешком (для ходьбы относительно камеры).</summary>
@@ -64,7 +67,8 @@ namespace GasQueue
             onFoot = value;
             if (value)
             {
-                footYaw = player.transform.eulerAngles.y - 90f; // выходим из левой двери — смотрим от машины
+                // Выходим из водительской двери (у праворульной — справа) — смотрим от машины
+                footYaw = player.transform.eulerAngles.y + (player.visual.rightHandDrive ? 90f : -90f);
                 footPitch = 10f;
             }
             yaw = pitch = 0f;
@@ -135,8 +139,13 @@ namespace GasQueue
         {
             if (player == null) return;
             // Водитель за рулём: в салоне видны только руки (голова — это мы), снаружи — весь; вышел — пусто
-            bool inside = !onFoot && Mode == CameraMode.Cabin;
+            bool inside = !onFoot && Mode == CameraMode.Cabin && !Showcase;
             player.visual.SetDriverVisible(!onFoot && !inside, !onFoot);
+            if (Showcase)
+            {
+                PlaceShowcase();
+                return;
+            }
             if (onFoot && walker != null)
             {
                 FollowWalker();
@@ -151,7 +160,7 @@ namespace GasQueue
                 {
                     // Оборачиваясь назад, водитель немного наклоняется к центру салона
                     float turn = Mathf.Clamp01((Mathf.Abs(yaw) - 60f) / 100f);
-                    var lean = new Vector3(turn * 0.2f, 0f, -turn * 0.05f);
+                    var lean = new Vector3(turn * 0.2f * (player.visual.rightHandDrive ? -1f : 1f), 0f, -turn * 0.05f);
                     transform.position = player.visual.driverEyes.TransformPoint(lean);
                     transform.rotation = car.rotation * Quaternion.Euler(pitch + 4f, yaw, 0f);
                     break;
@@ -176,6 +185,19 @@ namespace GasQueue
                     break;
                 }
             }
+        }
+
+        /// <summary>Облёт слева спереди → слева сзади и обратно (с другой стороны — колонки и забор).</summary>
+        void PlaceShowcase()
+        {
+            var car = player.transform;
+            float t = Time.unscaledTime;
+            float angle = -85f + Mathf.Sin(t * 0.13f) * 62f;
+            var dir = Quaternion.Euler(0f, car.eulerAngles.y + angle, 0f) * Vector3.forward;
+            var target = car.position + Vector3.up * 0.65f;
+            transform.position = target + dir * 5.6f + Vector3.up * (0.9f + Mathf.Sin(t * 0.09f) * 0.3f);
+            // Машина — в правой части экрана: слева панель меню
+            transform.rotation = Quaternion.LookRotation(target - transform.position) * Quaternion.Euler(0f, -13f, 0f);
         }
 
         void FollowWalker()

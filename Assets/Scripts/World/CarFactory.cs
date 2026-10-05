@@ -44,6 +44,22 @@ namespace GasQueue
         /// <summary>Поворотник: −1 левый, +1 правый, 0 выключен.</summary>
         public int blinker;
 
+        // Особенности модели (у «Жигулей» — значения по умолчанию)
+        public bool rightHandDrive;
+        public bool sporty;
+        /// <summary>Высота капота и багажника — на них можно залезть (−1 — считать от высоты машины).</summary>
+        public float hoodTop = -1f;
+        public float wheelRadius = 0.33f;
+        /// <summary>Максимальная скорость (м/с), разгон (м/с²), шкала спидометра.</summary>
+        public float maxSpeed = 16f, accel = 3.6f, speedoMaxKmh = 120f;
+        /// <summary>Наклон руля к водителю (градусы вокруг X).</summary>
+        public float steeringTilt = -65f;
+        public Transform tachNeedle;
+        /// <summary>Плечи водителя (локально в кузове) — от них тянутся руки к рулю.</summary>
+        public Vector3 shoulderL = new Vector3(-0.6f, 1.18f, -0.55f), shoulderR = new Vector3(-0.16f, 1.18f, -0.55f);
+        /// <summary>Материалы поворотника (если null — простые цвета).</summary>
+        public Material blinkOffMat, blinkOnMat;
+
         float bounce;
         int shownBlinker;
         bool blinkOn;
@@ -55,7 +71,7 @@ namespace GasQueue
         public void Roll(float distance)
         {
             if (Mathf.Abs(distance) < 0.0001f) return;
-            float deg = distance / (2 * Mathf.PI * 0.33f) * 360f;
+            float deg = distance / (2 * Mathf.PI * wheelRadius) * 360f;
             foreach (var w in wheels) w.Rotate(Vector3.up, deg, Space.Self);
         }
 
@@ -63,8 +79,8 @@ namespace GasQueue
         public void UpdateArms()
         {
             if (leftArm == null || body == null) return;
-            UpdateArm(leftArm, leftHand, new Vector3(-0.6f, 1.18f, -0.55f));
-            UpdateArm(rightArm, rightHand, new Vector3(-0.16f, 1.18f, -0.55f));
+            UpdateArm(leftArm, leftHand, shoulderL);
+            UpdateArm(rightArm, rightHand, shoulderR);
         }
 
         void UpdateArm(Transform arm, Transform hand, Vector3 shoulderLocal)
@@ -83,6 +99,19 @@ namespace GasQueue
             if (driverTorso != null && driverTorso.gameObject.activeSelf != body) driverTorso.gameObject.SetActive(body);
             foreach (var t in new[] { leftArm, rightArm, leftHand, rightHand })
                 if (t != null && t.gameObject.activeSelf != arms) t.gameObject.SetActive(arms);
+        }
+
+        Material BlinkMat(bool lit)
+        {
+            if (blinkOffMat == null) return Shapes.Mat(lit ? BlinkOn : BlinkOff);
+            if (!lit) return blinkOffMat;
+            if (blinkOnMat == null)
+            {
+                blinkOnMat = new Material(blinkOffMat) { name = "BlinkOn", color = BlinkOn };
+                blinkOnMat.EnableKeyword("_EMISSION");
+                if (blinkOnMat.HasProperty("_EmissionColor")) blinkOnMat.SetColor("_EmissionColor", BlinkOn * 1.6f);
+            }
+            return blinkOnMat;
         }
 
         public void Steer(float angle)
@@ -105,8 +134,8 @@ namespace GasQueue
             if (on == blinkOn && blinker == shownBlinker) return;
             blinkOn = on;
             shownBlinker = blinker;
-            foreach (var r in leftBlinkers) if (r != null) r.sharedMaterial = Shapes.Mat(on && blinker < 0 ? BlinkOn : BlinkOff);
-            foreach (var r in rightBlinkers) if (r != null) r.sharedMaterial = Shapes.Mat(on && blinker > 0 ? BlinkOn : BlinkOff);
+            foreach (var r in leftBlinkers) if (r != null) r.sharedMaterial = BlinkMat(on && blinker < 0);
+            foreach (var r in rightBlinkers) if (r != null) r.sharedMaterial = BlinkMat(on && blinker > 0);
         }
     }
 

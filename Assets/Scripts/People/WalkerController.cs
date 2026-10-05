@@ -226,7 +226,7 @@ namespace GasQueue
             return overCabin ? v.visual.height : HoodHeight(v);
         }
 
-        static float HoodHeight(Vehicle v) => Mathf.Min(1.0f, v.visual.height - 0.3f);
+        static float HoodHeight(Vehicle v) => v.visual.hoodTop > 0f ? v.visual.hoodTop : Mathf.Min(1.0f, v.visual.height - 0.3f);
 
         bool HitsHigherLevel(Vector2 p)
         {

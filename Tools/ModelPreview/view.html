@@ -1,0 +1,70 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>html,body{margin:0;background:#cfd6dd}</style></head>
+<body>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+// Просмотр модели машины: материалы по ключам, как в игре (CarMaterials)
+const params = new URLSearchParams(location.search);
+const paint = params.get('paint') || '#c8141e';
+const W = +(params.get('w') || 1000), H = +(params.get('h') || 620);
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(W, H);
+renderer.shadowMap.enabled = true;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#cfd6dd');
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+sun.position.set(4, 8, 5); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4 });
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xdde6ff, 0x404040, 0.6));
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshStandardMaterial({ color: '#8a8d90', roughness: 0.95 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+
+const std = (c, r = 0.5, m = 0, extra = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m, ...extra });
+const mats = {
+  paint: new THREE.MeshPhysicalMaterial({ color: paint, roughness: 0.32, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.05 }),
+  glass: new THREE.MeshPhysicalMaterial({ color: '#1d2a33', roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.55 }),
+  lens: new THREE.MeshPhysicalMaterial({ color: '#e8f0f6', roughness: 0.03, metalness: 0.1, transparent: true, opacity: 0.22 }),
+  black: std('#0b0b0d', 0.55), trim: std('#151517', 0.7), rubber: std('#141414', 0.9), tread: std('#0a0a0a', 0.95),
+  chrome: std('#e4e8ec', 0.12, 1), alloy: std('#c9ccd0', 0.25, 0.9), rim_inner: std('#7d8186', 0.45, 0.7),
+  disc: std('#6a6c70', 0.5, 0.8), caliper: std('#b5161b', 0.4, 0.2), housing: std('#25282d', 0.35, 0.4),
+  reflector: std('#f0f2f4', 0.1, 1), amber: std('#ff8a1c', 0.3, 0, { emissive: '#3a1800' }), tail_red: std('#c8121a', 0.25, 0, { emissive: '#3a0003' }),
+  tail_clear: std('#dde6ee', 0.15, 0.3), lamp_glow: std('#fff7e0', 0.2, 0, { emissive: '#fff2c8', emissiveIntensity: 0.6 }),
+  int_door: std('#1c1c1f', 0.8), int_roof: std('#3c3c41', 0.9), carpet: std('#151515', 1), leather_red: std('#9e1219', 0.55),
+  leather_black: std('#141416', 0.55), int_black: std('#1a1a1d', 0.7), int_grey: std('#8b8e93', 0.45, 0.35),
+  gauge_face: std('#0a0a0b', 0.4), gauge_glow: std('#ff3a12', 0.4, 0, { emissive: '#ff2a00', emissiveIntensity: 1.2 }),
+  white: std('#f2f2f2', 0.5), needle: std('#ff3320', 0.4, 0, { emissive: '#661100' }), plate: std('#f4f4f4', 0.4), plate_text: std('#111', 0.5),
+  grille: std('#0d0d0f', 0.85), hair: std('#3a2717', 0.8), lamp_off: std('#3a2a10', 0.5), screen: std('#0c1a12', 0.3, 0, { emissive: '#103020' }), liner: std('#0c0c0c', 0.95), mirror: std('#dfe6ee', 0.05, 1), skin: std('#e2b08a', 0.7), jacket: std('#2a2c33', 0.8),
+};
+const missing = new Set();
+const data = await (await fetch(params.get('model') || 'model.json')).json();
+const car = new THREE.Group();
+const hide = (params.get('hide') || '').split(',').filter(Boolean);
+for (const m of data.meshes) {
+  if (hide.some(h => m.node.startsWith(h) || m.mat === h)) continue;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(m.p, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(m.n, 3));
+  g.setIndex(m.i);
+  let mat = mats[m.mat];
+  if (!mat) { missing.add(m.mat); mat = std('#ff00ff', 0.5); }
+  const mesh = new THREE.Mesh(g, mat);
+  mesh.castShadow = m.mat !== 'glass' && m.mat !== 'lens'; mesh.receiveShadow = true;
+  car.add(mesh);
+}
+scene.add(car);
+const cam = new THREE.PerspectiveCamera(+(params.get('fov') || 32), W / H, 0.02, 100);
+const [px, py, pz] = (params.get('pos') || '5.5,1.8,5').split(',').map(Number);
+const [tx, ty, tz] = (params.get('at') || '0,0.55,0').split(',').map(Number);
+cam.position.set(px, py, -pz); cam.lookAt(tx, ty, -tz);
+renderer.render(scene, cam);
+document.title = 'done ' + [...missing].join(',');
+</script></body></html>

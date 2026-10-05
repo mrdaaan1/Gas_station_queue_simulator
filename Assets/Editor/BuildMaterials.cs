@@ -53,6 +53,13 @@ public class BuildMaterials : IPreprocessBuildWithReport
         GasQueue.MeshFactory.MakeTransparent(glass);
         Save("Glass", glass);
 
+        // Светящиеся фонари и приборы спорткаров: без этого Unity вырежет вариант шейдера с подсветкой
+        var glow = new Material(def);
+        glow.EnableKeyword("_EMISSION");
+        if (glow.HasProperty("_EmissionColor")) glow.SetColor("_EmissionColor", new Color(0.5f, 0.1f, 0.05f));
+        glow.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+        Save("Glow", glow);
+
         // Зеркала: картинка с камеры без освещения
         var unlit = Shader.Find(rp != null ? "Universal Render Pipeline/Unlit" : "Unlit/Texture");
         if (unlit != null) Save("Mirror", new Material(unlit));
@@ -79,7 +86,7 @@ public class BuildMaterials : IPreprocessBuildWithReport
             AssetDatabase.CreateAsset(m, path);
             return;
         }
-        if (existing.shader == m.shader && existing.renderQueue == m.renderQueue) return; // уже актуален
+        if (existing.shader == m.shader && existing.renderQueue == m.renderQueue && existing.IsKeywordEnabled("_EMISSION") == m.IsKeywordEnabled("_EMISSION")) return; // уже актуален
         EditorUtility.CopySerialized(m, existing);
         EditorUtility.SetDirty(existing);
     }

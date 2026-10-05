@@ -15,6 +15,15 @@ namespace GasQueue
         /// <summary>Показать стартовое меню после постройки мира (при запуске и «В главное меню»).</summary>
         static bool showMenu = true;
 
+        const string CarKey = "GasQueue.PlayerCar";
+
+        /// <summary>Машина игрока, выбранная в меню (запоминается между запусками).</summary>
+        public static PlayerCarKind CarChoice
+        {
+            get => (PlayerCarKind)Mathf.Clamp(PlayerPrefs.GetInt(CarKey, 0), 0, 1);
+            set => PlayerPrefs.SetInt(CarKey, (int)value);
+        }
+
         void Start()
         {
             showMenu = true;
@@ -34,7 +43,9 @@ namespace GasQueue
             var city = CityBuilder.Build(root);
             var debris = Shapes.Group("Debris", root);
 
-            var playerVisual = CarFactory.Build("PlayerCar", Shapes.Hex("#e3dccb"), CarModel.Vaz2107, true);
+            var playerVisual = CarChoice == PlayerCarKind.Supra
+                ? SportsCars.BuildSupra("PlayerCar", SportsCars.SupraRed)
+                : CarFactory.Build("PlayerCar", Shapes.Hex("#e3dccb"), CarModel.Vaz2107, true);
             playerVisual.transform.SetParent(root, false);
             var player = playerVisual.gameObject.AddComponent<PlayerCar>();
             player.Init(playerVisual, settings, debris);
@@ -63,8 +74,16 @@ namespace GasQueue
             gm.Init(settings, traffic, player, walker, rig, radio, city.barrier, city.priceBoard, city.cashier, Restart);
 
             var menu = systems.AddComponent<MainMenu>();
-            if (showMenu) menu.Open(rig);
+            if (showMenu) menu.Open(rig, ChangeCar);
             showMenu = false;
+        }
+
+        /// <summary>Выбрали другую машину в меню — перестраиваем мир с ней, меню остаётся открытым.</summary>
+        void ChangeCar(PlayerCarKind kind)
+        {
+            CarChoice = kind;
+            showMenu = true;
+            Restart();
         }
 
         void ToMenu()

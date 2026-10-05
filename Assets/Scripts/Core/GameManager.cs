@@ -458,7 +458,7 @@ namespace GasQueue
         {
             OnFoot = true;
             Player.controlsEnabled = false;
-            Walker.Appear(Player.DriverDoor, -Player.transform.right);
+            Walker.Appear(Player.DriverDoor, Player.transform.right * (Player.visual.rightHandDrive ? 1f : -1f));
             Traffic.Walker = Walker;
             CameraRig.SetOnFoot(true);
             if (!exitTipShown)
