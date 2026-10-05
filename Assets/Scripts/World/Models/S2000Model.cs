@@ -98,8 +98,8 @@ namespace GasQueue
             if (lower && z < DoorFront && z > DoorRear && p.y > 0.16f) node = side > 0 ? "DoorR" : "DoorL";
             if (seg <= SegC && z > 1.88f) node = "BumperF";
             if (seg <= SegC && z < -1.88f && p.y < 0.68f) node = "BumperR";
-            if (mat != null && mat != "glass" && seg >= SegB && seg <= SegC && z < Cowl && z > Tonneau - 0.05f && p.y > 0.22f)
-                inner = "int_door";
+            if (mat != null && mat != "glass" && seg <= SegC && z < Cowl && z > Tonneau - 0.05f)
+                inner = seg == SegA ? "carpet" : "int_door";
             if (mat == "black" && seg == SegE && z < Cowl) inner = "black"; // рамку стекла видно и изнутри
             return new CellInfo { node = node, mat = mat, innerMat = inner };
         }
@@ -125,6 +125,7 @@ namespace GasQueue
         {
             StartModel();
             Emit(N);
+            SealFirewall(N("Shell"), Cowl - 0.03f, "int_black");
             ArchLiners(N("Shell"), "liner");
             foreach (float side in new[] { 1f, -1f })
             {

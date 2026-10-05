@@ -17,7 +17,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
-scene.background = new THREE.Color('#cfd6dd');
+scene.background = new THREE.Color(params.get('bg') || '#cfd6dd');
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 const sun = new THREE.DirectionalLight(0xffffff, 2.2);
@@ -27,7 +27,7 @@ Object.assign(sun.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4 });
 scene.add(sun);
 scene.add(new THREE.HemisphereLight(0xdde6ff, 0x404040, 0.6));
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshStandardMaterial({ color: '#8a8d90', roughness: 0.95 }));
-ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; if (!params.get('bg')) scene.add(ground);
 
 const std = (c, r = 0.5, m = 0, extra = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m, ...extra });
 const mats = {

@@ -92,7 +92,7 @@ namespace GasQueue
                 else if (Between(z, RearDoorR, DoorSplit)) node = side > 0 ? "DoorRR" : "DoorRL";
             }
             if (z < -2.22f && seg >= SegB) node = "Tailgate";
-            if (mat != "glass" && seg >= SegB && z < Cowl && p.y > 0.66f) inner = seg >= SegD ? "int_roof" : "int_door";
+            if (mat != "glass" && z < Cowl) inner = seg == SegA ? "carpet" : seg >= SegD ? "int_roof" : "int_door";
             return new CellInfo { node = node, mat = mat, innerMat = inner };
         }
 
@@ -119,6 +119,7 @@ namespace GasQueue
         {
             StartModel();
             Emit(N, 200f);
+            SealFirewall(N("Shell"), Cowl - 0.03f, "int_black");
             ArchLiners(N("Shell"), "liner");
             foreach (float side in new[] { -1f, 1f })
             {

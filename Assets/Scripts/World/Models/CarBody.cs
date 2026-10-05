@@ -623,6 +623,38 @@ namespace GasQueue
             }
         }
 
+
+        /// <summary>
+        /// Моторный щит точно по сечению кузова (до линии окон): закрывает щели между торпедой и кузовом,
+        /// сквозь которые из салона было видно небо и землю.
+        /// </summary>
+        public void SealFirewall(ModelNode node, float z, string mat)
+        {
+            var m = node.M(mat);
+            var f = node.WorldFrame();
+            var st = Sec(z);
+            const int n = 40;
+            var pts = new List<Vector3>();
+            for (int i = 0; i <= n; i++) pts.Add(S(z, SegU[3] * i / n));
+            var outline = new List<Vector3>();
+            for (int i = 0; i <= n; i++) outline.Add(new Vector3(-pts[i].x, pts[i].y, z));
+            for (int i = n; i >= 0; i--) outline.Add(new Vector3(pts[i].x, pts[i].y, z));
+            var c = Vector3.zero;
+            foreach (var p in outline) c += p;
+            c /= outline.Count;
+            var nrm = f.DirToLocal(Vector3.back); // смотрит в салон
+            int ci = m.Add(f.ToLocal(c), nrm);
+            var ids = new int[outline.Count];
+            for (int i = 0; i < outline.Count; i++) ids[i] = m.Add(f.ToLocal(outline[i]), nrm);
+            for (int i = 0; i < outline.Count; i++)
+            {
+                int j = (i + 1) % outline.Count;
+                var a = m.v[ci]; var b = m.v[ids[i]]; var cc = m.v[ids[j]];
+                if (Vector3.Dot(Vector3.Cross(b - a, cc - a), nrm) >= 0f) m.Tri(ci, ids[i], ids[j]);
+                else m.Tri(ci, ids[j], ids[i]);
+            }
+        }
+
         protected static float SegLen(int seg) => SegU[seg + 1] - SegU[seg];
     }
 }

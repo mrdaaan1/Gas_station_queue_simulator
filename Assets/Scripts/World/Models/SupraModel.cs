@@ -119,8 +119,8 @@ namespace GasQueue
             if (seg <= SegC && z < -2.02f && p.y < 0.72f) node = "BumperR";
 
             // Изнанка в салоне и в багажнике
-            if (mat != "glass" && seg >= SegB && z < Cowl && z > Deck - 0.32f && p.y > 0.24f && !(seg == SegD && z < Deck + 0.04f))
-                inner = seg == SegE || seg == SegD ? "int_roof" : "int_door";
+            if (mat != "glass" && z < Cowl && z > Deck - 0.32f && !(seg == SegD && z < Deck + 0.04f))
+                inner = seg == SegA ? "carpet" : seg == SegE || seg == SegD ? "int_roof" : "int_door";
             return new CellInfo { node = node, mat = mat, innerMat = inner };
         }
 
@@ -147,6 +147,7 @@ namespace GasQueue
         {
             StartModel();
             Emit(N);
+            SealFirewall(N("Shell"), Cowl - 0.03f, "int_black");
             ArchLiners(N("Shell"), "liner");
             for (int k = 0; k < 2; k++)
             {
