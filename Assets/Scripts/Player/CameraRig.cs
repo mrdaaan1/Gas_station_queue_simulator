@@ -109,7 +109,29 @@ namespace GasQueue
             Cursor.visible = !locked;
         }
 
+        float shakeTimer, shakeStrength;
+
+        /// <summary>Тряска камеры (взрыв).</summary>
+        public void Shake(float strength, float seconds)
+        {
+            shakeStrength = Mathf.Max(shakeStrength, strength);
+            shakeTimer = Mathf.Max(shakeTimer, seconds);
+        }
+
         void LateUpdate()
+        {
+            PlaceCamera();
+            if (shakeTimer > 0f)
+            {
+                shakeTimer -= Time.unscaledDeltaTime;
+                float k = Mathf.Clamp01(shakeTimer);
+                transform.position += Random.insideUnitSphere * shakeStrength * k;
+                transform.rotation *= Quaternion.Euler(Random.Range(-1f, 1f) * shakeStrength * 6f * k, Random.Range(-1f, 1f) * shakeStrength * 6f * k, 0f);
+                if (shakeTimer <= 0f) shakeStrength = 0f;
+            }
+        }
+
+        void PlaceCamera()
         {
             if (player == null) return;
             // Водитель за рулём: в салоне видны только руки (голова — это мы), снаружи — весь; вышел — пусто

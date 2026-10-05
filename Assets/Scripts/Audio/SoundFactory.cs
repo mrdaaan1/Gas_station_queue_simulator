@@ -153,6 +153,35 @@ namespace GasQueue
             }
         }
 
+        static AudioClip explosion;
+
+        /// <summary>Взрыв: резкий хлопок, потом долгий низкий грохот с потрескиванием.</summary>
+        public static AudioClip Explosion
+        {
+            get
+            {
+                if (explosion != null) return explosion;
+                int n = (int)(Rate * 3.2f);
+                var data = new float[n];
+                var rnd = new System.Random(51);
+                float lp = 0f, lp2 = 0f;
+                for (int i = 0; i < n; i++)
+                {
+                    float t = (float)i / Rate;
+                    float noise = (float)rnd.NextDouble() * 2f - 1f;
+                    lp = Mathf.Lerp(lp, noise, 0.04f);   // низкий гул
+                    lp2 = Mathf.Lerp(lp2, noise, 0.35f); // треск
+                    float crack = noise * Mathf.Exp(-t * 30f);
+                    float boom = Mathf.Sin(2 * Mathf.PI * (48f - 20f * Mathf.Min(t, 1f)) * t) * Mathf.Exp(-t * 2.2f);
+                    float rumble = lp * 3.2f * Mathf.Exp(-t * 1.1f);
+                    float crackle = lp2 * (rnd.NextDouble() < 0.02 ? 1f : 0.15f) * Mathf.Exp(-t * 1.5f);
+                    data[i] = Mathf.Clamp(crack * 0.9f + boom * 0.9f + rumble + crackle * 0.4f, -1f, 1f);
+                }
+                explosion = Create("Explosion", data);
+                return explosion;
+            }
+        }
+
         static AudioClip punch, thud;
 
         /// <summary>Удар кулаком: короткий глухой шлепок.</summary>

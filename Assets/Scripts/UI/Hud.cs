@@ -318,7 +318,7 @@ namespace GasQueue
         void DrawFinal(GameManager gm, float w, float h, float k)
         {
             Panel(new Rect(0, 0, w, h), new Color(0.05f, 0.06f, 0.08f, 0.88f));
-            string title = gm.CarWrecked ? "МАШИНА РАЗБИТА — ВЫ ПРОИГРАЛИ" : gm.GaveUp ? "ВЫ СДАЛИСЬ" : "ВЫ ЗАПРАВИЛИСЬ!";
+            string title = gm.StationExploded ? "БА-БАХ! ВЫ ВЗОРВАЛИ ЗАПРАВКУ" : gm.CarWrecked ? "МАШИНА РАЗБИТА — ВЫ ПРОИГРАЛИ" : gm.GaveUp ? "ВЫ СДАЛИСЬ" : "ВЫ ЗАПРАВИЛИСЬ!";
             GUI.Label(new Rect(0, h * 0.06f, w, 90 * k), title, bannerStyle);
 
             int repair = gm.Player.damage.RepairCost;
@@ -339,6 +339,7 @@ namespace GasQueue
             GUI.Label(new Rect(w / 2 - 450 * k, h * 0.49f, 900 * k, h * 0.33f), ach, achStyle);
 
             GUI.Label(new Rect(0, h - 170 * k, w, 50 * k),
+                gm.StationExploded ? "Бензин на заправке закончился окончательно. Очередь расходится..." :
                 gm.CarWrecked ? "Эвакуатор приедет через три часа. В очередь." : "А через километр — пустая заправка без очереди...", accentStyle);
 
             if (finalButton == null)

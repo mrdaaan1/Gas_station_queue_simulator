@@ -31,6 +31,10 @@ namespace GasQueue
         public bool GaveUp { get; private set; }
         /// <summary>Машина разбита — игра проиграна.</summary>
         public bool CarWrecked { get; private set; }
+        /// <summary>Взорвали колонку — особый финал.</summary>
+        public bool StationExploded { get; private set; }
+        int pumpHits;
+        float explodeTimer = -1f;
         float wreckTimer;
 
         /// <summary>Сколько игрок «стоит в очереди», в игровых секундах.</summary>
@@ -211,6 +215,18 @@ namespace GasQueue
             if (dt <= 0f) return;
 
             if (State != GameState.DrivingAway) QueueSeconds += dt * ClockRate;
+
+            // Взрыв: даём посмотреть на огненный шар, потом финал
+            if (explodeTimer >= 0f)
+            {
+                explodeTimer += dt;
+                if (explodeTimer > 4.5f)
+                {
+                    CarWrecked = true;
+                    Finish(false);
+                }
+                return;
+            }
 
             // Машину добили — даём пару секунд посмотреть на дым и показываем проигрыш
             if (Player.damage.Wrecked)
@@ -996,9 +1012,74 @@ namespace GasQueue
         public void OnPlayerCrash(float impact, bool hitCar, string obstacle, string report)
         {
             Crashes++;
+            if (!hitCar && obstacle != null && obstacle.Contains("колонк") && impact > 2.2f && explodeTimer < 0f) // ~8 км/ч: парковка впритирку не считается
+            {
+                HitPump(obstacle, impact);
+                return;
+            }
             if (report != null) ShowMessage(report);
             else if (!hitCar && obstacle != null) ShowMessage($"Бах! Врезались: {obstacle}.");
             else if (hitCar) ShowMessage(impact > 4f ? "Сильный удар! Водитель в ярости." : "Бум! Аккуратнее, это не автосалон.");
+        }
+
+        // ---------- Удар по колонке ----------
+
+        /// <summary>
+        /// Таранить колонку — плохая идея. Первый удар — предупреждение, второй — может рвануть, третий — рвёт точно.
+        /// Газовая колонка взрывается уже со второго удара.
+        /// </summary>
+        void HitPump(string obstacle, float impact)
+        {
+            pumpHits++;
+            bool gas = obstacle.Contains("газ");
+            bool boom = pumpHits >= 3 || (pumpHits == 2 && (gas || Random.value < 0.5f || impact > 5f));
+            if (!boom)
+            {
+                ShowMessage(pumpHits == 1
+                    ? "Вы протаранили колонку! Запахло бензином. Заправщик: «Ты что творишь?! Тут же всё рванёт!»"
+                    : "Колонка искрит и шипит! Ещё один удар — и всё.", 8f);
+                if (attendant != null) SpeechBubble.Show(attendant.transform, pumpHits == 1 ? "Ты больной?! Отъезжай!" : "ВСЕ НАЗАД!!!", 1.5f);
+                foreach (var npc in Traffic.Npcs)
+                    if (Vector3.Distance(npc.Position, Player.Position) < 15f && Random.value < 0.6f) npc.Honk();
+                return;
+            }
+            Explode(gas);
+        }
+
+        void Explode(bool gas)
+        {
+            StationExploded = true;
+            explodeTimer = 0f;
+            var at = Player.Position + Player.Forward * (Player.Length / 2f + 0.8f);
+            at.y = 0f;
+            Explosion.Spawn(at, Traffic.WorldRoot, gas ? 1.5f : 1.15f);
+            CameraRig.Shake(gas ? 0.5f : 0.35f, 2.5f);
+
+            // Колонка — в клочья: прячем её части, на месте — обугленный остов
+            foreach (var t in Traffic.WorldRoot.GetComponentsInChildren<Transform>())
+            {
+                if (t == null || Vector3.Distance(t.position, at) > 3.5f) continue;
+                string n = t.name;
+                if (n.Contains("Dispenser") || n == "Display" || n == "Nozzle" || n == "Pillar" || n == "CanopyPost")
+                    t.gameObject.SetActive(false);
+            }
+            Shapes.Box(Traffic.WorldRoot, at + Vector3.up * 0.35f, new Vector3(0.9f, 0.7f, 0.9f), Shapes.Hex("#1c1a18"),
+                new Vector3(0, Random.Range(0f, 90f), 8f), "BurntPump");
+
+            // Машина игрока — в хлам, соседи — помяты и в шоке
+            Player.damage.Wear(1000f, Vector3.up * 3f);
+            Player.ForceEngineOff();
+            Player.controlsEnabled = false;
+            foreach (var npc in Traffic.Npcs)
+            {
+                float d = Vector3.Distance(npc.Position, at);
+                if (d > 25f) continue;
+                if (d < 12f && npc.damage != null) npc.damage.Wear(Mathf.Lerp(80f, 20f, d / 12f), (npc.Position - at).normalized * 4f);
+                npc.Hold(30f);
+                if (Random.value < 0.5f) npc.Say(Random.value < 0.5f ? "А-А-А-А!!!" : "Я же говорил — рванёт!");
+            }
+            if (attendant != null) SpeechBubble.Show(attendant.transform, "Ну всё. Бензина точно нет.", 1.5f);
+            ShowMessage(gas ? "БА-БАХ! Газовая колонка взлетела на воздух." : "БА-БАХ! Колонка взорвалась.", 10f);
         }
 
         public void OnSomeoneGaveUp(bool ahead)
@@ -1089,7 +1170,7 @@ namespace GasQueue
 
         public List<string> Achievements()
         {
-            var list = new List<string> { CarWrecked ? "Металлолом: машина не дожила до заправки" : GaveUp ? "Сдался и уехал без бензина" : "Отстоял очередь и заправился" };
+            var list = new List<string> { StationExploded ? "Огненное шоу: взорвал заправку, так и не заправившись" : CarWrecked ? "Металлолом: машина не дожила до заправки" : GaveUp ? "Сдался и уехал без бензина" : "Отстоял очередь и заправился" };
             if (FuelRanOut) list.Add("Бензин кончился прямо перед носом");
             if (Honks == 0) list.Add("Дзен: ни разу не бибикнул");
             if (Honks >= 15) list.Add("Дирижёр клаксонов");
