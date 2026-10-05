@@ -60,7 +60,6 @@ namespace GasQueue
             if (subs > 0)
             {
                 var v = new List<Vector3>(total);
-                var n = new List<Vector3>(total);
                 var uv = new List<Vector2>(total);
                 var tris = new List<int[]>();
                 foreach (var m in node.meshes)
@@ -68,7 +67,6 @@ namespace GasQueue
                     if (m.t.Count == 0) continue;
                     int start = v.Count;
                     v.AddRange(m.v);
-                    n.AddRange(m.n);
                     uv.AddRange(m.uv);
                     var t = new int[m.t.Count];
                     for (int i = 0; i < t.Length; i++) t[i] = m.t[i] + start;
@@ -77,10 +75,12 @@ namespace GasQueue
                 mesh = new Mesh { name = node.name };
                 if (v.Count > 65000) mesh.indexFormat = IndexFormat.UInt32;
                 mesh.SetVertices(v);
-                mesh.SetNormals(n);
                 mesh.SetUVs(0, uv);
                 mesh.subMeshCount = tris.Count;
                 for (int i = 0; i < tris.Count; i++) mesh.SetTriangles(tris[i], i);
+                // Нормали считает сам Unity по треугольникам: с расчётными нормалями модели на изогнутых
+                // поверхностях (торпеда, стойки) в салоне вылезали чисто белые и чёрные пятна.
+                mesh.RecalculateNormals();
                 mesh.RecalculateBounds();
             }
             meshes[node] = mesh;

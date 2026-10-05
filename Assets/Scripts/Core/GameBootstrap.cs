@@ -62,7 +62,6 @@ namespace GasQueue
             rig.transform.SetParent(root, false);
             rig.Init(player);
             playerVisual.gameObject.AddComponent<CarMirrors>().Init(playerVisual, rig);
-            if (playerVisual.sporty) playerVisual.gameObject.AddComponent<CabinDebug>();
 
             var walker = WalkerController.Create(root, traffic, rig);
             rig.SetWalker(walker);

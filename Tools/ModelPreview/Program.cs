@@ -14,6 +14,7 @@ static class Program
     {
         string which = args.Length > 0 ? args[0] : "supra";
         if (which == "debug") { Debug(); return 0; }
+        if (which == "dev") { Deviation(args[1]); return 0; }
         if (which == "normals") { Normals(args.Length > 1 ? args[1] : "supra"); return 0; }
         if (which == "ray") { Rays(args); return 0; }
         if (which == "poke") { Poke(args.Length > 1 ? args[1] : "supra"); return 0; }
@@ -147,6 +148,39 @@ static class Program
         Walk(model.root);
         foreach (var kv in bad) Console.WriteLine($"{kv.Key}: {kv.Value}  e.g. {where[kv.Key]}");
         Console.WriteLine($"bad groups: {bad.Count}");
+    }
+
+    // Насколько заданные нормали расходятся с нормалями по треугольникам (как Mesh.RecalculateNormals)
+    static void Deviation(string which)
+    {
+        var model = ByName(which);
+        void Walk(ModelNode n)
+        {
+            var f = n.WorldFrame();
+            for (int k = 0; k < n.meshes.Count; k++)
+            {
+                var m = n.meshes[k];
+                if (m.t.Count == 0) continue;
+                var acc = new Vector3[m.v.Count];
+                for (int i = 0; i < m.t.Count; i += 3)
+                {
+                    var fn = Vector3.Cross(m.v[m.t[i + 1]] - m.v[m.t[i]], m.v[m.t[i + 2]] - m.v[m.t[i]]);
+                    acc[m.t[i]] += fn; acc[m.t[i + 1]] += fn; acc[m.t[i + 2]] += fn;
+                }
+                int bad = 0, worse = 0; float worst = 1f; Vector3 at = Vector3.zero;
+                for (int i = 0; i < m.v.Count; i++)
+                {
+                    if (acc[i].sqrMagnitude < 1e-20f) continue;
+                    float d = Vector3.Dot(m.n[i].normalized, acc[i].normalized);
+                    if (d < 0.7f) bad++;
+                    if (d < 0f) worse++;
+                    if (d < worst) { worst = d; at = f.P(m.v[i]); }
+                }
+                if (bad > 0) Console.WriteLine($"{n.name}:{n.mats[k]} verts {m.v.Count} dev>45° {bad} opposite {worse} worst {worst:F2} at {at}");
+            }
+            foreach (var c in n.children) Walk(c);
+        }
+        Walk(model.root);
     }
 
     // Сравнение: точка на формуле кузова и пересечение луча с готовой сеткой (ищем «утонувшие» накладки)

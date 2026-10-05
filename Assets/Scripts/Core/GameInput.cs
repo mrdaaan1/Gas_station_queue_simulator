@@ -24,7 +24,6 @@ namespace GasQueue
         public static bool JumpPressed => Pressed(KeyCode.Space);
         public static bool IgnitionPressed => Pressed(KeyCode.I);
         public static bool CarDoorPressed => Pressed(KeyCode.F);
-        public static bool DebugCabinPressed => Pressed(KeyCode.K);
         /// <summary>Удар в драке — левая кнопка мыши.</summary>
         public static bool AttackPressed => ClickPressed;
         public static bool Run => Held(KeyCode.LeftShift) || Held(KeyCode.RightShift);
@@ -96,7 +95,6 @@ namespace GasQueue
                 case KeyCode.A: return kb.aKey;
                 case KeyCode.D: return kb.dKey;
                 case KeyCode.F: return kb.fKey;
-                case KeyCode.K: return kb.kKey;
                 case KeyCode.LeftArrow: return kb.leftArrowKey;
                 case KeyCode.RightArrow: return kb.rightArrowKey;
                 case KeyCode.LeftShift: return kb.leftShiftKey;
