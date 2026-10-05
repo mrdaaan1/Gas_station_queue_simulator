@@ -17,6 +17,8 @@ const server = http.createServer((req, res) => {
   const page = await browser.newPage({ viewport: { width: 1000, height: 620 } });
   page.on('console', m => { if (m.type() === 'error') console.log('console:', m.text()); });
   for (const [name, q] of Object.entries(views)) {
+    const qs = new URLSearchParams(q);
+    await page.setViewportSize({ width: +(qs.get('w') || 1000), height: +(qs.get('h') || 620) });
     await page.goto(`http://localhost:8765/view.html?${q.includes('paint=') ? '' : 'paint=' + encodeURIComponent(paint) + '&'}${q}`);
     await page.waitForFunction(() => document.title.startsWith('done'), null, { timeout: 120000 });
     const t = await page.title(); if (t.length > 5) console.log(name, t);

@@ -26,6 +26,9 @@ namespace GasQueue
             return cached;
         }
 
+        /// <summary>Только форма кузова (без сборки сеток) — для поиска точек на поверхности.</summary>
+        public static SupraModel Shape() => new SupraModel();
+
         SupraModel()
         {
             Front = 2.26f; Rear = -2.26f;

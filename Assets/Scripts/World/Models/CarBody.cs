@@ -68,7 +68,7 @@ namespace GasQueue
                 float k = Mathf.Clamp01((RearRound - z) / (RearRound - Rear));
                 w *= Mathf.Pow(Mathf.Max(0f, 1f - Mathf.Pow(k, RearPow)), 1f / RearPow);
             }
-            s.w = Mathf.Max(1e-4f, w);
+            s.w = Mathf.Max(0f, w);
             s.ybot = YBot[z];
             s.ymax = YMax[z];
             s.belt = YBelt[z];
@@ -262,7 +262,7 @@ namespace GasQueue
                 if (Inside(origin + dir * mid)) lo = mid; else hi = mid;
             }
             var p = origin + dir * hi;
-            z = Mathf.Clamp(p.z, Rear + 1e-4f, Front - 1e-4f);
+            z = Mathf.Clamp(p.z, Rear + 1e-6f, Front - 1e-6f);
             var st = Sec(z);
             u = UAtY(st, Mathf.Clamp(p.y, st.ybot, st.yc));
             return true;
