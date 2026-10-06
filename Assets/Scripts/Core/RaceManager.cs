@@ -136,6 +136,7 @@ namespace GasQueue
 
             Started = true;
             traffic.StartRace();
+            if (gm.Radio != null) gm.Radio.TuneRace();
             if (!gm.OnFoot) player.controlsEnabled = true;
             gm.ShowMessage("ПОЕХАЛИ! Пять поворотов — и финиш. Наверное.", 5f);
         }

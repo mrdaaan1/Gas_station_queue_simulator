@@ -134,9 +134,9 @@ namespace GasQueue
             RacerName = name;
             skill = racerSkill;
             profile = speedProfile;
-            accel = 9.5f * racerSkill;
-            decel = 10f;
-            laneRate = 3.2f;
+            accel = 12.5f * racerSkill;
+            decel = 13f;
+            laneRate = 3.6f;
             Setup(NpcRole.Racing, lane, s, false);
             moving = false;
             Speed = 0f;
@@ -175,6 +175,16 @@ namespace GasQueue
             laneRate = LaneChangeRate;
         }
 
+        /// <summary>Перейти на другой маршрут без рывка: стоим там же, плавно смещаемся к его оси.</summary>
+        void SlideOnto(LanePath path)
+        {
+            Path = path;
+            S = path.Project(transform.position, out float lateral);
+            Offset = lateral;
+            targetOffset = 0f;
+            pathAfterLaneChange = null;
+        }
+
         /// <summary>Доехал до места у головы очереди — кричит, что ему только спросить.</summary>
         public void ShoutRush()
         {
@@ -204,7 +214,7 @@ namespace GasQueue
             AimsAtEntrance = true;
             cutTimer = 0f;
             decel = 8f;
-            laneRate = LaneChangeRate;
+            laneRate = 3f; // гонщик перестраивается резко
         }
 
         public void Setup(NpcRole role, LanePath path, float s, bool stopAtEnd)
@@ -227,21 +237,31 @@ namespace GasQueue
                 case NpcRole.Cutter: limit = Cut == CutState.Looking ? 6f : 4f; break;
                 case NpcRole.GivingUp: limit = Offset > -3f ? 3f : 10f; break;
                 case NpcRole.Vip: limit = S > Path.Length - 45f ? 5f : Path.speedLimit; break; // по территории — потише
-                case NpcRole.Racing: limit = profile != null ? profile.At(S) * skill : Path.speedLimit; break;
-                case NpcRole.Rushing: limit = S < Path.Length - 45f ? Path.speedLimit : 5f; break;
+                case NpcRole.Racing: limit = profile != null ? profile.At(S) * skill * CatchUp() : Path.speedLimit; break;
+                case NpcRole.Rushing: limit = S < Path.Length - 40f ? Path.speedLimit : 8f; break;
                 default: limit = Path.speedLimit; break;
             }
             if (IsRacer)
             {
                 // Гонщик и по городу спешит: до хвоста очереди, до въезда «вторым рядом», от выезда до финиша
-                if (Role == NpcRole.Queue && S < traffic.QueueRoadEndS - 25f) limit = 24f;
-                else if (Role == NpcRole.Cutter && Cut == CutState.Looking && S < traffic.SecondRowWaitS - 50f) limit = 22f;
-                else if (Role == NpcRole.Exiting && transform.position.x < 11f) limit = 34f * skill;
+                if (Role == NpcRole.Queue && S < traffic.QueueRoadEndS - 25f) limit = 32f;
+                else if (Role == NpcRole.Cutter && Cut == CutState.Looking && S < traffic.SecondRowWaitS - 40f) limit = 30f;
+                else if (Role == NpcRole.Exiting && transform.position.x < 11f) limit = 44f * skill;
             }
             // Приехал с трассы в хвост очереди — подъезжает к хвосту, а не ползёт 500 м со скоростью очереди
             if (fromTrack && !IsRacer && Role == NpcRole.Queue && S < traffic.QueueRoadEndS - 25f) limit = 14f;
             if (MaxSpeedCap > 0f) limit = Mathf.Min(limit, MaxSpeedCap);
             return limit;
+        }
+
+        /// <summary>
+        /// «Резинка», как в аркадных гонках: игрок уехал вперёд — отстающие едут резвее (до +20%),
+        /// так соперники не теряются из виду. Игрок позади — без поблажек.
+        /// </summary>
+        float CatchUp()
+        {
+            float lead = traffic.PlayerRaceS - S;
+            return 1f + Mathf.Clamp(lead / 200f, 0f, 0.2f);
         }
 
         float DesiredGap => Role == NpcRole.Racing ? 1.5f + Speed * 0.3f : Role == NpcRole.Through ? 5f : pressing ? 0.55f : 2f;
@@ -786,6 +806,20 @@ namespace GasQueue
                         cutTimer = 0f;
                     }
                     else if (IsRacer && cutTimer > 1.5f && traffic.QueueLaneFreeBeside(this, cutTimer > 10f)) StartTailMerge();
+                    // Гонщик застрял наполовину в ряду очереди и не может вернуться — дожимает и встаёт в очередь
+                    else if (IsRacer && Mathf.Abs(Offset) > 1f && laneBlockedTimer > 3f)
+                    {
+                        float keep = laneBlockedTimer; // продолжаем «протискиваться» (касаясь соседей)
+                        JoinQueueFromRace(traffic.QueuePath);
+                        SlideOnto(traffic.QueuePath);
+                        laneBlockedTimer = keep;
+                    }
+                    // Долго не пускают у въезда — плюёт на очередь и едет прямо к колонкам
+                    else if (IsRacer && cutTimer > 25f)
+                    {
+                        RushToPumps(traffic.RushPath);
+                        SlideOnto(traffic.RushPath);
+                    }
                     else if (cutTimer > 45f) GiveUpCutting();
                     break;
                 }

@@ -48,3 +48,8 @@ Tools/**/node_modules/
 # Материалы, которые редактор сохраняет перед сборкой (свои для каждого проекта)
 /Assets/Resources/GasQueueGenerated/
 /Assets/Resources/GasQueueGenerated.meta
+
+# Своя музыка для «Гонка FM» — только локально (чужие треки нельзя выкладывать)
+/Assets/Resources/RaceMusic/*
+!/Assets/Resources/RaceMusic/README.txt
+!/Assets/Resources/RaceMusic/README.txt.meta

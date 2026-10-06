@@ -20,10 +20,10 @@ namespace GasQueue
         /// <summary>Линия финиша поперёк главной дороги, за выездом с заправки.</summary>
         public const float FinishZ = 300f;
         /// <summary>Скорость на прямых для соперников, м/с (≈ 170 км/ч).</summary>
-        public const float TopSpeed = 47f;
+        public const float TopSpeed = 54f;
         /// <summary>Боковое ускорение в поворотах, м/с² — чем больше, тем быстрее проходят повороты.</summary>
-        public const float CornerGrip = 14f;
-        public const float Braking = 9f;
+        public const float CornerGrip = 24f;
+        public const float Braking = 13f;
 
         /// <summary>Ломаная оси трассы (до скругления). Поворот, после которого загорается лампочка бензина, — последний.</summary>
         public static readonly Vector3[] Corners =
@@ -113,7 +113,7 @@ namespace GasQueue
         /// </summary>
         public static readonly Vector3 RushSpot = new Vector3(15.6f, 0f, -19.2f);
 
-        public static LanePath RushPath() => new LanePath("Rush", 22f, new[]
+        public static LanePath RushPath() => new LanePath("Rush", 32f, new[]
         {
             new Vector3(CityLayout.LaneMiddle, 0f, JoinZ + 15f), new Vector3(CityLayout.LaneMiddle, 0f, -40f),
             new Vector3(6.6f, 0f, -30f), new Vector3(9.6f, 0f, -24.6f), new Vector3(12.9f, 0f, -21f), RushSpot,

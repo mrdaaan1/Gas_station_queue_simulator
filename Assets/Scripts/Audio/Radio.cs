@@ -2,7 +2,11 @@ using UnityEngine;
 
 namespace GasQueue
 {
-    /// <summary>Тупое радио в машине. R — следующая станция.</summary>
+    /// <summary>
+    /// Тупое радио в машине. R — следующая станция.
+    /// Свои треки (mp3/ogg/wav) кладутся в Assets/Resources/RaceMusic — появляется станция «Гонка FM»:
+    /// треки по кругу в случайном порядке. В гонке она включается сама на зелёный.
+    /// </summary>
     public class Radio : MonoBehaviour
     {
         class Station
@@ -11,7 +15,11 @@ namespace GasQueue
             public string shortName;
             public string[] lines;
             public AudioClip music;
+            public AudioClip[] playlist; // своя музыка: треки по очереди
+            public int track;
         }
+
+        const string MusicFolder = "RaceMusic";
 
         Station[] stations;
         int current; // 0 — выключено
@@ -36,7 +44,26 @@ namespace GasQueue
             fx.volume = 0.5f;
             fx.spatialBlend = 0f;
 
-            stations = new[]
+            var list = new System.Collections.Generic.List<Station>();
+            var tracks = Resources.LoadAll<AudioClip>(MusicFolder);
+            if (tracks.Length > 0)
+            {
+                // Перемешиваем, чтобы каждый заезд начинался с другого трека
+                for (int i = tracks.Length - 1; i > 0; i--)
+                {
+                    int j = Random.Range(0, i + 1);
+                    (tracks[i], tracks[j]) = (tracks[j], tracks[i]);
+                }
+                list.Add(new Station
+                {
+                    name = "Гонка FM",
+                    shortName = "104.5 ГОНКА",
+                    playlist = tracks,
+                    lines = new[] { "" },
+                });
+            }
+            raceStation = list.Count > 0 ? 1 : 0;
+            list.AddRange(new[]
             {
                 new Station
                 {
@@ -74,7 +101,28 @@ namespace GasQueue
                         "«~ Не спеши, водитель, бензин уже в пути... ~»",
                     },
                 },
-            };
+            });
+            stations = list.ToArray();
+        }
+
+        int raceStation; // номер станции с треками (0 — треков нет)
+
+        /// <summary>Включить «Гонка FM» (если треки положены в папку). Вызывается на старте гонки.</summary>
+        public void TuneRace()
+        {
+            if (raceStation == 0 || current == raceStation) return;
+            current = raceStation - 1;
+            Next(quiet: true);
+        }
+
+        void PlayTrack(Station st)
+        {
+            var clip = st.playlist[st.track % st.playlist.Length];
+            music.clip = clip;
+            music.loop = false;
+            music.volume = 0.4f;
+            music.Play();
+            CurrentLine = "Сейчас играет: " + clip.name;
         }
 
         void Update()
@@ -83,6 +131,17 @@ namespace GasQueue
             if (display != null) display.text = current == 0 ? "--:--" : stations[current - 1].shortName;
 
             if (current == 0) return;
+            var station = stations[current - 1];
+            if (station.playlist != null)
+            {
+                // Трек кончился — следующий (во время паузы не переключаем)
+                if (!music.isPlaying && Time.timeScale > 0f && !AudioListener.pause)
+                {
+                    station.track++;
+                    PlayTrack(station);
+                }
+                return;
+            }
             lineTimer += Time.deltaTime;
             if (lineTimer > 10f)
             {
@@ -93,16 +152,28 @@ namespace GasQueue
             }
         }
 
-        void Next()
+        void Next() => Next(false);
+
+        void Next(bool quiet)
         {
             current = (current + 1) % (stations.Length + 1);
-            fx.PlayOneShot(SoundFactory.Noise);
-            GameManager.Instance.OnRadioSwitched();
+            if (!quiet)
+            {
+                fx.PlayOneShot(SoundFactory.Noise);
+                GameManager.Instance.OnRadioSwitched();
+            }
             music.Stop();
             CurrentLine = null;
             if (current == 0) return;
 
             var st = stations[current - 1];
+            if (st.playlist != null)
+            {
+                PlayTrack(st);
+                return;
+            }
+            music.loop = true;
+            music.volume = 0.12f;
             lineIndex = Random.Range(0, st.lines.Length);
             CurrentLine = st.lines[lineIndex];
             lineTimer = 0f;

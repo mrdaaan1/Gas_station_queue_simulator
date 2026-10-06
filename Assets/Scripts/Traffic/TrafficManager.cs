@@ -502,8 +502,13 @@ namespace GasQueue
             if (Brawler.Active != null && !Pedestrians.Contains(Brawler.Active.transform)) Pedestrians.Add(Brawler.Active.transform);
         }
 
+        /// <summary>Сколько игрок проехал по трассе (по правой полосе; за трассой — больше любого гонщика на ней).</summary>
+        public float PlayerRaceS { get; private set; }
+
         void RebuildLanes()
         {
+            if (RaceMode)
+                PlayerRaceS = Player.Position.z > RaceLayout.JoinZ ? RaceRight.Length + 100f : RaceRight.Project(Player.Position, out _);
             foreach (var list in lanes.Values) list.Clear();
             foreach (var npc in Npcs)
                 if (npc.Role != NpcRole.Fueling && lanes.TryGetValue(npc.Path, out var list))
