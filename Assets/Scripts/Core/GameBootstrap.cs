@@ -43,6 +43,7 @@ namespace GasQueue
         {
             showMenu = true;
             Build();
+            IntroSplash.PlayOnce(gameObject); // заставка «92» поверх меню, один раз за запуск
         }
 
         void Build()

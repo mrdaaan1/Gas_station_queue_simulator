@@ -54,6 +54,8 @@ namespace GasQueue
 
         public static Vector2 MouseDelta => Paused ? Vector2.zero : new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"));
         public static bool ClickPressed => !Paused && Input.GetMouseButtonDown(0);
+        /// <summary>Любая клавиша или клик (пропустить заставку), даже на паузе.</summary>
+        public static bool AnyPressed => Input.anyKeyDown;
 #elif ENABLE_INPUT_SYSTEM
         static bool Held(KeyCode key)
         {
@@ -72,6 +74,9 @@ namespace GasQueue
         // Масштаб подобран так, чтобы чувствительность совпадала со старым Input Manager.
         public static Vector2 MouseDelta => !Paused && Mouse.current != null ? Mouse.current.delta.ReadValue() * 0.05f : Vector2.zero;
         public static bool ClickPressed => !Paused && Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
+        /// <summary>Любая клавиша или клик (пропустить заставку), даже на паузе.</summary>
+        public static bool AnyPressed => (Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame)
+            || (Mouse.current != null && (Mouse.current.leftButton.wasPressedThisFrame || Mouse.current.rightButton.wasPressedThisFrame));
 
         static UnityEngine.InputSystem.Controls.KeyControl ToControl(KeyCode key)
         {
@@ -116,6 +121,7 @@ namespace GasQueue
         static bool RawPressed(KeyCode key) => false;
         public static Vector2 MouseDelta => Vector2.zero;
         public static bool ClickPressed => false;
+        public static bool AnyPressed => false;
 #endif
     }
 }

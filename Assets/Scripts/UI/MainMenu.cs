@@ -52,7 +52,7 @@ namespace GasQueue
 
         void OnGUI()
         {
-            if (open != this) return;
+            if (open != this || IntroSplash.Playing) return;
             float w = Screen.width, h = Screen.height, k = h / 1080f;
             if (title == null || !Mathf.Approximately(builtForHeight, h))
             {

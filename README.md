@@ -110,7 +110,9 @@ Assets/
                    SportsCarModel (общие детали), SupraModel (Тоёта Супра Mk4, правый руль), GelikModel («Гелик» 2025), SkylineModel (R34 из «Двойного форсажа»), Rx7Model (RX-7 Доминика), S2000Model (родстер Суки), WheelModel (диски и шины) — чистый C# без Unity-объектов
   Resources/Shaders/WorldText.shader — шрифт с учётом глубины (надписи не просвечивают)
     Audio/   SoundFactory (звуки генерируются кодом), Radio
-    UI/      Hud, PauseMenu, MainMenu
+    UI/      Hud, PauseMenu, MainMenu, IntroSplash (заставка при запуске)
+    UI/Intro/ Raster (рисовалка контуров со сглаживанием), IntroArt (кадры коллажа и логотип «92»), IntroLayout (раскладка и анимация),
+              IntroGlyphs (буквы шрифта Rubik Black, SIL OFL) — чистый C# без Unity
   Editor/    PrototypeSceneCreator (создаёт сцену и меню Gas Queue)
 ```
 
@@ -154,6 +156,14 @@ Assets/
 `Tools/ModelPreview` собирает модель из `World/Models` без Unity и рендерит её с нескольких ракурсов
 (three.js в headless-браузере): `bash Tools/ModelPreview/run.sh имя` (`MODEL=gelik` — другая машина), `dotnet ModelPreview.dll poke gelik` — что из салона торчит сквозь кузов. Так Claude проверяет форму кузова,
 не запуская игру.
+
+## Заставка
+
+При запуске (после логотипа Unity) ~5 секунд идёт заставка в стиле обложки GTA VI: коллаж из девяти кадров
+(колонка «ЛУКАВОЙЛ», датчик на нуле, канистра «×3», спорткар, бесконечная очередь, «Майбах» с мигалкой,
+«БЕНЗИНА НЕТ», «ПЕРЕРЫВ», «БАХ!») и градиентное «92» с надписью «симулятор очереди на заправку». Любая клавиша — пропустить.
+Превью без Unity: `bash Tools/IntroArt/preview.sh /tmp/intro 1920 1080 1.0 2.0 3.5` (PNG кадров и моментов анимации).
+Буквы берутся из шрифта Rubik: `Tools/IntroArt/make_glyphs.py` пересобирает `IntroGlyphs.cs`, если нужны новые символы.
 
 ## Симулятор очереди
 

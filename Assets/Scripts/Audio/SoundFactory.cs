@@ -293,6 +293,56 @@ namespace GasQueue
 
         static float Soft(float x) => Mathf.Clamp(x * 2.2f, -1f, 1f);
 
+        static AudioClip whoosh, introHit;
+
+        /// <summary>Заставка: короткий «вжух», когда выпрыгивает кадр коллажа.</summary>
+        public static AudioClip Whoosh
+        {
+            get
+            {
+                if (whoosh != null) return whoosh;
+                int n = (int)(Rate * 0.32f);
+                var data = new float[n];
+                var rnd = new System.Random(61);
+                float lp = 0f;
+                for (int i = 0; i < n; i++)
+                {
+                    float t = (float)i / Rate, p = t / 0.32f;
+                    float noise = (float)rnd.NextDouble() * 2f - 1f;
+                    lp = Mathf.Lerp(lp, noise, 0.05f + 0.4f * p); // фильтр открывается — звук «пролетает»
+                    float env = Mathf.Sin(Mathf.PI * Mathf.Pow(p, 0.6f));
+                    data[i] = Mathf.Clamp(lp * env * 1.6f, -1f, 1f);
+                }
+                whoosh = Create("Whoosh", data);
+                return whoosh;
+            }
+        }
+
+        /// <summary>Заставка: удар логотипа — низкий «бум» с хлопком и хвостом.</summary>
+        public static AudioClip IntroHit
+        {
+            get
+            {
+                if (introHit != null) return introHit;
+                int n = (int)(Rate * 1.6f);
+                var data = new float[n];
+                var rnd = new System.Random(71);
+                float lp = 0f;
+                for (int i = 0; i < n; i++)
+                {
+                    float t = (float)i / Rate;
+                    float noise = (float)rnd.NextDouble() * 2f - 1f;
+                    lp = Mathf.Lerp(lp, noise, 0.08f);
+                    float sub = Mathf.Sin(2 * Mathf.PI * (38f + 70f * Mathf.Exp(-t * 18f)) * t) * Mathf.Exp(-t * 2.4f);
+                    float click = noise * Mathf.Exp(-t * 45f);
+                    float tail = lp * 1.8f * Mathf.Exp(-t * 3.5f);
+                    data[i] = Mathf.Clamp(sub * 1.1f + click * 0.7f + tail, -1f, 1f);
+                }
+                introHit = Create("IntroHit", data);
+                return introHit;
+            }
+        }
+
         static AudioClip Create(string name, float[] data)
         {
             var clip = AudioClip.Create(name, data.Length, 1, Rate, false);

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Превью заставки без Unity: рисует кадры коллажа и анимацию в PNG. Запуск: bash Tools/IntroArt/preview.sh -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <BaseOutputPath>$(INTRO_OUT)/bin/</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(INTRO_OUT)/obj/</BaseIntermediateOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="../../../Assets/Scripts/UI/Intro/*.cs" />
+  </ItemGroup>
+</Project>
