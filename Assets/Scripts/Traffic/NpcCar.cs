@@ -137,7 +137,8 @@ namespace GasQueue
             accel = 12.5f * racerSkill;
             decel = 13f;
             laneRate = 3.6f;
-            Setup(NpcRole.Racing, lane, s, false);
+            // В уличной гонке трасса кончается парковкой за финишем — там и встаём
+            Setup(NpcRole.Racing, lane, s, traffic.StreetRace);
             moving = false;
             Speed = 0f;
             reactionDelay = Random.Range(0.02f, 0.2f); // реакция на зелёный — все срываются почти разом
@@ -237,7 +238,10 @@ namespace GasQueue
                 case NpcRole.Cutter: limit = Cut == CutState.Looking ? 6f : 4f; break;
                 case NpcRole.GivingUp: limit = Offset > -3f ? 3f : 10f; break;
                 case NpcRole.Vip: limit = S > Path.Length - 45f ? 5f : Path.speedLimit; break; // по территории — потише
-                case NpcRole.Racing: limit = profile != null ? profile.At(S) * skill * CatchUp() : Path.speedLimit; break;
+                case NpcRole.Racing:
+                    limit = profile != null ? profile.At(S) * skill * CatchUp() : Path.speedLimit;
+                    if (RaceFinished) limit = Mathf.Min(limit, 9f); // финишировал — катится к парковке
+                    break;
                 case NpcRole.Rushing: limit = S < Path.Length - 40f ? Path.speedLimit : 8f; break;
                 default: limit = Path.speedLimit; break;
             }
@@ -342,7 +346,13 @@ namespace GasQueue
                 }
             }
             // Гонщик пересёк финиш
-            if (IsRacer && !RaceFinished && Role == NpcRole.Exiting && transform.position.z > RaceLayout.FinishZ && transform.position.x < 14f)
+            if (IsRacer && !RaceFinished && !traffic.StreetRace && Role == NpcRole.Exiting && transform.position.z > RaceLayout.FinishZ && transform.position.x < 14f)
+            {
+                RaceFinished = true;
+                traffic.OnRacerFinished(this);
+            }
+            // Уличная гонка: пересёк финишную линию в кармане
+            if (IsRacer && !RaceFinished && traffic.StreetRace && Role == NpcRole.Racing && S >= traffic.FinishSOn(Path))
             {
                 RaceFinished = true;
                 traffic.OnRacerFinished(this);
@@ -354,7 +364,7 @@ namespace GasQueue
                 return;
             }
             // Обычная машина с трассы тоже едет заправляться
-            if (atEnd && Role == NpcRole.Through && Path == traffic.RaceTraffic)
+            if (atEnd && Role == NpcRole.Through && Path == traffic.RaceTraffic && !traffic.StreetRace)
             {
                 JoinQueueFromRace(traffic.QueuePath);
                 MaxSpeedCap = 0f;
@@ -418,7 +428,7 @@ namespace GasQueue
             {
                 float stopDistance = Speed * Speed / (2f * decel);
                 // Разгон слабеет к максимальной скорости (у гонщиков заметно)
-                float push = IsRacer ? accel * Mathf.Clamp(1.15f - Speed / (RaceLayout.TopSpeed * 1.1f), 0.25f, 1f) : accel;
+                float push = IsRacer ? accel * Mathf.Clamp(1.15f - Speed / (traffic.Track.TopSpeed * 1.1f), 0.25f, 1f) : accel;
                 Speed = free <= stopDistance + 0.05f
                     ? Mathf.Max(0f, Speed - decel * dt)
                     : Mathf.Min(limit, Speed + push * dt);
@@ -522,11 +532,11 @@ namespace GasQueue
             raceStuck = slowAhead ? raceStuck + dt : 0f;
             if (raceStuck < 0.4f) return;
             var other = traffic.OtherRaceLane(Path);
-            if (other == null || !profile.StraightAhead(S, 45f, RaceLayout.TopSpeed)) return;
+            if (other == null || !profile.StraightAhead(S, 45f, traffic.Track.TopSpeed)) return;
             float os = other.Project(Position, out _);
             if (!traffic.LaneClearNear(other, os, 14f, this)) return;
             float side = other == traffic.RaceRight ? 1f : -1f;
-            StartLaneChange(side * RaceLayout.LaneOffset * 2f, other);
+            StartLaneChange(side * traffic.Track.LaneOffset * 2f, other);
             raceStuck = 0f;
         }
 

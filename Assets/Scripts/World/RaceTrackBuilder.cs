@@ -16,10 +16,10 @@ namespace GasQueue
             public Renderer[] lights;
         }
 
-        static readonly Color BlockRed = Shapes.Hex("#c7362f");
-        static readonly Color BlockWhite = Shapes.Hex("#eeeeea");
+        public static readonly Color BlockRed = Shapes.Hex("#c7362f");
+        public static readonly Color BlockWhite = Shapes.Hex("#eeeeea");
         static readonly Color Paint = Shapes.Hex("#ecebe4");
-        static readonly Color Steel = Shapes.Hex("#5d6166");
+        public static readonly Color Steel = Shapes.Hex("#5d6166");
         public static readonly Color LightOff = Shapes.Hex("#2a1210");
         public static readonly Color LightRed = Shapes.Hex("#ff2a1a");
         public static readonly Color LightGreen = Shapes.Hex("#38ff5a");
@@ -59,7 +59,7 @@ namespace GasQueue
         }
 
         /// <summary>Лента вдоль ломаной от смещения a до b (вправо +), лицом вверх.</summary>
-        static Mesh Ribbon(List<Vector3> center, float a, float b, float uvMeters)
+        public static Mesh Ribbon(List<Vector3> center, float a, float b, float uvMeters)
         {
             var left = RaceLayout.Offset(center, a);
             var right = RaceLayout.Offset(center, b);
@@ -187,7 +187,7 @@ namespace GasQueue
         static Mesh blockMesh;
 
         /// <summary>Единичный блок-«нью-джерси»: широкое основание, узкий верх.</summary>
-        static Mesh BlockMesh()
+        public static Mesh BlockMesh()
         {
             if (blockMesh != null) return blockMesh;
             var profile = new List<Vector2> { new Vector2(-0.5f, 0f), new Vector2(-0.5f, 0.2f), new Vector2(-0.22f, 0.45f), new Vector2(-0.18f, 1f),

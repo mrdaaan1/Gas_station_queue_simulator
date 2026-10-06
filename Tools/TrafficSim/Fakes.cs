@@ -31,8 +31,10 @@ public class PlayerCar : Vehicle { public override bool IsPlayer=>true; LanePath
  public void PlaceOnPath(LanePath p,float s0){path=p;s=s0;Place(p.PointAt(s0),p.TangentAt(s0)); if(traffic!=null && traffic.RaceMode) phase=10;}
  void Update(){ float dt=Time.deltaTime; var gm=GameManager.Instance; float free=float.MaxValue;
   // Гонка: едем по своей полосе трассы (не быстрее профиля), потом встаём в очередь как все
+  if(phase==99){ Speed=0; return; }
   if(phase==10){ if(!traffic.RaceStarted) return; free=float.MaxValue; foreach(var n in traffic.Npcs){ if(Obb.AheadDistance(Box,n.Box,1.2f,40f,out float d)) free=Mathf.Min(free,d-4f);} 
     float vmax=traffic.ProfileFor(path).At(s)*0.9f; float sp=Mathf.Min(vmax, free>Speed*Speed/16f+1f ? Speed+6f*dt : Speed-9f*dt); sp=Mathf.Max(0,sp); float st=Mathf.Clamp(sp*dt,0,Mathf.Max(0,free)); Speed=st/dt; s=Mathf.Min(path.Length,s+st); Place(path.PointAt(s),path.TangentAt(s));
+    if(s>=path.Length-0.1f && traffic.StreetRace){ phase=99; GameManager.Log($"player-bot reached the end of the track"); return; }
     if(s>=path.Length-0.1f){ path=traffic.QueuePath; s=path.Project(Position,out _); phase=0; GameManager.Log($"player joined queue at z={Position.z:F0}"); } return; }
   // Сценарий «выехал из очереди и встраиваюсь ближе к заправке»
   if(Sneaky && !snuck && phase==0 && Time.time>20){ phase=-1; GameManager.Log("player leaves queue"); }

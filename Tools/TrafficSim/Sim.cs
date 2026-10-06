@@ -1,12 +1,19 @@
 using System; using System.Collections.Generic; using System.Linq; using System.Reflection; using UnityEngine; using GasQueue;
 public static class Sim { public static bool Verbose; public static int HonkedAt;
  static void Main(string[] args){
+  if(args.Length>0 && args[0]=="tlt-track"){ // трасса по Тольятти: ось, полосы, профиль скорости, перекрытия
+    var tr=TolyattiLayout.Build(); var prof=new SpeedProfile(tr.Right,tr.TopSpeed,tr.CornerGrip,tr.Braking);
+    foreach(var (name,path) in new[]{("C",tr.CenterPath),("L",tr.Left),("R",tr.Right)}) for(float q=0;q<path.Length;q+=2){var pt=path.PointAt(q); Console.WriteLine($"{name} {pt.x:F2} {pt.z:F2} {(name=="R"?prof.At(q):0):F1}");}
+    foreach(var cl in TolyattiLayout.Closures()){ var a=cl.mid-cl.across*cl.width/2; var b=cl.mid+cl.across*cl.width/2; Console.WriteLine($"X {a.x:F2} {a.z:F2} {b.x:F2} {b.z:F2}"); }
+    Console.WriteLine($"F {tr.FinishA.x:F2} {tr.FinishA.z:F2} {tr.FinishB.x:F2} {tr.FinishB.z:F2}");
+    foreach(var h in tr.Hints) Console.WriteLine($"H {h.s:F0} {h.text}");
+    Console.WriteLine($"LEN {tr.CenterPath.Length:F0} {tr.Right.Length:F0} finishS={tr.FinishS:F0}"); return; }
   if(args.Length>0 && args[0]=="track"){ // точки трассы для картинки: ось, полосы, стены, профиль скорости
     var c=new LanePath("c",1,RaceLayout.Center(),false); var L=RaceLayout.Lane(false); var R=RaceLayout.Lane(true); var prof=new SpeedProfile(R,RaceLayout.TopSpeed,RaceLayout.CornerGrip,RaceLayout.Braking);
     foreach(var (name,path) in new[]{("C",c),("L",L),("R",R),("T",RaceLayout.TrafficLane())}) for(float q=0;q<path.Length;q+=2){var pt=path.PointAt(q); Console.WriteLine($"{name} {pt.x:F2} {pt.z:F2} {(name=="R"?prof.At(q):0):F1}");}
     foreach(float side in new[]{-1f,1f}){ var w=RaceLayout.Offset(RaceLayout.Center(),side*(RaceLayout.HalfWidth+0.35f)); foreach(var pt in w) Console.WriteLine($"W {pt.x:F2} {pt.z:F2} 0"); }
     Console.WriteLine($"LEN {c.Length:F0} {R.Length:F0}"); return; }
-  float speedup = args.Length>0? float.Parse(args[0]) : 2f; int seed = args.Length>1? int.Parse(args[1]) : 1; float dur = args.Length>2? float.Parse(args[2]) : 1500; PlayerCar.Sneaky = args.Length>3 && args[3]=="sneaky"; bool race = args.Length>3 && args[3]=="race"; if (args.Length>4) Time.deltaTime = float.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture);
+  float speedup = args.Length>0? float.Parse(args[0]) : 2f; int seed = args.Length>1? int.Parse(args[1]) : 1; float dur = args.Length>2? float.Parse(args[2]) : 1500; PlayerCar.Sneaky = args.Length>3 && args[3]=="sneaky"; bool tlt = args.Length>3 && args[3]=="tlt"; bool race = args.Length>3 && (args[3]=="race" || tlt); if (args.Length>4) Time.deltaTime = float.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture);
   UnityEngine.Random.R=new System.Random(seed); Verbose = System.Environment.GetEnvironmentVariable("SIM_VERBOSE")!=null;
   var game=new GameObject("Game"); var settings=game.AddComponent<GameSettings>(); settings.testSpeedup=speedup;
   var root=new GameObject("World").transform;
@@ -14,7 +21,7 @@ public static class Sim { public static bool Verbose; public static int HonkedAt
   var pgo=new GameObject("PLAYER"); var pv=pgo.AddComponent<CarVisual>(); pv.length=4.3f; var player=pgo.AddComponent<PlayerCar>(); player.visual=pv;
   var tgo=new GameObject("Traffic"); var traffic=tgo.AddComponent<TrafficManager>(); player.traffic=traffic;
   var ggo=new GameObject("GM"); var gm=ggo.AddComponent<GameManager>(); gm.barrier=barrier; GameManager.Instance=gm; gm.delivery=settings.DeliveryDuration;
-  traffic.Init(settings,player,barrier,root,race);
+  traffic.Init(settings,player,barrier,root, tlt? TolyattiLayout.Build() : race? RaceTrack.Classic() : null);
   var racerLog=new Dictionary<NpcCar,string>(); traffic.RacerFinished+=r=>GameManager.Log($"FINISH {traffic.FinishOrder.Count}. {r.RacerName}");
   var lastMove=new Dictionary<NpcCar,(Vector3 p,float t)>(); int served=0; var exiting=new HashSet<NpcCar>();
   var gasIn=new HashSet<NpcCar>(); var gasFuel=new HashSet<NpcCar>(); var gasOut=new HashSet<NpcCar>(); var wasCutter=new HashSet<NpcCar>(); int cutIns=0; int overlapFrames=0; float worstOverlap=0;
@@ -46,6 +53,7 @@ public static class Sim { public static bool Verbose; public static int HonkedAt
       if(head!=null) Console.WriteLine($"   head {head.gameObject.name} s={head.S:F2}/{traffic.QueuePath.Length:F2} speed={head.Speed:F2} blockedBy={(head.BlockedBy==null?"-":head.BlockedBy.gameObject.name)} idle={Time.time-lastMove[head].t:F0}s");
     }
   }
+  if(tlt) Console.WriteLine($"PLAYER-BOT s={traffic.PlayerRaceS:F0} pos=({player.Position.x:F0},{player.Position.z:F0})");
   if(race) Console.WriteLine($"RACE finished={traffic.FinishOrder.Count}/{traffic.Racers.Count}: {string.Join(", ",traffic.FinishOrder)}");
   Console.WriteLine($"GAS branched={gasIn.Count} fueled={gasFuel.Count} leftViaExit={gasOut.Count}");
   Console.WriteLine($"END t={Time.time:F0} served={served} playerDone={player.done} fuelRanOut={gm.FuelRanOut} cutIns={cutIns} overlapFrames={overlapFrames} worstOverlap={worstOverlap:F2}m");

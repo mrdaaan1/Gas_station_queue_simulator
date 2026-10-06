@@ -4,9 +4,10 @@ using UnityEngine;
 namespace GasQueue
 {
     /// <summary>
-    /// Правила режима «Самая быстрая гонка»: светофор на старте, лампочка бензина на последнем повороте,
-    /// места по ходу гонки (с учётом очереди на заправку), финиш и сход, если бензин кончился до финиша.
-    /// Сама очередь, касса и заправка — те же, что в обычной игре (<see cref="GameManager"/>).
+    /// Правила гонки: светофор на старте, места по ходу гонки, финиш, время.
+    /// «Самая быстрая гонка»: лампочка бензина на последнем повороте, очередь на заправку (та же, что в обычной игре,
+    /// см. <see cref="GameManager"/>), сход, если бензин кончился до финиша.
+    /// Уличная гонка по Тольятти: без заправки, финиш — линия в кармане у «Мадагаскара», подсказки по маршруту.
     /// </summary>
     public class RaceManager : MonoBehaviour
     {
@@ -44,9 +45,26 @@ namespace GasQueue
         }
 
         /// <summary>Нужно ли сейчас кричать «заправься»: лампочка горит, бак не залит, в очереди и у колонки не стоим.</summary>
-        public bool NeedsFuel => FuelSignal && !gm.PlayerFueled && !traffic.PlayerInQueue && !traffic.PlayerIsHead && !traffic.PlayerWaitingWithoutQueue && traffic.PlayerPump == null && !gm.Paid;
+        public bool NeedsFuel => track.FuelStop && FuelSignal && !gm.PlayerFueled && !traffic.PlayerInQueue && !traffic.PlayerIsHead && !traffic.PlayerWaitingWithoutQueue && traffic.PlayerPump == null && !gm.Paid;
 
         bool warnedLow, warnedCritical;
+        RaceTrack track;
+        /// <summary>Уличная гонка (Тольятти): сколько игрок проехал по оси трассы.</summary>
+        float playerS;
+        Vector3 lastPlayerPos;
+        public RaceTrack Track => track;
+
+        /// <summary>Подсказка по маршруту («через 300 м: налево на 70 лет Октября») или null.</summary>
+        public string Hint
+        {
+            get
+            {
+                if (track.FuelStop) return null;
+                string text = track.HintAt(playerS, out float m);
+                if (text == null) return null;
+                return m < 25f ? text : $"Через {Mathf.RoundToInt(m / 10f) * 10} м: {text}";
+            }
+        }
         TrafficManager traffic;
         PlayerCar player;
         GameManager gm;
@@ -58,15 +76,18 @@ namespace GasQueue
         float placeTimer;
         bool arrivedAnnounced, firstFinishAnnounced;
 
-        public void Init(TrafficManager traffic, PlayerCar player, GameManager gm, RaceTrackBuilder.Result track)
+        public void Init(TrafficManager traffic, PlayerCar player, GameManager gm, RaceTrackBuilder.Result built, RaceTrack raceTrack)
         {
             Instance = this;
             this.traffic = traffic;
             this.player = player;
             this.gm = gm;
-            lights = track != null ? track.lights : null;
-            center = new LanePath("RaceCenter", 1f, RaceLayout.Center(), false);
-            signalS = center.Project(RaceLayout.Corners[RaceLayout.FuelSignalCorner], out _) - 25f;
+            track = raceTrack;
+            lights = built != null ? built.lights : null;
+            center = track.CenterPath;
+            if (track.FuelStop) signalS = center.Project(RaceLayout.Corners[RaceLayout.FuelSignalCorner], out _) - 25f;
+            playerS = center.Project(player.Position, out _);
+            lastPlayerPos = player.Position;
             player.controlsEnabled = false;
             player.raceFuel = true;
             beeper = SoundFactory.Source3D(gameObject, 0.7f);
@@ -93,6 +114,11 @@ namespace GasQueue
             }
 
             RaceTime += dt;
+            if (!track.FuelStop)
+            {
+                UpdateStreetRace();
+                return;
+            }
             bool queueing = !gm.PlayerFueled && (traffic.PlayerInQueue || traffic.PlayerPump != null || gm.OnFoot);
             if (queueing && player.Position.z > RaceLayout.JoinZ) QueueTime += dt;
 
@@ -138,7 +164,12 @@ namespace GasQueue
             traffic.StartRace();
             if (gm.Radio != null) gm.Radio.TuneRace();
             if (!gm.OnFoot) player.controlsEnabled = true;
-            gm.ShowMessage("ПОЕХАЛИ! Пять поворотов — и финиш. Наверное.", 5f);
+            if (track.FuelStop) gm.ShowMessage("ПОЕХАЛИ! Пять поворотов — и финиш. Наверное.", 5f);
+            else
+            {
+                gm.ShowMessage("ПОЕХАЛИ! Обводное → Офицерская → налево на 70 лет Октября.", 6f);
+                gm.ShowMessage("Два кольца, на втором — налево на Льва Яшина. Финиш — в кармане у ТЦ «Мадагаскар».", 8f);
+            }
         }
 
         void SetLights(int red, bool green)
@@ -190,16 +221,49 @@ namespace GasQueue
             if (!firstFinishAnnounced)
             {
                 firstFinishAnnounced = true;
-                gm.ShowMessage(gm.PlayerFueled
+                gm.ShowMessage(gm.PlayerFueled || !track.FuelStop
                     ? $"{racer.RacerName} уже на финише! Догоняйте!"
                     : $"{racer.RacerName} уже финишировал(а). А вы всё ещё на заправке.", 8f);
             }
             else gm.ShowMessage($"{racer.RacerName} финишировал(а) {n}-м.", 5f);
         }
 
+        // ---------- Уличная гонка ----------
+
+        void UpdateStreetRace()
+        {
+            var pos = player.Position;
+            // Ищем место на оси рядом с прошлым: трасса местами проходит близко к себе
+            playerS = center.ProjectNear(pos, playerS - 60f, playerS + 120f, out float lat);
+            if (Mathf.Abs(lat) > 40f) playerS = center.Project(pos, out _); // срезал через дворы — ищем заново
+            placeTimer -= Time.deltaTime;
+            if (placeTimer <= 0f)
+            {
+                placeTimer = 0.25f;
+                Place = ComputePlace();
+            }
+            if (!PlayerFinished && !gm.OnFoot && track.CrossedFinish(lastPlayerPos, pos))
+            {
+                PlayerFinished = true;
+                traffic.FinishOrder.Add("Вы");
+                Place = traffic.FinishOrder.Count;
+                gm.ShowMessage(Place == 1 ? "ФИНИШ! Первым у «Мадагаскара»!" : $"ФИНИШ! {Place}-е место.", 8f);
+                gm.FinishRace();
+            }
+            lastPlayerPos = pos;
+        }
+
         /// <summary>Бензин кончился на пути к финишу без заправки — сход.</summary>
         public bool OnPlayerRanDry()
         {
+            if (!track.FuelStop)
+            {
+                RanDry = true;
+                DryMetersToFinish = Mathf.Max(0f, track.FinishS - playerS);
+                gm.ShowMessage("Бензин кончился посреди Тольятти. Сход.", 8f);
+                gm.FinishRace();
+                return true;
+            }
             if (gm.PlayerFueled || player.Position.z < CityLayout.EntranceMinZ) return false;
             RanDry = true;
             DryMetersToFinish = Mathf.Max(0f, RaceLayout.FinishZ - player.Position.z);
@@ -212,6 +276,19 @@ namespace GasQueue
 
         int ComputePlace()
         {
+            if (!track.FuelStop)
+            {
+                // Уличная гонка: кто дальше по оси трассы (полосы чуть разной длины — пересчитываем)
+                int ahead = 1 + traffic.FinishOrder.Count;
+                if (PlayerFinished) return traffic.FinishOrder.IndexOf("Вы") + 1;
+                foreach (var r in traffic.Racers)
+                {
+                    if (r == null || r.RaceFinished) continue;
+                    float rs = r.S * center.Length / Mathf.Max(1f, r.Path.Length);
+                    if (rs > playerS) ahead++;
+                }
+                return Mathf.Min(ahead, Total);
+            }
             float mine = Progress(player.Position, gm.PlayerFueled || gm.State == GameState.DrivingAway, traffic.PlayerPump != null);
             int place = 1 + traffic.FinishOrder.Count;
             foreach (var r in traffic.Racers)

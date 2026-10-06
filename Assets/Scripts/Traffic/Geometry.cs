@@ -95,6 +95,37 @@ namespace GasQueue
             return bestS;
         }
 
+        /// <summary>
+        /// Как <see cref="Project"/>, но ищет только у s в пределах [sMin, sMax]. Нужно, когда маршрут
+        /// возвращается близко к себе (поворот почти назад): ближайшая точка может оказаться «не на том куске».
+        /// </summary>
+        public float ProjectNear(Vector3 p, float sMin, float sMax, out float lateral)
+        {
+            float bestS = Mathf.Clamp(sMin, 0f, Length), bestD = float.MaxValue;
+            lateral = 0f;
+            for (int i = 0; i < points.Length - 1; i++)
+            {
+                if (cumulative[i + 1] < sMin || cumulative[i] > sMax) continue;
+                var a = points[i];
+                var ab = points[i + 1] - a;
+                ab.y = 0f;
+                float len2 = ab.sqrMagnitude;
+                float t = len2 > 0.000001f ? Mathf.Clamp01(Vector3.Dot(new Vector3(p.x - a.x, 0f, p.z - a.z), ab) / len2) : 0f;
+                var q = a + ab * t;
+                float dx = p.x - q.x, dz = p.z - q.z;
+                float d = dx * dx + dz * dz;
+                if (d < bestD)
+                {
+                    bestD = d;
+                    bestS = cumulative[i] + Mathf.Sqrt(len2) * t;
+                    var right = len2 > 0.000001f ? new Vector3(ab.z, 0f, -ab.x) / Mathf.Sqrt(len2) : Vector3.right;
+                    float side = dx * right.x + dz * right.z;
+                    lateral = (side < 0f ? -1f : 1f) * Mathf.Sqrt(d);
+                }
+            }
+            return bestS;
+        }
+
         static Vector3[] ToArray(IList<Vector3> pts)
         {
             var arr = new Vector3[pts.Count];

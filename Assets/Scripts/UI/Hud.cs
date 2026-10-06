@@ -211,6 +211,15 @@ namespace GasQueue
                 GUI.Label(wide, place, accentStyle);
                 return;
             }
+            if (race != null && !race.Track.FuelStop)
+            {
+                // Уличная гонка: куда поворачивать
+                string hint = race.Hint ?? "Гонка по Тольятти!";
+                var wide = new Rect(w / 2 - 330 * k, 76 * k, 660 * k, 36 * k);
+                Panel(wide, new Color(0.08f, 0.2f, 0.5f, 0.75f));
+                GUI.Label(wide, hint, accentStyle);
+                return;
+            }
             if (race != null && gm.PlayerFueled) place = "Бак полный — на финиш!";
             else if (race != null && t.PlayerIsHead && t.PlayerPump == null && !gm.PlayerFueled)
                 place = "Вы первый! Ждите свободную колонку";
@@ -357,7 +366,7 @@ namespace GasQueue
             if (order.Count == 0) results = "Никто не финишировал.\n";
             string stats =
                 $"Время гонки: {RaceManager.FormatTime(race.RaceTime)}\n" +
-                $"Из них в очереди на заправку: {RaceManager.FormatTime(race.QueueTime)}\n" +
+                (race.Track.FuelStop ? $"Из них в очереди на заправку: {RaceManager.FormatTime(race.QueueTime)}\n" : "Маршрут: Обводное — Офицерская — 70 лет Октября — Льва Яшина\n") +
                 (race.RanDry ? $"Не хватило до финиша: {Mathf.RoundToInt(race.DryMetersToFinish)} м\n" : "") +
                 $"Аварий: {gm.Crashes}   ·   Бибикнули: {gm.Honks}   ·   Прочность машины: {Mathf.RoundToInt(gm.Player.damage.Health)}%\n" +
                 $"Залили: {gm.LitersFilled:0.0} л на {gm.MoneySpent:0} руб.";
@@ -365,6 +374,7 @@ namespace GasQueue
             if (achStyle == null) achStyle = new GUIStyle(bigStyle) { fontSize = Mathf.RoundToInt(bigStyle.fontSize * 0.85f) };
             GUI.Label(new Rect(w / 2 - 450 * k, h * 0.38f, 900 * k, h * 0.42f), "Финишировали:\n" + results, achStyle);
             GUI.Label(new Rect(0, h - 170 * k, w, 50 * k),
+                !race.Track.FuelStop ? "Тольятти: два кольца, один карман и ни одной заправки по пути." :
                 race.QueueTime > race.RaceTime * 0.5f ? "Самая быстрая гонка: больше половины времени — в очереди за бензином." : "Гонщики заправляются тоже по очереди.", accentStyle);
         }
 

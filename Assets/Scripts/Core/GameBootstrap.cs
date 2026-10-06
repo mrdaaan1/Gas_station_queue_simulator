@@ -7,6 +7,7 @@ namespace GasQueue
     {
         Queue, // основная игра: стоять в очереди на заправку
         Race,  // «Самая быстрая гонка»: трасса, а потом та же очередь
+        Tolyatti, // уличная гонка по Тольятти: Офицерская — 70 лет Октября — Льва Яшина
     }
 
     /// <summary>
@@ -28,7 +29,7 @@ namespace GasQueue
         /// <summary>Режим, выбранный в меню (запоминается между запусками).</summary>
         public static GameMode Mode
         {
-            get => PlayerPrefs.GetInt(ModeKey, 0) == 1 ? GameMode.Race : GameMode.Queue;
+            get => (GameMode)Mathf.Clamp(PlayerPrefs.GetInt(ModeKey, 0), 0, System.Enum.GetValues(typeof(GameMode)).Length - 1);
             set => PlayerPrefs.SetInt(ModeKey, (int)value);
         }
 
@@ -56,9 +57,12 @@ namespace GasQueue
             world = new GameObject("World (создаётся при запуске)");
             var root = world.transform;
 
-            bool race = Mode == GameMode.Race;
+            bool race = Mode != GameMode.Queue;
+            // Город с заправкой строится всегда (на нём держатся правила игры); Тольятти — далеко в стороне
             var city = CityBuilder.Build(root);
-            var track = race ? RaceTrackBuilder.Build(root) : null;
+            var raceTrack = Mode == GameMode.Race ? RaceTrack.Classic() : Mode == GameMode.Tolyatti ? TolyattiLayout.Build() : null;
+            RaceTrack.Current = raceTrack;
+            var track = Mode == GameMode.Race ? RaceTrackBuilder.Build(root) : Mode == GameMode.Tolyatti ? TolyattiBuilder.Build(root, raceTrack) : null;
             var debris = Shapes.Group("Debris", root);
 
             var playerVisual = CarChoice == PlayerCarKind.Supra ? SportsCars.BuildSupra("PlayerCar", SportsCars.SupraRed)
@@ -76,7 +80,7 @@ namespace GasQueue
             traffic.transform.SetParent(root, false);
             player.traffic = traffic;
             TrafficManager.RacerVisual = race ? RacerVisual : null;
-            traffic.Init(settings, player, city.barrier, debris, race);
+            traffic.Init(settings, player, city.barrier, debris, raceTrack);
 
             var rig = new GameObject("Camera").AddComponent<CameraRig>();
             rig.transform.SetParent(root, false);
@@ -97,7 +101,7 @@ namespace GasQueue
             systems.AddComponent<Hud>().Init(pause, Restart, ToMenu);
             var gm = systems.AddComponent<GameManager>();
             gm.Init(settings, traffic, player, walker, rig, radio, city.barrier, city.priceBoard, city.cashier, Restart, race);
-            if (race) systems.AddComponent<RaceManager>().Init(traffic, player, gm, track);
+            if (race) systems.AddComponent<RaceManager>().Init(traffic, player, gm, track, raceTrack);
 
             var menu = systems.AddComponent<MainMenu>();
             if (showMenu) menu.Open(rig, ChangeCar, ChangeMode);

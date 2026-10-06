@@ -97,8 +97,13 @@ namespace GasQueue
 
         // ---------- Режим «Самая быстрая гонка» ----------
 
-        /// <summary>Гонка: старт на трассе к югу от города, потом все едут в очередь на заправку.</summary>
+        /// <summary>Гонка: старт на трассе к югу от города, потом все едут в очередь на заправку (или уличная гонка по Тольятти).</summary>
         public bool RaceMode { get; private set; }
+        /// <summary>Трасса гонки (null — обычная игра).</summary>
+        public RaceTrack Track { get; private set; }
+        /// <summary>Уличная гонка без заправки: финиш — линия в конце трассы (Тольятти).</summary>
+        public bool StreetRace => Track != null && !Track.FuelStop;
+        float finishLeftS = float.MaxValue, finishRightS = float.MaxValue;
         /// <summary>Светофор дал зелёный — соперники поехали.</summary>
         public bool RaceStarted { get; private set; }
         public LanePath RaceLeft { get; private set; }
@@ -140,8 +145,10 @@ namespace GasQueue
 
         GameManager Gm => GameManager.Instance;
 
-        public void Init(GameSettings settings, PlayerCar player, Barrier barrier, Transform worldRoot, bool race = false)
+        public void Init(GameSettings settings, PlayerCar player, Barrier barrier, Transform worldRoot, RaceTrack track = null)
         {
+            Track = track;
+            bool race = track != null;
             RaceMode = race;
             Settings = settings;
             Player = player;
@@ -184,16 +191,25 @@ namespace GasQueue
             GasBranchS = QueuePath.Project(CityLayout.GasBranch, out _);
             if (race)
             {
-                RaceLeft = RaceLayout.Lane(false);
-                RaceRight = RaceLayout.Lane(true);
-                RaceTraffic = RaceLayout.TrafficLane();
-                profileLeft = new SpeedProfile(RaceLeft, RaceLayout.TopSpeed, RaceLayout.CornerGrip, RaceLayout.Braking);
-                profileRight = new SpeedProfile(RaceRight, RaceLayout.TopSpeed, RaceLayout.CornerGrip, RaceLayout.Braking);
+                RaceLeft = track.Left;
+                RaceRight = track.Right;
+                RaceTraffic = track.Traffic;
+                profileLeft = new SpeedProfile(RaceLeft, track.TopSpeed, track.CornerGrip, track.Braking);
+                profileRight = new SpeedProfile(RaceRight, track.TopSpeed, track.CornerGrip, track.Braking);
                 allPaths.Add(RaceLeft);
                 allPaths.Add(RaceRight);
                 allPaths.Add(RaceTraffic);
-                RushPath = RaceLayout.RushPath();
-                allPaths.Add(RushPath);
+                if (track.FuelStop)
+                {
+                    RushPath = RaceLayout.RushPath();
+                    allPaths.Add(RushPath);
+                }
+                else
+                {
+                    var finish = (track.FinishA + track.FinishB) / 2f;
+                    finishLeftS = RaceLeft.Project(finish, out _);
+                    finishRightS = RaceRight.Project(finish, out _);
+                }
             }
             foreach (var p in allPaths) lanes[p] = new List<PathEntry>();
 
@@ -389,21 +405,24 @@ namespace GasQueue
 
         void SpawnRace()
         {
-            // В очереди уже стоят обычные машины — гонщики встанут за ними
-            float spacing = Settings.carSpacing;
-            float s = QueuePath.Length;
-            for (int i = 0; i < Settings.raceQueueCars; i++, s -= spacing)
-                SpawnNpc("Queue").Setup(NpcRole.Queue, QueuePath, s, true);
-            foreach (var pump in Pumps)
-                SpawnNpc("Pump").PlaceAtPump(pump, Random.Range(0.1f, 0.9f));
-            // Улица перекрыта под гонку: обычного потока по городу нет
+            if (Track.FuelStop)
+            {
+                // В очереди уже стоят обычные машины — гонщики встанут за ними
+                float spacing = Settings.carSpacing;
+                float s = QueuePath.Length;
+                for (int i = 0; i < Settings.raceQueueCars; i++, s -= spacing)
+                    SpawnNpc("Queue").Setup(NpcRole.Queue, QueuePath, s, true);
+                foreach (var pump in Pumps)
+                    SpawnNpc("Pump").PlaceAtPump(pump, Random.Range(0.1f, 0.9f));
+                // Улица перекрыта под гонку: обычного потока по городу нет
+            }
 
             // Стартовая решётка: по две машины в ряд, ряды через 8 м за стартовой линией
             var names = new List<string>(RacerNames);
             for (int i = 0; i < GridSize; i++)
             {
                 var lane = i % 2 == 0 ? RaceLeft : RaceRight;
-                float gs = RaceLayout.StartLineS - 5f - (i / 2) * 8f - (i % 2) * 2f;
+                float gs = Track.StartLineS - 5f - (i / 2) * 8f - (i % 2) * 2f;
                 if (i == PlayerGridSlot)
                 {
                     Player.PlaceOnPath(lane, gs);
@@ -421,7 +440,9 @@ namespace GasQueue
             }
 
             // Немного обычных машин на трассе — ползут по правой полосе
-            for (float ts = 170f + Random.Range(0f, 40f); ts < RaceTraffic.Length - 650f; ts += Random.Range(90f, 150f))
+            // (в Тольятти — реже и только до кармана: дальше улица перекрыта)
+            float trafficEnd = Track.FuelStop ? RaceTraffic.Length - 650f : RaceTraffic.Length - 420f;
+            for (float ts = 170f + Random.Range(0f, 40f); ts < trafficEnd; ts += Track.FuelStop ? Random.Range(90f, 150f) : Random.Range(170f, 280f))
             {
                 var car = SpawnNpc("Car");
                 car.Setup(NpcRole.Through, RaceTraffic, ts, false);
@@ -438,6 +459,7 @@ namespace GasQueue
         /// <summary>Соперник доехал по трассе до главной дороги: из правой полосы — в хвост очереди, из левой — лезет «вторым рядом».</summary>
         public void OnRacerReachedRoad(NpcCar racer)
         {
+            if (StreetRace) return; // уличная гонка: доехал до конца кармана и встал
             if (racer.Path == RaceRight) racer.JoinQueueFromRace(QueuePath);
             else if (Random.value < 0.65f) racer.RushToPumps(RushPath); // наглые — прямо к колонкам
             else racer.CutFromRace(MiddlePath);                          // остальные лезут «вторым рядом»
@@ -455,6 +477,9 @@ namespace GasQueue
                 if (e.s < qs && e.s > qs - 40f) return false;
             return true;
         }
+
+        /// <summary>Где на полосе соперника финишная линия (уличная гонка).</summary>
+        public float FinishSOn(LanePath lane) => lane == RaceLeft ? finishLeftS : lane == RaceRight ? finishRightS : float.MaxValue;
 
         public void OnRacerFinished(NpcCar racer)
         {
@@ -485,6 +510,7 @@ namespace GasQueue
             RebuildLanes();
             RebuildQueue();
             if (Gm == null || Gm.State == GameState.Finished) return;
+            if (StreetRace) return; // в Тольятти нет ни заправки, ни очереди, ни продавцов
 
             UpdateStation();
             UpdateSpawns(Time.deltaTime);
@@ -507,7 +533,12 @@ namespace GasQueue
 
         void RebuildLanes()
         {
-            if (RaceMode)
+            if (StreetRace)
+            {
+                // Трасса местами возвращается близко к себе — ищем рядом с прошлым местом
+                PlayerRaceS = RaceRight.ProjectNear(Player.Position, PlayerRaceS - 150f, PlayerRaceS + 250f, out _);
+            }
+            else if (RaceMode)
                 PlayerRaceS = Player.Position.z > RaceLayout.JoinZ ? RaceRight.Length + 100f : RaceRight.Project(Player.Position, out _);
             foreach (var list in lanes.Values) list.Clear();
             foreach (var npc in Npcs)

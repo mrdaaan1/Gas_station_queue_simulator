@@ -81,17 +81,18 @@ namespace GasQueue
             title.alignment = TextAnchor.LowerLeft;
             var mode = GameBootstrap.Mode;
             GUI.Label(new Rect(40 * k, h * 0.04f, panel - 80 * k, h * 0.21f),
-                mode == GameMode.Race ? "САМАЯ БЫСТРАЯ ГОНКА" : "СИМУЛЯТОР ОЧЕРЕДИ НА ЗАПРАВКУ", title);
+                mode == GameMode.Race ? "САМАЯ БЫСТРАЯ ГОНКА" : mode == GameMode.Tolyatti ? "ГОНКА ПО ТОЛЬЯТТИ" : "СИМУЛЯТОР ОЧЕРЕДИ НА ЗАПРАВКУ", title);
 
             float bw = panel - 80 * k, bh = 64 * k, x = 40 * k, y = h * 0.3f;
-            if (GUI.Button(new Rect(x, y, bw, bh), mode == GameMode.Race ? "Начать гонку" : "Начать", button)) Close();
+            if (GUI.Button(new Rect(x, y, bw, bh), mode != GameMode.Queue ? "Начать гонку" : "Начать", button)) Close();
             y += bh + 16 * k;
 
             // Режим: очередь или гонка
             float arrowW = bh;
-            if (GUI.Button(new Rect(x, y, arrowW, bh), "◀", button) || GUI.Button(new Rect(x + bw - arrowW, y, arrowW, bh), "▶", button))
-                SwitchMode(mode);
-            GUI.Label(new Rect(x + arrowW, y, bw - arrowW * 2, bh), mode == GameMode.Race ? "Режим: гонка" : "Режим: очередь", carStyle);
+            if (GUI.Button(new Rect(x, y, arrowW, bh), "◀", button)) SwitchMode(mode, -1);
+            if (GUI.Button(new Rect(x + bw - arrowW, y, arrowW, bh), "▶", button)) SwitchMode(mode, 1);
+            GUI.Label(new Rect(x + arrowW, y, bw - arrowW * 2, bh),
+                mode == GameMode.Race ? "Режим: гонка" : mode == GameMode.Tolyatti ? "Режим: Тольятти" : "Режим: очередь", carStyle);
             y += bh + 16 * k;
 
             // Выбор машины: ◀ название ▶
@@ -139,9 +140,10 @@ namespace GasQueue
             }
         }
 
-        void SwitchMode(GameMode current)
+        void SwitchMode(GameMode current, int dir)
         {
-            var next = current == GameMode.Race ? GameMode.Queue : GameMode.Race;
+            int count = System.Enum.GetValues(typeof(GameMode)).Length;
+            var next = (GameMode)(((int)current + dir + count) % count);
             if (changeMode != null) changeMode(next);
             else GameBootstrap.Mode = next;
         }
