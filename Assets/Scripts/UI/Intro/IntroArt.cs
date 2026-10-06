@@ -5,8 +5,7 @@ using System.Threading.Tasks;
 namespace GasQueue.Intro
 {
     /// <summary>
-    /// Картинки заставки в стиле обложки GTA VI: девять кадров-иллюстраций из жизни очереди и логотип
-    /// «92» с надписью «симулятор очереди на заправку». Всё рисуется кодом (без UnityEngine — можно в отдельном потоке).
+    /// Картинки заставки в стиле обложки GTA VI: девять кадров-иллюстраций из жизни очереди и логотип с надписью «симулятор очереди на заправку». Всё рисуется кодом (без UnityEngine — можно в отдельном потоке).
     /// </summary>
     public class IntroArt
     {
@@ -156,7 +155,7 @@ namespace GasQueue.Intro
             cv.Fill(Path.Rect(-hw, 0, hw * 2, 15), cv.Lin(0, 0, 0, 15, C4.Hex("#ff4d55"), C4.Hex("#d3202e")));
             cv.Fill(Path.Rect(-hw, 15, hw * 2, 3), C4.White);
             cv.Fill(Path.Rect(-hw, 18, hw * 2, 2.5f), C4.Hex("#7a2a5a", 0.6f));
-            cv.Text("ЛУКАВОЙЛ", 0, 11.2f, 9.5f, C4.White, 0.06f);
+            cv.Text("ЛУКАВОЙЛ", 0, 11.2f, Math.Min(9.5f, hw * 1.55f / Path.TextWidth("ЛУКАВОЙЛ", 1f, 0.06f)), C4.White, 0.06f);
 
             // Колонка
             float x0 = -30, w = 44;
@@ -530,7 +529,7 @@ namespace GasQueue.Intro
             cv.Fill(Path.Circle(px, py, 3.2f), C4.Hex("#2a1a33"));
 
             // Табличка
-            float sx = (px + armEnd) / 2f + 2, sy = 66;
+            float sx = Math.Min((px + armEnd) / 2f + 2, hw - 22), sy = 66;
             cv.Fill(Path.Capsule(sx - 14, py + 1, sx - 13, sy + 1, 0.3f), Ink);
             cv.Fill(Path.Capsule(sx + 14, py + 1, sx + 13, sy + 1, 0.3f), Ink);
             var plate = Path.RoundRect(sx - 20, sy, 40, 19, 2).Rotate(3, sx, sy);
@@ -619,9 +618,9 @@ namespace GasQueue.Intro
             var b = L.Logo;
             int w = Px(b.w * q), h = Px(b.h * q);
             float size = L.LogoSize * q;
-            float width = Path.TextWidth("92", size);
-            float baseline = h / 2f + size * 0.36f;
-            var digits = Path.Text("92", (w - width) / 2f, baseline, size, 0f);
+            float width = Path.TextWidth(IntroLayout.Numeral, size, 0.02f);
+            float baseline = h * IntroLayout.NumeralBaseline;
+            var digits = Path.Text(IntroLayout.Numeral, (w - width) / 2f, baseline, size, 0.02f);
 
             var logo = new Raster(w, h);
             float ow = size * 0.022f;

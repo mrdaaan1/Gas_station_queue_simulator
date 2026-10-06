@@ -9,7 +9,7 @@ namespace GasQueue.Intro
         public Box(float x, float y, float w, float h) { this.x = x; this.y = y; this.w = w; this.h = h; }
         public float cx => x + w / 2f;
         public float cy => y + h / 2f;
-        public Box Scaled(float sx, float sy) => new Box(x * sx, y * sy, w * sx, h * sy);
+        public Box Fit(Func<Box, Box> f) => f(this);
     }
 
     /// <summary>Что нарисовать в кадре: картинка (или сплошной цвет, если Tex = −1) в прямоугольнике экрана.</summary>
@@ -52,35 +52,47 @@ namespace GasQueue.Intro
         public Box[] LineBoxes = new Box[3];
         public float LineSize, LogoSize;
 
+        /// <summary>Число на логотипе — «92» римскими цифрами, как «VI» у GTA.</summary>
+        public const string Numeral = "XCII";
+        /// <summary>Базовая линия цифр — в нижней части логотипа (доля высоты).</summary>
+        public const float NumeralBaseline = 0.95f;
+
+        /// <summary>Вертикальная «обложка» по центру экрана, по бокам — чёрное.</summary>
+        public Box Poster;
+
         public static IntroLayout Compute(float w, float h)
         {
             var L = new IntroLayout { Width = w, Height = h };
-            float g = Math.Max(3f, (float)Math.Round(h * 0.011f));
+            float ph = Math.Min(h * 0.96f, w * 0.96f / 0.8f), pw = (float)Math.Round(ph * 0.8f);
+            L.Poster = new Box((float)Math.Round((w - pw) / 2f), (float)Math.Round((h - ph) / 2f), pw, (float)Math.Round(ph));
+            float px = L.Poster.x, py = L.Poster.y;
+            float g = Math.Max(3f, (float)Math.Round(ph * 0.011f));
             float m = g;
-            float side = (float)Math.Round((w - 2 * m - 2 * g) * 0.245f);
-            float center = w - 2 * m - 2 * g - 2 * side;
-            float avail = h - 2 * m;
-            Column(L.Panels, 0, m, m, side, avail, g, 0.34f, 0.31f);
-            Column(L.Panels, 3, m + side + g, m, center, avail, g, 0.31f, 0.38f);
-            Column(L.Panels, 6, m + side + g + center + g, m, side, avail, g, 0.38f, 0.27f);
+            float side = (float)Math.Round((pw - 2 * m - 2 * g) * 0.3f);
+            float center = pw - 2 * m - 2 * g - 2 * side;
+            float avail = ph - 2 * m;
+            Column(L.Panels, 0, px + m, py + m, side, avail, g, 0.36f, 0.30f);
+            Column(L.Panels, 3, px + m + side + g, py + m, center, avail, g, 0.27f, 0.40f);
+            Column(L.Panels, 6, px + m + side + g + center + g, py + m, side, avail, g, 0.30f, 0.36f);
 
             // Логотип — поверх центрального кадра, заходит на соседние, как на обложке
             var c = L.Panels[4];
-            float lw = center * 0.94f, lh = Math.Min(lw * 0.6f, h * 0.62f);
-            L.Logo = new Box(c.cx - lw / 2f, c.cy - lh / 2f - h * 0.01f, lw, lh);
-            L.LogoSize = Math.Min(lw * 0.96f / Path.TextWidth("92", 1f), lh * 1.3f);
+            float lw = pw * 0.86f, lh = lw * 0.62f;
+            L.Logo = new Box(L.Poster.cx - lw / 2f, c.cy - lh / 2f, lw, lh);
+            L.LogoSize = Math.Min(lw * 0.96f / Path.TextWidth(Numeral, 1f, 0.02f), lh * 1.3f);
 
             float widest = 0f;
             foreach (var s in Lines) widest = Math.Max(widest, Path.TextWidth(s, 1f));
-            L.LineSize = Math.Min(lw * 0.8f / widest, lh * 0.25f);
+            L.LineSize = Math.Min(lw * 0.72f / widest, lh * 0.25f);
             float lead = L.LineSize * 0.84f;
-            float top = L.Logo.cy - lead * 1.5f;
+            float top = L.Logo.y + lh * 0.02f; // надпись сверху, нижняя строка заходит на цифры
             for (int i = 0; i < 3; i++)
                 L.LineBoxes[i] = new Box(L.Logo.x - L.LineSize * 0.2f, top + i * lead - L.LineSize * 0.1f, lw + L.LineSize * 0.4f, L.LineSize * 1.2f);
 
             float ts = L.LineSize * 0.3f;
             float tw = Path.TextWidth(Tagline, ts, 0.12f) + ts * 1.2f;
-            L.Tagline_ = new Box(c.cx - tw / 2f, Math.Min(L.Logo.y + lh + ts * 0.2f, h - m - ts * 1.6f), tw, ts * 1.5f);
+            float numeralBottom = L.Logo.y + lh * NumeralBaseline;
+            L.Tagline_ = new Box(L.Poster.cx - tw / 2f, Math.Min(numeralBottom + ts * 0.6f, py + ph - m - ts * 1.6f), tw, ts * 1.5f);
             return L;
         }
 
@@ -125,7 +137,10 @@ namespace GasQueue.Intro
         public static List<Sprite> Frame(IntroLayout L, float w, float h, float t)
         {
             var list = new List<Sprite>(48);
-            float sx = w / L.Width, sy = h / L.Height;
+            // Окно поменяло размер — обложка масштабируется целиком, без искажений
+            float fk = Math.Min(w / L.Width, h / L.Height);
+            float fx = (w - L.Width * fk) / 2f, fy = (h - L.Height * fk) / 2f;
+            Func<Box, Box> fit = bx => new Box(bx.x * fk + fx, bx.y * fk + fy, bx.w * fk, bx.h * fk);
             Solid(list, new Box(0, 0, w, h), 0f, 0f, 0f, 1f);
             if (t >= MenuTime)
             {
@@ -138,11 +153,15 @@ namespace GasQueue.Intro
             float shake = t > LogoTime ? (float)Math.Exp(-(t - LogoTime) * 9f) * h * 0.007f : 0f;
             float ox = shake * (float)Math.Sin(t * 91f), oy = shake * (float)Math.Cos(t * 73f);
 
+            // Тёмная подложка обложки — видны промежутки между кадрами
+            float posterIn = Clamp01((t - FirstPanel + 0.15f) / 0.3f);
+            if (posterIn > 0f) Solid(list, Shift(L.Poster.Fit(fit), ox, oy), 0.09f, 0.04f, 0.125f, posterIn);
+
             for (int i = 0; i < PanelCount; i++)
             {
                 float t0 = PanelTime(i);
                 if (t < t0) continue;
-                var b = Shift(L.Panels[i].Scaled(sx, sy), ox, oy);
+                var b = Shift(L.Panels[i].Fit(fit), ox, oy);
                 float p = Clamp01((t - t0) / 0.38f);
                 float scale = 1f + 0.12f * (1f - OutCubic(p));
                 var r = Scale(b, scale);
@@ -159,7 +178,7 @@ namespace GasQueue.Intro
             }
 
             // Логотип
-            var logo = Shift(L.Logo.Scaled(sx, sy), ox, oy);
+            var logo = Shift(L.Logo.Fit(fit), ox, oy);
             float glowIn = Clamp01((t - (LogoTime - 0.15f)) / 0.5f);
             if (glowIn > 0f)
             {
@@ -179,7 +198,7 @@ namespace GasQueue.Intro
                 float t0 = LineTime(i);
                 if (t < t0) continue;
                 float p = Clamp01((t - t0) / 0.22f);
-                var b = Shift(L.LineBoxes[i].Scaled(sx, sy), ox, oy);
+                var b = Shift(L.LineBoxes[i].Fit(fit), ox, oy);
                 Tex(list, TexLine0 + i, Scale(b, 2.3f - 1.3f * OutCubic(p)), Clamp01(p * 2.5f));
             }
 
@@ -204,7 +223,7 @@ namespace GasQueue.Intro
             if (t > tagT)
             {
                 float p = Clamp01((t - tagT) / 0.4f);
-                var b = Shift(L.Tagline_.Scaled(sx, sy), ox, oy + (1f - OutCubic(p)) * h * 0.02f);
+                var b = Shift(L.Tagline_.Fit(fit), ox, oy + (1f - OutCubic(p)) * h * 0.02f);
                 Tex(list, TexTagline, b, p);
             }
 
