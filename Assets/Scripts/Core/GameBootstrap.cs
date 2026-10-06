@@ -88,6 +88,7 @@ namespace GasQueue
 
             var systems = new GameObject("Systems");
             systems.transform.SetParent(root, false);
+            Radio.RaceOnly = race;
             var radio = systems.AddComponent<Radio>();
             radio.display = playerVisual.radioDisplay;
             var pause = systems.AddComponent<PauseMenu>();

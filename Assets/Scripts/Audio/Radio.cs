@@ -21,6 +21,10 @@ namespace GasQueue
 
         const string MusicFolder = "RaceMusic";
 
+        /// <summary>Гонка: на радио только свои треки, R — следующий трек (задаётся до создания радио).</summary>
+        public static bool RaceOnly;
+        bool tracksOnly;
+
         Station[] stations;
         int current; // 0 — выключено
         int lineIndex;
@@ -63,6 +67,12 @@ namespace GasQueue
                 });
             }
             raceStation = list.Count > 0 ? 1 : 0;
+            tracksOnly = RaceOnly && raceStation == 1;
+            if (tracksOnly)
+            {
+                stations = list.ToArray();
+                return;
+            }
             list.AddRange(new[]
             {
                 new Station
@@ -156,6 +166,16 @@ namespace GasQueue
 
         void Next(bool quiet)
         {
+            // В гонке R листает свои треки, а не станции
+            if (tracksOnly && current == raceStation && !quiet)
+            {
+                var playing = stations[current - 1];
+                playing.track++;
+                fx.PlayOneShot(SoundFactory.Tick);
+                music.Stop();
+                PlayTrack(playing);
+                return;
+            }
             current = (current + 1) % (stations.Length + 1);
             if (!quiet)
             {

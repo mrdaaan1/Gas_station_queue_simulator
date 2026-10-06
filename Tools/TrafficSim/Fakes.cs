@@ -51,6 +51,8 @@ public class PlayerCar : Vehicle { public override bool IsPlayer=>true; LanePath
      foreach(var n in traffic.Npcs) if(n.Role==NpcRole.ToPump && n.S<3f && (n.Position-path.End).magnitude<3f) free=Mathf.Min(free,path.Length-6f-s);
      free=Mathf.Min(free,path.Length-s);
      // Сценарий «проехал мимо головы очереди прямо к колонкам» (в гонке шлагбаума нет)
+     // Сценарий «объехал всю очередь и встал у колонок» (в гонке так можно)
+     if(System.Environment.GetEnvironmentVariable("SIM_SKIP")!=null && traffic.RaceMode && traffic.PlayerPump==null && Position.z>-120f && traffic.PlayerQueueIndex>0){ Place(new Vector3(26f,0,-8f),Vector3.forward); phase=5; GameManager.Log($"player skipped the queue (was {traffic.PlayerQueueIndex}-th)"); return; }
      if(System.Environment.GetEnvironmentVariable("SIM_OVERSHOOT")!=null && traffic.PlayerPump==null && s>=path.Length-0.3f && traffic.PlayerQueueIndex==0){ Place(new Vector3(24f,0,-6f),Vector3.forward); phase=5; GameManager.Log("player rolled past the head to the pumps"); return; }
      if(traffic.PlayerPump!=null){ path=traffic.PlayerPump.enterPath; s=0; phase=1; free=0; GameManager.Log("player -> pump"); } }
   else if(phase==5){ if(traffic.PlayerPump!=null){ path=traffic.PlayerPump.enterPath; s=path.Project(Position,out _); phase=1; GameManager.Log($"player granted from the lot: pump {traffic.PlayerPump.Number}"); } return; }

@@ -279,7 +279,8 @@ namespace GasQueue
                               carPos.z > CityLayout.BarrierZ && carPos.z < CityLayout.IslandZ + 8f;
 
             // Заехал к колонкам, не дождавшись своей очереди
-            if (inPumpZone && Traffic.PlayerPump == null && !PlayerFueled && !CheatedIn && State != GameState.DrivingAway)
+            // (в гонке к колонкам можно встать без очереди — там своя битва за колонку)
+            if (!RaceMode && inPumpZone && Traffic.PlayerPump == null && !PlayerFueled && !CheatedIn && State != GameState.DrivingAway)
             {
                 CheatedIn = true;
                 ShowMessage("Вы заехали к колонкам без очереди! Кассир такого не обслужит.", 8f);

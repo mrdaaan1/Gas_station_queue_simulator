@@ -171,10 +171,13 @@ namespace GasQueue
                 case CameraMode.Top:
                 {
                     bool top = Mode == CameraMode.Top;
-                    var offset = top ? new Vector3(0f, 16f, -22f) : new Vector3(0f, 3.4f, -8.5f);
+                    var offset = top ? new Vector3(0f, 16f, -22f) : new Vector3(0f, 2.8f, -7f);
                     float carYaw = car.eulerAngles.y;
                     var want = car.position + Quaternion.Euler(0f, carYaw + yaw, 0f) * offset;
-                    chasePos = Vector3.Lerp(chasePos == Vector3.zero ? want : chasePos, want, 1f - Mathf.Exp(-dt * 6f));
+                    chasePos = Vector3.Lerp(chasePos == Vector3.zero ? want : chasePos, want, 1f - Mathf.Exp(-dt * 10f));
+                    // На большой скорости камера не отстаёт дальше пары метров (раньше на 180 км/ч уезжала на 8 м назад)
+                    var lag = chasePos - want;
+                    if (lag.magnitude > 2f) chasePos = want + lag.normalized * 2f;
                     transform.position = chasePos;
                     var lookAt = car.position + car.forward * (top ? 14f : 4f) + Vector3.up * (1.2f - pitch * 0.05f);
                     transform.rotation = Quaternion.LookRotation(lookAt - transform.position);

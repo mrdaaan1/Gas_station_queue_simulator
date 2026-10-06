@@ -601,6 +601,8 @@ namespace GasQueue
         // ---------- Гонка: кто первый займёт колонку ----------
 
         readonly Dictionary<NpcCar, float> waitingSince = new Dictionary<NpcCar, float>();
+        /// <summary>Гонка: игрок встал у колонок без очереди и ждёт, кто первый займёт освободившуюся колонку.</summary>
+        public bool PlayerWaitingWithoutQueue { get; private set; }
         float playerWaitingSince = -1f;
 
         float WaitingSince(NpcCar npc)
@@ -632,7 +634,9 @@ namespace GasQueue
                 if (t < rushT) { rushT = t; rusher = npc; }
             }
 
-            bool playerWants = (PlayerIsHead || PlayerBribed) && Gm.State == GameState.Queueing && PlayerPump == null && !Gm.PlayerFueled;
+            // Игрок ждёт колонку: первый в очереди, «договорился» или, как наглые гонщики, встал у колонок без очереди
+            PlayerWaitingWithoutQueue = !PlayerIsHead && !PlayerInQueue && PlayerInStationLot() && !Gm.OnFoot;
+            bool playerWants = (PlayerIsHead || PlayerBribed || PlayerWaitingWithoutQueue) && Gm.State == GameState.Queueing && PlayerPump == null && !Gm.PlayerFueled;
             if (!playerWants) playerWaitingSince = -1f;
             else if (playerWaitingSince < 0f) playerWaitingSince = Time.time;
             float playerT = playerWants ? playerWaitingSince : float.MaxValue;
