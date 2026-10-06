@@ -720,7 +720,9 @@ namespace GasQueue
             r.Fill(Intro.Path.RoundRect(0, H - 60, 200, 22, 3), Intro.C4.Hex("#3a3a3e"));
             r.Fill(Intro.Path.Text("БЕРИ IPHONE", 14, H - 43, 14f), Intro.C4.White);
             var tex = new Texture2D(W, H, TextureFormat.RGBA32, true) { name = "MadagascarFacade", wrapMode = TextureWrapMode.Clamp, anisoLevel = 4 };
-            tex.LoadRawTextureData(r.ToRgba32(true));
+            // Только верхний уровень: мелкие копии (mipmaps) Unity досчитает сама в Apply.
+            // (LoadRawTextureData ждёт данные сразу для всех уровней — и падал.)
+            tex.SetPixelData(r.ToRgba32(true), 0);
             tex.Apply(true, true);
             return tex;
         }

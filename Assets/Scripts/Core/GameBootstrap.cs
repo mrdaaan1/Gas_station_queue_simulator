@@ -43,8 +43,30 @@ namespace GasQueue
         void Start()
         {
             showMenu = true;
-            Build();
+            SafeBuild();
             IntroSplash.PlayOnce(gameObject); // заставка «92» поверх меню, один раз за запуск
+        }
+
+        /// <summary>
+        /// Построить мир; если гоночная трасса упала с ошибкой — не оставлять чёрный экран,
+        /// а показать ошибку в Console и открыть меню в обычном режиме.
+        /// </summary>
+        void SafeBuild()
+        {
+            try
+            {
+                Build();
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogException(e);
+                if (Mode == GameMode.Queue) throw;
+                Debug.LogError("Трасса режима «" + Mode + "» не построилась — открываю обычный режим. Пришлите ошибку выше.");
+                if (world != null) Destroy(world);
+                Mode = GameMode.Queue;
+                showMenu = true;
+                Build();
+            }
         }
 
         void Build()
@@ -157,7 +179,7 @@ namespace GasQueue
         {
             PauseMenu.ResetGlobalState();
             Destroy(world);
-            Build();
+            SafeBuild();
         }
 
         /// <summary>Если сцену запустили не нашу (например, SampleScene), выключаем её камеру, чтобы не мешала.</summary>
