@@ -21,6 +21,14 @@ public static class GameBuilder
     /// <summary>Сборка из Терминала (Tools/build_mac.sh): Unity без окна собирает игру и закрывается.</summary>
     public static void BuildMacBatch()
     {
+        // Номер версии от Tools/release_mac.sh (видно в главном меню и в «О программе» на Mac)
+        var version = System.Environment.GetEnvironmentVariable("GASQUEUE_VERSION");
+        if (!string.IsNullOrEmpty(version))
+        {
+            PlayerSettings.bundleVersion = version;
+            var build = System.Environment.GetEnvironmentVariable("GASQUEUE_BUILD");
+            if (!string.IsNullOrEmpty(build)) PlayerSettings.macOS.buildNumber = build;
+        }
         bool ok = Build(BuildTarget.StandaloneOSX, "Builds/Mac/GasQueue.app", "Mac");
         EditorApplication.Exit(ok ? 0 : 1);
     }

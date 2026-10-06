@@ -121,6 +121,12 @@ Assets/
 
 - **Mac:** меню **Gas Queue → Собрать для Mac (.app)**. Через пару минут откроется папка `Builds/Mac` с `GasQueue.app`.
   Сожмите её (правый клик → «Сжать») и отправьте zip.
+- **Новая версия для Mac одной командой** (Unity должна быть закрыта):
+  `cd ~/Gas_station_queue_simulator && bash Tools/release_mac.sh`.
+  Скрипт делает `git pull`, ставит номер версии (по дате, виден в главном меню), собирает, подписывает и
+  кладёт `GasQueue-<версия>-Mac.zip` и «что нового» в `Builds/Releases`. Своя музыка из
+  `Assets/Resources/RaceMusic` входит в сборку; без неё (для публичного выпуска) — `bash Tools/release_mac.sh --no-music`.
+  Своя версия: `bash Tools/release_mac.sh 0.14`; без `git pull`: `--no-pull`.
 - **Mac из Терминала** (Unity должна быть закрыта): `cd ~/Gas_station_queue_simulator && bash Tools/build_mac.sh`.
   Готовый архив для друзей — `Builds/Mac/GasQueue-Mac.zip`.
 - Перед любой сборкой (и при открытии проекта) редактор сохраняет материалы в `Assets/Resources/GasQueueGenerated` —

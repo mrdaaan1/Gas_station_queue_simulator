@@ -107,6 +107,11 @@ namespace GasQueue
             if (GUI.Button(new Rect(x, y, bw, bh), "Выйти из игры", button)) Quit();
             y += bh + 24 * k;
 
+            // Номер версии — внизу панели
+            var versionStyle = new GUIStyle(text) { fontSize = Mathf.RoundToInt(16 * k), alignment = TextAnchor.LowerLeft };
+            versionStyle.normal.textColor = new Color(1f, 1f, 1f, 0.45f);
+            GUI.Label(new Rect(40 * k, h - 40 * k, panel - 80 * k, 30 * k), "версия " + Application.version, versionStyle);
+
             if (showHelp)
             {
                 var r = new Rect(40 * k, y, Mathf.Max(panel - 80 * k, 940 * k), h - y - 30 * k);
