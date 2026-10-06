@@ -47,6 +47,8 @@ public class PlayerCar : Vehicle { public override bool IsPlayer=>true; LanePath
     else if(wait>8){ s+=0.5f; }
     Speed=0; return; }
   if(phase==0){ foreach(var n in traffic.Npcs) if(n.Path==path && n.Role==NpcRole.Queue && n.S>s && Mathf.Abs(n.Offset)<1.2f) free=Mathf.Min(free,(n.S-n.Length/2)-(s+Length/2)-2.2f);
+     // голова очереди уехала к колонке, но ещё стоит на месте — ждём
+     foreach(var n in traffic.Npcs) if(n.Role==NpcRole.ToPump && n.S<3f && (n.Position-path.End).magnitude<3f) free=Mathf.Min(free,path.Length-6f-s);
      free=Mathf.Min(free,path.Length-s);
      // Сценарий «проехал мимо головы очереди прямо к колонкам» (в гонке шлагбаума нет)
      if(System.Environment.GetEnvironmentVariable("SIM_OVERSHOOT")!=null && traffic.PlayerPump==null && s>=path.Length-0.3f && traffic.PlayerQueueIndex==0){ Place(new Vector3(24f,0,-6f),Vector3.forward); phase=5; GameManager.Log("player rolled past the head to the pumps"); return; }

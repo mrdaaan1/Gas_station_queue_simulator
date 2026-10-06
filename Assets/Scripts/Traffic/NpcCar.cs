@@ -15,6 +15,7 @@ namespace GasQueue
         ToGas,     // на газу: свернул из очереди к газовой колонке
         GasFueling,// заправляется газом
         Racing,    // гонщик на трассе (режим «Самая быстрая гонка»)
+        Rushing,   // гонщик едет к колонкам без очереди и ждёт рядом с головой очереди
     }
 
     /// <summary>
@@ -158,6 +159,37 @@ namespace GasQueue
             decel = 8f;
         }
 
+        static readonly string[] RushLines = { "Я только спросить!", "Мне быстро, у меня гонка!", "Пропустите, я гонщик!", "Я тут занимал!" };
+
+        /// <summary>Трасса кончилась на левой полосе — мимо очереди прямо к колонкам.</summary>
+        public void RushToPumps(LanePath rush)
+        {
+            Role = NpcRole.Rushing;
+            Path = rush;
+            S = rush.Project(transform.position, out _);
+            Offset = targetOffset = 0f;
+            pathAfterLaneChange = null;
+            visual.blinker = 0;
+            StopAtEnd = true;
+            decel = 8f;
+            laneRate = LaneChangeRate;
+        }
+
+        /// <summary>Доехал до места у головы очереди — кричит, что ему только спросить.</summary>
+        public void ShoutRush()
+        {
+            Say(RushLines[Random.Range(0, RushLines.Length)]);
+            Honk();
+        }
+
+        /// <summary>Колонка освободилась — заезжает к ней своим путём (не от головы очереди).</summary>
+        public void GoToPump(Pump pump, LanePath via)
+        {
+            GoToPump(pump);
+            Path = via;
+            S = 0f;
+        }
+
         /// <summary>Трасса кончилась на левой полосе — едет к въезду и лезет «вторым рядом».</summary>
         public void CutFromRace(LanePath middle)
         {
@@ -196,6 +228,7 @@ namespace GasQueue
                 case NpcRole.GivingUp: limit = Offset > -3f ? 3f : 10f; break;
                 case NpcRole.Vip: limit = S > Path.Length - 45f ? 5f : Path.speedLimit; break; // по территории — потише
                 case NpcRole.Racing: limit = profile != null ? profile.At(S) * skill : Path.speedLimit; break;
+                case NpcRole.Rushing: limit = S < Path.Length - 45f ? Path.speedLimit : 5f; break;
                 default: limit = Path.speedLimit; break;
             }
             if (IsRacer)

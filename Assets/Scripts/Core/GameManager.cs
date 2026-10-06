@@ -860,7 +860,8 @@ namespace GasQueue
         void UpdateFueling(float dt)
         {
             if (!NozzleIn) return;
-            float liters = Settings.LitersPerSecond * dt * (wrongSide ? 0.7f : 1f);
+            // В гонке колонка «скоростная»: 40 литров секунд за десять (в обычной игре — мучительно медленно, так задумано)
+            float liters = Settings.LitersPerSecond * (RaceMode ? 4f : 1f) * dt * (wrongSide ? 0.7f : 1f);
             liters = Mathf.Min(liters, PaidLiters - LitersFilled);
             LitersFilled += liters;
             Player.AddFuelLiters(liters);

@@ -13,7 +13,9 @@ namespace GasQueue
     {
         public static bool Gas => Held(KeyCode.W) || Held(KeyCode.UpArrow);
         public static bool Brake => Held(KeyCode.S) || Held(KeyCode.DownArrow);
-        public static bool HornPressed => Pressed(KeyCode.H) || Pressed(KeyCode.Space);
+        public static bool HornPressed => Pressed(KeyCode.H);
+        /// <summary>Ручник в машине (пешком тот же пробел — прыжок).</summary>
+        public static bool Handbrake => Held(KeyCode.Space);
         public static bool SwitchCameraPressed => Pressed(KeyCode.C);
         public static bool RadioPressed => Pressed(KeyCode.R);
         public static bool InteractPressed => Pressed(KeyCode.E);

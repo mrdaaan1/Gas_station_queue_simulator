@@ -13,6 +13,9 @@ namespace GasQueue
     {
         const float ReverseAccel = 2.5f;
         const float BrakeDecel = 9f;
+        /// <summary>Тормоз спорткара: со 100 км/ч — до нуля меньше чем за 2,5 с.</summary>
+        const float SportBrakeDecel = 12f;
+        const float HandbrakeDecel = 5f;
         const float CoastDecel = 1.2f;
         const float MaxReverse = 4f;
         const float Wheelbase = 2.6f;
@@ -86,6 +89,8 @@ namespace GasQueue
             bool running = Engine == EngineState.Running;
             bool gas = controlsEnabled && GameInput.Gas;
             bool back = controlsEnabled && GameInput.Brake;
+            bool handbrake = controlsEnabled && GameInput.Handbrake;
+            float brakeDecel = visual.sporty ? SportBrakeDecel : BrakeDecel;
             float steerInput = controlsEnabled ? GameInput.Steer : 0f;
 
             if ((gas || back) && !running && !warnedEngineOff && Mathf.Abs(Speed) < 0.5f)
@@ -101,15 +106,18 @@ namespace GasQueue
             float maxSpeed = visual.maxSpeed * power;
             if (gas)
             {
-                if (Speed < -0.1f) Speed = Mathf.Min(0f, Speed + BrakeDecel * dt);
+                if (Speed < -0.1f) Speed = Mathf.Min(0f, Speed + brakeDecel * dt);
                 else if (running) Speed = Mathf.Min(maxSpeed, Speed + visual.accel * power * (1f - Speed / (maxSpeed * 1.2f)) * dt);
             }
             else if (back)
             {
-                if (Speed > 0.1f) Speed = Mathf.Max(0f, Speed - BrakeDecel * dt);
+                if (Speed > 0.1f) Speed = Mathf.Max(0f, Speed - brakeDecel * dt);
                 else if (running) Speed = Mathf.Max(-MaxReverse, Speed - ReverseAccel * dt);
             }
             else Speed = Mathf.MoveTowards(Speed, 0f, CoastDecel * dt);
+            // Ручник: задние колёса блокируются — машина теряет скорость и идёт в занос
+            if (handbrake) Speed = Mathf.MoveTowards(Speed, 0f, HandbrakeDecel * dt);
+            bool drifting = handbrake && Speed > 7f;
 
             // Руль: быстрее возвращается в ноль, на скорости поворачивается меньше
             // Спорткар на большой скорости рулит ещё аккуратнее
@@ -122,10 +130,23 @@ namespace GasQueue
 
             // Кинематика «велосипеда»: поворот зависит от скорости и угла колёс
             float yawRate = Speed / Wheelbase * Mathf.Tan(SteerAngle * Mathf.Deg2Rad) * Mathf.Rad2Deg;
+            // В заносе машину разворачивает сильнее, на скорости руль на ручнике работает как в аркадных гонках
+            if (drifting) yawRate = Mathf.Sign(SteerAngle) * Mathf.Max(Mathf.Abs(yawRate) * 1.8f, Mathf.Abs(steerInput) * 70f);
             var fwd = Quaternion.Euler(0f, yawRate * dt, 0f) * transform.forward;
-            var pos = transform.position + fwd * Speed * dt;
 
-            ResolveCollisions(ref pos, fwd);
+            // Куда машина едет (может отставать от того, куда смотрит нос — это и есть занос).
+            // Сцепление тянет направление движения к носу: обычно почти мгновенно, на ручнике — медленно.
+            if (moveDir.sqrMagnitude < 0.5f) moveDir = fwd;
+            float grip = drifting ? 2.2f : handbrake ? 5f : 14f;
+            moveDir = Vector3.Slerp(moveDir, Speed >= 0f ? fwd : fwd, 1f - Mathf.Exp(-grip * dt)).normalized;
+            if (!drifting && Mathf.Abs(Speed) < 3f) moveDir = fwd;
+            // Боком машина тормозится об асфальт
+            float slip = Vector3.Angle(moveDir, fwd);
+            if (slip > 5f) Speed = Mathf.MoveTowards(Speed, 0f, slip / 90f * 6f * dt);
+            Drift = slip;
+            var pos = transform.position + moveDir * Speed * dt;
+
+            ResolveCollisions(ref pos, ref fwd);
             BurnFuel(dt, (pos - transform.position).magnitude);
             Place(pos, fwd);
 
@@ -184,7 +205,12 @@ namespace GasQueue
 
         // ---------- Столкновения ----------
 
-        void ResolveCollisions(ref Vector3 pos, Vector3 fwd)
+        Vector3 moveDir;
+
+        /// <summary>Угол заноса, градусы (для звука и подсказок).</summary>
+        public float Drift { get; private set; }
+
+        void ResolveCollisions(ref Vector3 pos, ref Vector3 fwd)
         {
             for (int iter = 0; iter < 3; iter++)
             {
@@ -198,14 +224,14 @@ namespace GasQueue
                     if (d.sqrMagnitude > reach * reach) continue;
                     if (Obb.Overlap(box, o.box, out var mtv))
                     {
-                        Push(ref pos, ref box, fwd, mtv, o.name, null);
+                        Push(ref pos, ref box, ref fwd, mtv, o.name, null);
                         any = true;
                     }
                 }
 
                 if (traffic.Barrier.IsDown && Obb.Overlap(box, traffic.Barrier.Box, out var bm))
                 {
-                    Push(ref pos, ref box, fwd, bm, "шлагбаум", null);
+                    Push(ref pos, ref box, ref fwd, bm, "шлагбаум", null);
                     any = true;
                 }
 
@@ -215,7 +241,7 @@ namespace GasQueue
                     if (d.x * d.x + d.z * d.z > 64f) continue;
                     if (Obb.Overlap(box, npc.Box, out var mtv))
                     {
-                        Push(ref pos, ref box, fwd, mtv, npc, npc);
+                        Push(ref pos, ref box, ref fwd, mtv, npc, npc);
                         any = true;
                     }
                 }
@@ -223,7 +249,7 @@ namespace GasQueue
             }
         }
 
-        void Push(ref Vector3 pos, ref Obb box, Vector3 fwd, Vector2 mtv, object what, NpcCar npc)
+        void Push(ref Vector3 pos, ref Obb box, ref Vector3 fwd, Vector2 mtv, object what, NpcCar npc)
         {
             pos += new Vector3(mtv.x, 0f, mtv.y);
             box = new Obb(pos, fwd, Width, Length);
@@ -231,20 +257,41 @@ namespace GasQueue
             var n = mtv.normalized;
             var fwd2 = new Vector2(fwd.x, fwd.z);
             // Скорость сближения с препятствием (с машиной — относительная: догнали едущего — удар слабый)
+            var vel = new Vector2(moveDir.x, moveDir.z) * Speed;
             var otherVel = npc != null ? new Vector2(npc.Forward.x, npc.Forward.z) * npc.Speed : Vector2.zero;
-            float impact = -Vector2.Dot(fwd2 * Speed - otherVel, n);
+            var rel = vel - otherVel;
+            float impact = -Vector2.Dot(rel, n);
             if (impact <= 0.05f) return;
 
             // Удар носом или задом
             bool ourFront = Vector2.Dot(fwd2, n) < 0f;
             if (raceFuel)
             {
-                // Гонка: по касательной скорость почти сохраняется, в лоб — гасится; в едущую машину — подстраиваемся под неё
-                float headOn = Mathf.Abs(Vector2.Dot(fwd2, n));
-                Speed *= Mathf.Clamp01(1f - headOn * 0.85f);
-                if (npc != null) Speed = Mathf.Min(Speed, Mathf.Max(0f, Vector2.Dot(otherVel, fwd2)) + Speed * (1f - headOn) * 0.3f);
+                // Аркада: гасится только скорость «в стену», вдоль неё машина скользит дальше и
+                // разворачивается носом по ходу. В лоб в стену — сильно теряет скорость, но без отскока.
+                float into = Mathf.Clamp01(impact / Mathf.Max(0.5f, rel.magnitude));
+                if (npc == null && into > 0.9f) Speed *= 0.3f;
+                else
+                {
+                    var slide = rel + n * impact;          // убрали составляющую «в препятствие»
+                    var newVel = slide * (1f - 0.25f * into) + otherVel;
+                    float sp = newVel.magnitude;
+                    if (sp > 0.3f && Vector2.Dot(newVel, fwd2) > 0f)
+                    {
+                        var dir = new Vector3(newVel.x / sp, 0f, newVel.y / sp);
+                        moveDir = dir;
+                        fwd = Vector3.Slerp(fwd, dir, 0.25f + 0.5f * into).normalized;
+                        Speed = sp;
+                    }
+                    else Speed = Mathf.Max(0f, sp) * 0.3f;
+                }
+                box = new Obb(pos, fwd, Width, Length);
             }
-            else Speed = -Speed * 0.12f; // гасим скорость и слегка отскакиваем
+            else
+            {
+                Speed = -Speed * 0.12f; // гасим скорость и слегка отскакиваем
+                moveDir = fwd;
+            }
 
             if (impact < 0.9f) return;
             float now = Time.time;

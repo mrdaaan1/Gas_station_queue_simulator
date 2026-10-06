@@ -107,6 +107,24 @@ namespace GasQueue
             return new LanePath("RaceTraffic", 12f, pts, false);
         }
 
+        /// <summary>
+        /// Наглые гонщики не встают в очередь: по среднему ряду мимо неё, через въезд — к месту рядом с головой очереди.
+        /// Оттуда спорят с очередью и игроком, кто первый займёт освободившуюся колонку.
+        /// </summary>
+        public static readonly Vector3 RushSpot = new Vector3(15.6f, 0f, -19.2f);
+
+        public static LanePath RushPath() => new LanePath("Rush", 22f, new[]
+        {
+            new Vector3(CityLayout.LaneMiddle, 0f, JoinZ + 15f), new Vector3(CityLayout.LaneMiddle, 0f, -40f),
+            new Vector3(6.6f, 0f, -30f), new Vector3(9.6f, 0f, -24.6f), new Vector3(12.9f, 0f, -21f), RushSpot,
+        });
+
+        /// <summary>От места «без очереди» к колонке — мимо головы очереди слева.</summary>
+        public static LanePath RushToPump(Vector3 pump) => new LanePath("RushToPump", 4f, new[]
+        {
+            RushSpot, new Vector3(17.2f, 0f, -12.5f), new Vector3(pump.x, 0f, -4f), new Vector3(pump.x, 0f, -1f), pump,
+        });
+
         /// <summary>Улица перекрыта забором сразу за въездом на заправку: к финишу — только через заправку и выезд.</summary>
         public const float ClosureZ = -17f;
         public const float ClosureMinX = -18f, ClosureMaxX = 14f;

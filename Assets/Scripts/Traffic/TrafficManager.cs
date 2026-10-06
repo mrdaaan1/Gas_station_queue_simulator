@@ -104,6 +104,7 @@ namespace GasQueue
         public LanePath RaceLeft { get; private set; }
         public LanePath RaceRight { get; private set; }
         public LanePath RaceTraffic { get; private set; }
+        public LanePath RushPath { get; private set; }
         public readonly List<NpcCar> Racers = new List<NpcCar>();
         /// <summary>Кто уже финишировал (имена по порядку; игрок — «Вы»).</summary>
         public readonly List<string> FinishOrder = new List<string>();
@@ -191,6 +192,8 @@ namespace GasQueue
                 allPaths.Add(RaceLeft);
                 allPaths.Add(RaceRight);
                 allPaths.Add(RaceTraffic);
+                RushPath = RaceLayout.RushPath();
+                allPaths.Add(RushPath);
             }
             foreach (var p in allPaths) lanes[p] = new List<PathEntry>();
 
@@ -436,7 +439,8 @@ namespace GasQueue
         public void OnRacerReachedRoad(NpcCar racer)
         {
             if (racer.Path == RaceRight) racer.JoinQueueFromRace(QueuePath);
-            else racer.CutFromRace(MiddlePath);
+            else if (Random.value < 0.65f) racer.RushToPumps(RushPath); // наглые — прямо к колонкам
+            else racer.CutFromRace(MiddlePath);                          // остальные лезут «вторым рядом»
         }
 
         /// <summary>Ряд очереди рядом с машиной пуст (хвост очереди впереди) — можно просто встать в хвост.</summary>
@@ -539,8 +543,9 @@ namespace GasQueue
             if (PlayerInQueue) lastPlayerQueueIndex = PlayerQueueIndex;
             // Гонка: шлагбаума нет, и игрок, стоявший первым, легко проезжает мимо головы очереди к колонкам.
             // Он всё равно первый — пока впереди никто не встал.
+            // (машина, подкатившая в голову очереди после него, стоит за ним)
             if (RaceMode && !PlayerIsHead && !PlayerInQueue && lastPlayerQueueIndex == 0 && !served && PlayerInStationLot())
-                PlayerIsHead = !NpcAheadOfPlayerInQueue();
+                PlayerIsHead = true;
 
             float gapAhead = 0f;
             if (PlayerQueueIndex > 0)
@@ -583,22 +588,91 @@ namespace GasQueue
             return p.x > CityLayout.LotMinX - 4f && p.x < CityLayout.ShopMinX && p.z > CityLayout.EntranceMinZ && p.z < CityLayout.IslandZ + 10f;
         }
 
-        /// <summary>Кто-то из очереди уже у самой головы (значит, игрок проехал мимо него без очереди).</summary>
-        bool NpcAheadOfPlayerInQueue()
-        {
-            foreach (var e in queue)
-                if (e.v is NpcCar && e.s > QueuePath.Length - 6f) return true;
-            return false;
-        }
-
         public bool IsDirectlyBehindPlayer(NpcCar npc) =>
             PlayerQueueIndex >= 0 && PlayerQueueIndex + 1 < queue.Count && queue[PlayerQueueIndex + 1].v == npc;
 
         // ---------- Заправка: кого пускать к колонкам ----------
 
+        // ---------- Гонка: кто первый займёт колонку ----------
+
+        readonly Dictionary<NpcCar, float> waitingSince = new Dictionary<NpcCar, float>();
+        float playerWaitingSince = -1f;
+
+        float WaitingSince(NpcCar npc)
+        {
+            if (!waitingSince.TryGetValue(npc, out float t))
+            {
+                t = Time.time;
+                waitingSince[npc] = t;
+                if (npc.Role == NpcRole.Rushing) npc.ShoutRush();
+            }
+            return t;
+        }
+
+        /// <summary>
+        /// В гонке колонку получает тот, кто дольше ждёт у колонок: голова очереди, гонщик, пролезший без очереди,
+        /// или игрок. Так у колонок настоящая битва, а не «игрок всегда первый».
+        /// </summary>
+        void UpdateRaceStation()
+        {
+            NpcCar head = queue.Count > 0 && queue[0].v is NpcCar h && h.S >= QueuePath.Length - 1.5f && h.Speed < 0.2f ? h : null;
+            float headT = head != null ? WaitingSince(head) : float.MaxValue;
+
+            NpcCar rusher = null;
+            float rushT = float.MaxValue;
+            foreach (var npc in Npcs)
+            {
+                if (npc.Role != NpcRole.Rushing || npc.S < npc.Path.Length - 0.6f || npc.Speed > 0.2f) continue;
+                float t = WaitingSince(npc);
+                if (t < rushT) { rushT = t; rusher = npc; }
+            }
+
+            bool playerWants = (PlayerIsHead || PlayerBribed) && Gm.State == GameState.Queueing && PlayerPump == null && !Gm.PlayerFueled;
+            if (!playerWants) playerWaitingSince = -1f;
+            else if (playerWaitingSince < 0f) playerWaitingSince = Time.time;
+            float playerT = playerWants ? playerWaitingSince : float.MaxValue;
+
+            if (head == null && rusher == null && !playerWants) return;
+            if (playerT <= rushT && playerT <= headT)
+            {
+                var pump = NearestFreePump();
+                if (pump == null) return;
+                pump.reservedForPlayer = true;
+                PlayerPump = pump;
+                playerWaitingSince = -1f;
+                Gm.OnPlayerGranted(pump);
+                return;
+            }
+            var free = FreePump();
+            if (free == null) return;
+            if (rusher != null && rushT <= headT)
+            {
+                waitingSince.Remove(rusher);
+                rusher.GoToPump(free, RaceLayout.RushToPump(free.spot));
+                if (head != null)
+                {
+                    head.Honk();
+                    head.Say("Э! Куда без очереди?!");
+                }
+                if (playerWants) Gm.ShowMessage($"{rusher.RacerName} пролез(ла) к колонке №{free.Number} раньше вас!", 6f);
+                else if (PlayerInQueue && Gm != null) Gm.ShowMessage($"{rusher.RacerName} заправляется без очереди. Так можно было?!", 6f);
+                return;
+            }
+            if (head != null)
+            {
+                waitingSince.Remove(head);
+                head.GoToPump(free);
+            }
+        }
+
         void UpdateStation()
         {
             if (Barrier.IsDown) return;
+            if (RaceMode)
+            {
+                UpdateRaceStation();
+                return;
+            }
 
             if (!PlayerIsHead && queue.Count > 0 && queue[0].v is NpcCar head && head.S >= QueuePath.Length - 1.5f && head.Speed < 0.2f)
             {
