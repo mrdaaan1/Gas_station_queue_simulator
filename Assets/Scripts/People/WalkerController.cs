@@ -119,6 +119,12 @@ namespace GasQueue
             var input = GameInput.Move;
             var gm = GameManager.Instance;
             if (gm != null && gm.DialogOpen) input = Vector2.zero;
+            // G — выбросить из рук: надоело таскать бревно
+            if (GameInput.DropPressed && (gm == null || !gm.DialogOpen))
+            {
+                if (DropCigarette()) gm?.ShowMessage("Вы выбросили сигарету. Окурок размером с полено дымится на асфальте.", 5f);
+                else if (DropShashlik()) gm?.ShowMessage("Недоеденный шашлык — в урну. Ашот бы обиделся.", 5f);
+            }
             if (cigarette != null && cigarette.Finished)
             {
                 DropCigarette();

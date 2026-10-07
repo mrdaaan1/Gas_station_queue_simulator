@@ -400,7 +400,10 @@ namespace GasQueue
             bool targeted = traffic.IsCutterTarget(this);
             pressing = targeted && Intolerant;
             if (!moving && targeted) reactionDelay = Mathf.Min(reactionDelay, Intolerant ? 0.05f : 0.15f);
-            if (pressing && shoutCooldown <= 0f)
+            // Орём только когда игрок за рулём: пешком он никуда не лезет, а крики вокруг принимал на свой счёт
+            var gmNow = GameManager.Instance;
+            bool playerOnFoot = gmNow != null && gmNow.OnFoot;
+            if (pressing && shoutCooldown <= 0f && !playerOnFoot)
             {
                 shoutCooldown = 8f;
                 Say(IntolerantShouts[Random.Range(0, IntolerantShouts.Length)]);

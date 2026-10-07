@@ -599,7 +599,7 @@ namespace GasQueue
                         DriverSays(CigaretteGive[Random.Range(0, CigaretteGive.Length)]);
                         Walker.GiveCigarette();
                         ShowMessage(CigarettesBummed == 1
-                            ? "Водитель протянул сигарету. Она... несколько крупнее, чем вы ожидали."
+                            ? "Водитель протянул сигарету. Она... несколько крупнее, чем вы ожидали. Надоест — G, выбросить."
                             : "Ещё одна сигаретка. Такая же огромная.", 7f);
                         CloseDialog();
                     }

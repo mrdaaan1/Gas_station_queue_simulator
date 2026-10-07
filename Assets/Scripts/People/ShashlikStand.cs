@@ -174,7 +174,7 @@ namespace GasQueue
             if (lineTimer <= 0f && Vector3.Distance(playerPos, CityLayout.MangalSpot) < 16f)
             {
                 lineTimer = Random.Range(7f, 12f);
-                SpeechBubble.Show((Random.value < 0.5f ? fanner : turner).transform, CookLines[Random.Range(0, CookLines.Length)], 1.5f);
+                Speak(Random.value < 0.5f ? fanner : turner, CookLines[Random.Range(0, CookLines.Length)], false);
             }
 
             // Заказ игрока готов
@@ -194,7 +194,7 @@ namespace GasQueue
         {
             PlayerOrder = 1;
             playerReadyAt = Time.time + CookTime;
-            SpeechBubble.Show(turner.transform, CookingLines[Random.Range(0, CookingLines.Length)], 1.5f);
+            Speak(turner, CookingLines[Random.Range(0, CookingLines.Length)], true);
         }
 
         /// <summary>Игрок у мангала, а заказ готов — отдаём шампур.</summary>
@@ -202,7 +202,7 @@ namespace GasQueue
         {
             if (PlayerOrder != 2) return false;
             PlayerOrder = 0;
-            SpeechBubble.Show(fanner.transform, ServeLines[Random.Range(0, ServeLines.Length)], 1.5f);
+            Speak(fanner, ServeLines[Random.Range(0, ServeLines.Length)], true);
             gm.OnShashlikServed();
             return true;
         }
@@ -237,7 +237,34 @@ namespace GasQueue
         }
 
         /// <summary>Шашлык для водителя готов через CookTime после заказа.</summary>
-        public void Serve(HumanRig to) => SpeechBubble.Show(fanner.transform, ServeLines[Random.Range(0, ServeLines.Length)], 1.5f);
+        public void Serve(HumanRig to) => Speak(fanner, ServeLines[Random.Range(0, ServeLines.Length)], false);
+
+        // ---------- Реплики: говорит один за раз ----------
+
+        /// <summary>До какого момента ещё висит реплика одного из поваров.</summary>
+        float speechUntil;
+        HumanRig lastSpeaker;
+
+        /// <summary>
+        /// Повара стоят рядом — две реплики сразу перекрывают друг друга. Поэтому говорит один:
+        /// пока висит прошлая реплика, новая пропускается, а важная (заказ игрока, «держи шашлык»)
+        /// снимает прошлую и говорит сама.
+        /// </summary>
+        void Speak(HumanRig who, string text, bool important)
+        {
+            if (who == null) return;
+            if (Time.time < speechUntil)
+            {
+                if (!important) return;
+                if (lastSpeaker != null && lastSpeaker != who)
+                    foreach (var b in lastSpeaker.GetComponentsInChildren<SpeechBubble>()) Destroy(b.gameObject);
+            }
+            SpeechBubble.Show(who.transform, text, 1.5f);
+            lastSpeaker = who;
+            speechUntil = Time.time + 3.5f;
+            // Зазывания — не сразу после важной реплики
+            lineTimer = Mathf.Max(lineTimer, 4f);
+        }
     }
 
     /// <summary>
