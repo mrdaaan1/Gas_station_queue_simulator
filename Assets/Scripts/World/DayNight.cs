@@ -40,7 +40,6 @@ namespace GasQueue
         Material headMat, tailMat, lampMat;
 
         // Дождь
-        ParticleSystem rainPs;
         AudioSource rainSound;
 
         static readonly Color DayAmbSky = Shapes.Hex("#b4c8de"), DayAmbEq = Shapes.Hex("#9a9a94"), DayAmbGround = Shapes.Hex("#55574f");
@@ -103,52 +102,30 @@ namespace GasQueue
 
         void BuildRain()
         {
+            // Модуль Particle System в проекте выключен — капли рисуем сами: одна сетка из тонких
+            // вертикальных полосок, развёрнутых к камере, пересчитывается каждый кадр (один вызов отрисовки)
             var go = new GameObject("Rain");
             go.transform.SetParent(transform, false);
-            rainPs = go.AddComponent<ParticleSystem>();
-            rainPs.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-            var main = rainPs.main;
-            main.loop = true;
-            main.startLifetime = 1.1f;
-            main.startSpeed = 0f;
-            main.startSize3D = true;
-            main.startSizeX = 0.025f;
-            main.startSizeY = 0.5f;
-            main.startSizeZ = 0.025f;
-            main.maxParticles = 2500;
-            main.simulationSpace = ParticleSystemSimulationSpace.World;
-            main.startColor = new Color(0.75f, 0.8f, 0.88f, 1f);
-            var vel = rainPs.velocityOverLifetime;
-            vel.enabled = true;
-            vel.space = ParticleSystemSimulationSpace.World;
-            vel.x = new ParticleSystem.MinMaxCurve(-0.6f);
-            vel.y = new ParticleSystem.MinMaxCurve(-16f);
-            vel.z = new ParticleSystem.MinMaxCurve(0f);
-            var shape = rainPs.shape;
-            shape.shapeType = ParticleSystemShapeType.Box;
-            shape.scale = new Vector3(36f, 0.5f, 36f);
-            var emission = rainPs.emission;
-            emission.rateOverTime = 0f;
-            var r = go.GetComponent<ParticleSystemRenderer>();
-            r.renderMode = ParticleSystemRenderMode.Stretch;
-            r.velocityScale = 0.035f;
-            r.lengthScale = 1f;
+            rainMesh = new Mesh { name = "Rain" };
+            rainMesh.MarkDynamic();
+            rainVerts = new Vector3[Drops * 4];
+            var tris = new int[Drops * 6];
+            for (int i = 0; i < Drops; i++)
+            {
+                int v = i * 4, t = i * 6;
+                tris[t] = v; tris[t + 1] = v + 1; tris[t + 2] = v + 2;
+                tris[t + 3] = v; tris[t + 4] = v + 2; tris[t + 5] = v + 3;
+            }
+            rainMesh.vertices = rainVerts;
+            rainMesh.triangles = tris;
+            rainMesh.bounds = new Bounds(Vector3.zero, Vector3.one * 100000f);
+            go.AddComponent<MeshFilter>().sharedMesh = rainMesh;
+            var r = go.AddComponent<MeshRenderer>();
             r.sharedMaterial = Shapes.Mat(new Color(0.72f, 0.78f, 0.86f));
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             r.receiveShadows = false;
-            // Сквозь крышу машины игрока не капает: капли внутри неё гаснут
-            var shield = new GameObject("RainShield").AddComponent<BoxCollider>();
-            shield.transform.SetParent(player.transform, false);
-            shield.isTrigger = true;
-            shield.center = new Vector3(0f, 0.9f, 0f);
-            shield.size = new Vector3(2.3f, 1.9f, 4.8f);
-            var trigger = rainPs.trigger;
-            trigger.enabled = true;
-            trigger.AddCollider(shield);
-            trigger.inside = ParticleSystemOverlapAction.Kill;
-            trigger.enter = ParticleSystemOverlapAction.Kill;
-            trigger.outside = ParticleSystemOverlapAction.Ignore;
-            rainPs.Play();
+            dropPos = new Vector3[Drops];
+            for (int i = 0; i < Drops; i++) dropPos[i] = new Vector3(Random.Range(-1f, 1f), Random.value, Random.Range(-1f, 1f));
 
             rainSound = gameObject.AddComponent<AudioSource>();
             rainSound.clip = RainClip();
@@ -156,6 +133,62 @@ namespace GasQueue
             rainSound.volume = 0f;
             rainSound.spatialBlend = 0f;
             rainSound.Play();
+        }
+
+        const int Drops = 700;
+        const float RainBox = 18f, RainTop = 16f, DropFall = 16f, DropLen = 0.55f, DropWidth = 0.022f;
+        Mesh rainMesh;
+        Vector3[] rainVerts;
+        Vector3[] dropPos; // мировые координаты капель (до первого кадра — «сырые» случайные числа)
+        bool dropsPlaced;
+
+        /// <summary>Капли падают в коробке вокруг камеры; ушедшие под землю или из коробки появляются сверху заново.</summary>
+        void UpdateRain(Camera cam, float dt)
+        {
+            if (rainMesh == null || cam == null) return;
+            var c = cam.transform.position;
+            int active = Mathf.RoundToInt(Drops * rain);
+            if (!dropsPlaced)
+            {
+                dropsPlaced = true;
+                for (int i = 0; i < Drops; i++)
+                    dropPos[i] = c + new Vector3(dropPos[i].x * RainBox, dropPos[i].y * RainTop - 2f, dropPos[i].z * RainBox);
+            }
+            var right = Vector3.Cross(Vector3.up, cam.transform.forward);
+            right = right.sqrMagnitude > 1e-4f ? right.normalized * DropWidth : Vector3.right * DropWidth;
+            var fall = new Vector3(-0.6f, -DropFall, 0f) * dt;
+            var len = new Vector3(-0.6f / DropFall, 1f, 0f) * DropLen;
+            var car = player != null ? player.transform : null;
+            for (int i = 0; i < Drops; i++)
+            {
+                int v = i * 4;
+                if (i >= active)
+                {
+                    rainVerts[v] = rainVerts[v + 1] = rainVerts[v + 2] = rainVerts[v + 3] = Vector3.zero;
+                    continue;
+                }
+                var p = dropPos[i] + fall;
+                if (p.y < 0f || Mathf.Abs(p.x - c.x) > RainBox || Mathf.Abs(p.z - c.z) > RainBox)
+                    p = new Vector3(c.x + Random.Range(-RainBox, RainBox), Mathf.Max(c.y, 0f) + Random.Range(RainTop * 0.5f, RainTop), c.z + Random.Range(-RainBox, RainBox));
+                dropPos[i] = p;
+                // Сквозь крышу машины игрока не капает
+                bool hidden = false;
+                if (car != null)
+                {
+                    var lp = car.InverseTransformPoint(p);
+                    hidden = Mathf.Abs(lp.x) < 1.15f && lp.y < 2.1f && Mathf.Abs(lp.z) < 2.6f;
+                }
+                if (hidden)
+                {
+                    rainVerts[v] = rainVerts[v + 1] = rainVerts[v + 2] = rainVerts[v + 3] = p;
+                    continue;
+                }
+                rainVerts[v] = p - right;
+                rainVerts[v + 1] = p - right + len;
+                rainVerts[v + 2] = p + right + len;
+                rainVerts[v + 3] = p + right;
+            }
+            rainMesh.vertices = rainVerts;
         }
 
         /// <summary>Шум дождя: сглаженный белый шум с редкими «каплями».</summary>
@@ -275,14 +308,8 @@ namespace GasQueue
             PlaceLampLights(lights);
 
             // Дождь — вокруг камеры
-            var cam = Camera.main;
-            if (rainPs != null)
-            {
-                if (cam != null) rainPs.transform.position = cam.transform.position + Vector3.up * 14f + cam.transform.forward * 6f;
-                var em = rainPs.emission;
-                em.rateOverTime = 2000f * rain;
-                rainSound.volume = 0.35f * rain;
-            }
+            UpdateRain(Camera.main, dt);
+            if (rainSound != null) rainSound.volume = 0.35f * rain;
 
             // Сообщения о вечере
             var gm = GameManager.Instance;
