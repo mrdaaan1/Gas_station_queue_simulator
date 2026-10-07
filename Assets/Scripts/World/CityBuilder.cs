@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace GasQueue
@@ -27,6 +28,7 @@ namespace GasQueue
         public static Result Build(Transform root)
         {
             Obstacles.Clear();
+            LampHeads.Clear();
             SetupLighting(root);
             BuildGround(root);
             BuildStreetFurniture(root);
@@ -158,12 +160,18 @@ namespace GasQueue
             (z > CityLayout.EntranceMinZ - margin && z < CityLayout.EntranceMaxZ + margin) ||
             (z > CityLayout.ExitMinZ - margin && z < CityLayout.ExitMaxZ + margin);
 
+        /// <summary>Плафоны уличных фонарей (мировые координаты) — ночью у ближайших к игроку зажигается свет (<see cref="DayNight"/>).</summary>
+        public static readonly List<Vector3> LampHeads = new List<Vector3>();
+        /// <summary>Цвет плафона: свой, чтобы ночью светились только плафоны.</summary>
+        public static readonly Color LampGlass = Shapes.Hex("#e2dcca");
+
         static void Lamp(Transform parent, Vector3 at, float side)
         {
             var l = Shapes.Group("Lamp", parent, at);
             Shapes.Make(PrimitiveType.Cylinder, l, new Vector3(0, 4.5f, 0), new Vector3(0.18f, 4.5f, 0.18f), Metal);
             Shapes.Box(l, new Vector3(-1.2f * side, 8.9f, 0), new Vector3(2.4f, 0.1f, 0.12f), Metal);
-            Shapes.Box(l, new Vector3(-2.3f * side, 8.8f, 0), new Vector3(0.6f, 0.15f, 0.3f), Shapes.Hex("#d9d6c8"));
+            Shapes.Box(l, new Vector3(-2.3f * side, 8.8f, 0), new Vector3(0.6f, 0.15f, 0.3f), LampGlass);
+            LampHeads.Add(l.position + new Vector3(-2.3f * side, 8.6f, 0f));
             Obstacles.AddBox(at, 0.3f, 0.3f, "фонарный столб");
         }
 

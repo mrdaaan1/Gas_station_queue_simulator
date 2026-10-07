@@ -125,6 +125,8 @@ namespace GasQueue
             systems.AddComponent<Hud>().Init(pause, Restart, ToMenu);
             var gm = systems.AddComponent<GameManager>();
             gm.Init(settings, traffic, player, walker, rig, radio, city.barrier, city.priceBoard, city.cashier, Restart, race);
+            // Вечер, ночь и погода — только в основной игре (в гонках всегда ясный день)
+            if (Mode == GameMode.Queue) systems.AddComponent<DayNight>().Init(player, root);
             if (race) systems.AddComponent<RaceManager>().Init(traffic, player, gm, track, raceTrack);
 
             var menu = systems.AddComponent<MainMenu>();

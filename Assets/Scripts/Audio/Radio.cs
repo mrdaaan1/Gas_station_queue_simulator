@@ -54,11 +54,12 @@ namespace GasQueue
         Station[] stations;
         int current; // 0 — выключено
         int lineIndex;
-        float lineTimer;
+        float lineTimer, lineGap = 40f;
         AudioSource music;
         AudioSource fx;
         AudioSource voice;
         float voiceGap;      // пауза до следующего выпуска
+        float silentFor;     // сколько диктор уже молчит
         int voiceIndex, sinceJingle;
 
         /// <summary>Экран магнитолы на торпеде машины игрока.</summary>
@@ -190,7 +191,7 @@ namespace GasQueue
         void PlayVoice(Station st)
         {
             AudioClip clip;
-            if (st.jingles.Length > 0 && (sinceJingle >= 3 || voiceIndex == 0))
+            if (st.jingles.Length > 0 && (sinceJingle >= 4 || voiceIndex == 0))
             {
                 clip = st.jingles[Random.Range(0, st.jingles.Length)];
                 sinceJingle = 0;
@@ -243,24 +244,31 @@ namespace GasQueue
             }
             if (station.voices != null)
             {
-                // Дикторы: пока говорят — музыка тише; замолчали — пауза 4–8 с и следующий выпуск
+                // Дикторы: пока говорят — музыка тише; замолчали — долгая пауза с музыкой и следующий выпуск
                 bool talking = voice.isPlaying;
                 music.volume = Mathf.MoveTowards(music.volume, talking ? 0.035f : 0.12f, Time.deltaTime * 0.3f);
                 if (!talking && Time.timeScale > 0f && !AudioListener.pause)
                 {
+                    // Диктор замолчал — через пару секунд субтитр убираем
+                    silentFor += Time.deltaTime;
+                    if (CurrentLine != null && silentFor > 2.5f) CurrentLine = null;
                     voiceGap -= Time.deltaTime;
                     if (voiceGap <= 0f)
                     {
-                        voiceGap = Random.Range(4f, 8f);
+                        voiceGap = Random.Range(45f, 80f);
+                        silentFor = 0f;
                         PlayVoice(station);
                     }
                 }
                 return;
             }
+            // Фразы ведущих — редко: висят ~8 с, потом просто музыка 35–55 с
             lineTimer += Time.deltaTime;
-            if (lineTimer > 10f)
+            if (CurrentLine != null && lineTimer > 8f) CurrentLine = null;
+            if (lineTimer > lineGap)
             {
                 lineTimer = 0f;
+                lineGap = Random.Range(35f, 55f);
                 var lines = stations[current - 1].lines;
                 lineIndex = (lineIndex + 1) % lines.Length;
                 CurrentLine = lines[lineIndex];
@@ -303,7 +311,7 @@ namespace GasQueue
             lineIndex = Random.Range(0, st.lines.Length);
             CurrentLine = st.lines[lineIndex];
             lineTimer = 0f;
-            voiceGap = 1.2f; // включили «Очередь FM» — диктор заговорит почти сразу
+            voiceGap = 3f; // включили «Очередь FM» — сначала заставка станции
             if (st.music != null)
             {
                 music.clip = st.music;

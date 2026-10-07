@@ -196,7 +196,8 @@ namespace GasQueue
             }
             GUI.Label(timerRect, race != null
                 ? $"Место: {race.Place} из {race.Total}   ·   {RaceManager.FormatTime(race.RaceTime)}"
-                : "Вы в очереди: " + GameManager.FormatQueueTime(gm.QueueSeconds), timerStyle);
+                : "Вы в очереди: " + GameManager.FormatQueueTime(gm.QueueSeconds)
+                    + (DayNight.Instance != null ? "   ·   " + DayNight.Instance.ClockText : ""), timerStyle);
 
             var t = gm.Traffic;
             string place;
