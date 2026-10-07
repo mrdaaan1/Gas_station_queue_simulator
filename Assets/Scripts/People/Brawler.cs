@@ -96,6 +96,7 @@ namespace GasQueue
             if (dt <= 0f) return;
             if (car == null) { Destroy(gameObject); return; }
             car.Hold(0.5f); // без водителя машина никуда не едет
+            if (fighter.Rig.Knocked) { fighter.Rig.Animate(0f, dt); return; }
 
             var gm = GameManager.Instance;
             timer += dt;

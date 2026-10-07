@@ -132,6 +132,7 @@ namespace GasQueue
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
             if (car == null) { Destroy(gameObject); return; }
+            if (rig.Knocked) { rig.Animate(0f, dt); return; }
             timer += dt;
             float speed = 0f;
 

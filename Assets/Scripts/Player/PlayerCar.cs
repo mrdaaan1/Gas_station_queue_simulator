@@ -149,6 +149,7 @@ namespace GasQueue
             ResolveCollisions(ref pos, ref fwd);
             BurnFuel(dt, (pos - transform.position).magnitude);
             Place(pos, fwd);
+            HitPedestrians();
 
             if (controlsEnabled && GameInput.HornPressed)
             {
@@ -209,6 +210,51 @@ namespace GasQueue
 
         /// <summary>Угол заноса, градусы (для звука и подсказок).</summary>
         public float Drift { get; private set; }
+
+        static readonly string[] HitLines =
+        {
+            "Ты куда прёшь?!", "Смотри куда едешь, слепой!", "Ай! Права купил?!", "Я на тебя в суд подам!", "Убийца! Номер запомнил!",
+            "Вай, ахпер, аккуратнее!", "Ой-ой-ой, нога...", "Людей давить — это вам не в очереди стоять!",
+        };
+
+        /// <summary>
+        /// Люди на дороге — не призраки: машина их отталкивает, а на скорости (больше ~15 км/ч) сбивает —
+        /// человек отлетает, падает, полежит и встанет, ругаясь.
+        /// </summary>
+        void HitPedestrians()
+        {
+            if (traffic == null) return;
+            var box = Box;
+            float spd = Mathf.Abs(Speed);
+            var dir = moveDir * Mathf.Sign(Speed == 0f ? 1f : Speed);
+            foreach (var t in traffic.Pedestrians)
+            {
+                if (t == null) continue;
+                var p = t.position;
+                float dx = p.x - transform.position.x, dz = p.z - transform.position.z;
+                if (dx * dx + dz * dz > 25f || p.y > 0.6f) continue;
+                if (!box.PushCircle(new Vector2(p.x, p.z), 0.38f, out var push)) continue;
+                var rig = t.GetComponent<HumanRig>();
+                if (spd > 4f && rig != null && !rig.Knocked)
+                {
+                    // Сбили: отлетает вперёд по ходу и вбок, падает
+                    var side = new Vector3(push.x, 0f, push.y).normalized;
+                    t.position = p + dir * Mathf.Min(3f, spd * 0.25f) + side * 0.8f;
+                    rig.KnockDown(2.5f + Mathf.Min(4f, spd * 0.2f));
+                    var fighter = t.GetComponent<Fighter>();
+                    if (fighter != null) fighter.TakeHit(Mathf.Min(60f, spd * 3f));
+                    SpeechBubble.Show(t, HitLines[Random.Range(0, HitLines.Length)], 1.5f);
+                    AudioSource.PlayClipAtPoint(SoundFactory.Thud, p, 0.9f);
+                    Speed *= 0.85f;
+                    GameManager.Instance?.OnPedestrianHit(spd);
+                }
+                else
+                {
+                    // Медленно — просто оттолкнули
+                    t.position = p + new Vector3(push.x, 0f, push.y);
+                }
+            }
+        }
 
         void ResolveCollisions(ref Vector3 pos, ref Vector3 fwd)
         {

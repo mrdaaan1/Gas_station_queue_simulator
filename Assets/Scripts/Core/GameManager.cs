@@ -58,6 +58,9 @@ namespace GasQueue
         /// <summary>Банкомат «думает»: секунд до выдачи денег (≤ 0 — свободен).</summary>
         public float AtmBusy { get; private set; }
         float atmAmount;
+        /// <summary>Сколько кассир попросил наличными за бензин (банкомат предложит снять недостающее).</summary>
+        public float FuelQuote { get; private set; }
+        readonly List<float> atmChoices = new List<float>();
         bool atmFailedOnce;
         const float StartCash = 300f;
         public bool Paid { get; private set; }
@@ -394,6 +397,35 @@ namespace GasQueue
             {
                 // подсказка уже показана выше
             }
+            else if (ShashlikStand.Instance != null && Vector3.Distance(me, CityLayout.ShashlikOrder) < 1.7f)
+            {
+                var stand = ShashlikStand.Instance;
+                if (stand.PlayerOrder == 2) stand.HandToPlayer(this);
+                else if (stand.PlayerOrder == 1) Prompt = $"Шашлык жарится... ещё ~{Mathf.CeilToInt(stand.PlayerWaitLeft)} с";
+                else if (Walker.EatingShashlik) Prompt = "Сначала доешьте этот";
+                else
+                {
+                    Prompt = $"E — заказать шашлык ({ShashlikStand.Price} руб., только наличными; у вас {Cash:0})";
+                    if (GameInput.InteractPressed)
+                    {
+                        if (Cash < ShashlikStand.Price)
+                            ShowMessage(Money >= ShashlikStand.Price
+                                ? "Ашот: «Ара, какая карта, джан? У меня мангал, а не терминал! Наличкой, ахпер!» Банкомат — в магазине на заправке."
+                                : "Ашот: «Вай, брат-джан, денег не хватает... Приходи, мясо подождёт, клянусь мамой».", 7f);
+                        else
+                        {
+                            Cash -= ShashlikStand.Price;
+                            MoneySpent += ShashlikStand.Price;
+                            stand.OrderForPlayer();
+                        }
+                    }
+                }
+            }
+            else if (Vector3.Distance(me, CityLayout.AtmFront) < 1.3f)
+            {
+                Prompt = AtmBusy > 0f ? "Банкомат думает... шуршит..." : $"E — банкомат «СБЕРКАССА» (на карте {Card:0} руб., наличными {Cash:0} руб.)";
+                if (AtmBusy <= 0f && GameInput.InteractPressed) OpenAtmDialog();
+            }
             else if (nearCashier && breakTimer > 0f)
             {
                 Prompt = $"Кассир на перерыве. Табличка: «15 минут». Ждать ещё ~{Mathf.CeilToInt(breakTimer)} с";
@@ -428,35 +460,6 @@ namespace GasQueue
             else if (lineIndex == 0)
             {
                 Prompt = "Ваша очередь в кассу! Подойдите к прилавку";
-            }
-            else if (ShashlikStand.Instance != null && Vector3.Distance(me, CityLayout.ShashlikOrder) < 1.7f)
-            {
-                var stand = ShashlikStand.Instance;
-                if (stand.PlayerOrder == 2) stand.HandToPlayer(this);
-                else if (stand.PlayerOrder == 1) Prompt = $"Шашлык жарится... ещё ~{Mathf.CeilToInt(stand.PlayerWaitLeft)} с";
-                else if (Walker.EatingShashlik) Prompt = "Сначала доешьте этот";
-                else
-                {
-                    Prompt = $"E — заказать шашлык ({ShashlikStand.Price} руб., только наличными; у вас {Cash:0})";
-                    if (GameInput.InteractPressed)
-                    {
-                        if (Cash < ShashlikStand.Price)
-                            ShowMessage(Money >= ShashlikStand.Price
-                                ? "Ашот: «Карту? Брат, у меня мангал, а не терминал. Наличкой!» Банкомат — в магазине на заправке."
-                                : "Ашот: «Брат, денег не хватает. Приходи, когда заправишься... ой, то есть до того».", 7f);
-                        else
-                        {
-                            Cash -= ShashlikStand.Price;
-                            MoneySpent += ShashlikStand.Price;
-                            stand.OrderForPlayer();
-                        }
-                    }
-                }
-            }
-            else if (Vector3.Distance(me, CityLayout.AtmFront) < 1.3f)
-            {
-                Prompt = AtmBusy > 0f ? "Банкомат думает... шуршит..." : $"E — банкомат «СБЕРКАССА» (на карте {Card:0} руб., наличными {Cash:0} руб.)";
-                if (AtmBusy <= 0f && GameInput.InteractPressed) OpenAtmDialog();
             }
             else if (nearPump && Paid && !NozzleIn && !PlayerFueled)
             {
@@ -776,6 +779,7 @@ namespace GasQueue
             {
                 // Терминал «временно» не работает. Всегда.
                 TerminalRefusals++;
+                FuelQuote = cost;
                 CashierSays(TerminalRefusals == 1
                     ? "Терминал не работает. Только наличные!"
                     : Cash > 0f ? $"Наличными нужно {cost:0}. У вас {Cash:0}. Банкомат у входа." : "Я же сказала: только наличные!");
@@ -802,6 +806,17 @@ namespace GasQueue
 
         public int ShashlikEaten { get; private set; }
         public int FixerScams { get; private set; }
+        public int PedestriansHit { get; private set; }
+
+        /// <summary>Игрок сбил человека машиной.</summary>
+        public void OnPedestrianHit(float speed)
+        {
+            PedestriansHit++;
+            if (PedestriansHit == 1)
+                ShowMessage($"Вы сбили человека на {Mathf.RoundToInt(speed * 3.6f)} км/ч! Полежит и встанет... и запомнит ваш номер.", 7f);
+            else if (PedestriansHit == 5)
+                ShowMessage("Пятый пешеход. Очередь начинает вас бояться.", 6f);
+        }
         public int FixersBeaten { get; private set; }
 
         /// <summary>Решала с деньгами побежал.</summary>
@@ -860,16 +875,33 @@ namespace GasQueue
                 DialogOptions.Add("Ну конечно...");
                 return;
             }
-            DialogTitle = $"СБЕРКАССА: «Введите сумму». На карте: {Card:0} руб.";
-            DialogOptions.Add(Card >= 1000f ? "Снять 1 000 руб." : $"Снять {Card:0} руб.");
-            DialogOptions.Add(Card >= 3000f ? "Снять 3 000 руб." : $"Снять всё ({Card:0} руб.)");
-            DialogOptions.Add($"Снять всё ({Card:0} руб.)");
+            DialogTitle = $"СБЕРКАССА: «Выберите сумму». На карте: {Card:0} руб., наличными у вас {Cash:0} руб.";
+            atmChoices.Clear();
+            // Первой — ровно столько, сколько не хватает на бензин (если кассир уже назвал сумму),
+            // иначе — на шашлык; потом круглая сумма и «всё»
+            float needFuel = Mathf.Ceil(FuelQuote - Cash);
+            float needShashlik = ShashlikStand.Price - Cash;
+            if (!Paid && needFuel > 0f) AddAtmChoice(needFuel, $"Снять {needFuel:0} руб. — сколько не хватает на бензин");
+            else if (needShashlik > 0f) AddAtmChoice(needShashlik, $"Снять {needShashlik:0} руб. — на шампур шашлыка");
+            else AddAtmChoice(500f, "Снять 500 руб.");
+            AddAtmChoice(Card >= 2000f && (atmChoices.Count == 0 || atmChoices[0] < 2000f) ? 2000f : 1000f, null);
+            AddAtmChoice(Card, $"Снять всё ({Card:0} руб.)");
+        }
+
+        void AddAtmChoice(float amount, string label)
+        {
+            amount = Mathf.Min(Mathf.Ceil(amount), Mathf.Floor(Card));
+            if (amount < 1f) return;
+            foreach (float a in atmChoices) if (Mathf.Approximately(a, amount)) return;
+            atmChoices.Add(amount);
+            DialogOptions.Add(label ?? $"Снять {amount:0} руб.");
         }
 
         void ChooseAtm(int choice)
         {
             if (Card < 1f || AtmBusy > 0f) { CloseDialog(); return; }
-            float amount = choice == 1 ? Mathf.Min(1000f, Card) : choice == 2 ? Mathf.Min(3000f, Card) : Card;
+            if (choice < 1 || choice > atmChoices.Count) { CloseDialog(); return; }
+            float amount = Mathf.Min(atmChoices[choice - 1], Card);
             // Как положено: с первого раза — «нет связи с банком»
             if (!atmFailedOnce)
             {
@@ -1398,6 +1430,8 @@ namespace GasQueue
             if (WaitedCashierBreak) list.Add("Перерыв 15 минут");
             if (TerminalRefusals >= 1) list.Add("Терминал не работает, только наличные");
             if (ShashlikEaten >= 1) list.Add("Шашлык в очереди");
+            if (PedestriansHit >= 1) list.Add("Кегельбан: сбил пешехода");
+            if (PedestriansHit >= 5) list.Add("Гроза тротуаров");
             if (FixerScams >= 1) list.Add($"Место в первой пятёрке (минус {Vendor.FixerPrice} руб.)");
             if (MoneyRecovered > 0) list.Add("Догнал решалу и вернул своё");
             else if (FixerScams >= 1) list.Add("Кинули и убежали");

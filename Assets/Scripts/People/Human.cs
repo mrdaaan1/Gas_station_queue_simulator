@@ -98,6 +98,19 @@ namespace GasQueue
         public void Flinch() => flinchTimer = 0.22f;
         public void SetFallen(bool value) => fallen = value;
 
+        float knockTimer;
+        /// <summary>Сбит машиной: лежит, пока не пройдёт время (или пока падает/встаёт).</summary>
+        public bool Knocked => knockTimer > 0f || (fall > 0.05f && !fallen && knockedRecently);
+        bool knockedRecently;
+
+        /// <summary>Сбила машина: падает на seconds секунд, потом встаёт.</summary>
+        public void KnockDown(float seconds)
+        {
+            knockTimer = Mathf.Max(knockTimer, seconds);
+            knockedRecently = true;
+            fallen = true;
+        }
+
         /// <summary>Синяки на лице: синяк → фингал → разбитый нос → ещё синяки.</summary>
         public void AddBruise()
         {
@@ -127,6 +140,17 @@ namespace GasQueue
         /// <summary>Шагаем: ноги и руки качаются в такт скорости. Плюс удары, стойка, падение и хромота.</summary>
         public void Animate(float speed, float dt)
         {
+            if (knockTimer > 0f)
+            {
+                knockTimer -= dt;
+                if (knockTimer <= 0f)
+                {
+                    // Встаёт, если только он не лежит после драки
+                    var f = GetComponent<Fighter>();
+                    if (f == null || !f.Down) fallen = false;
+                }
+            }
+            else if (knockedRecently && fall <= 0.05f) knockedRecently = false;
             punchTimer = Mathf.Max(0f, punchTimer - dt);
             kickTimer = Mathf.Max(0f, kickTimer - dt);
             flinchTimer = Mathf.Max(0f, flinchTimer - dt);

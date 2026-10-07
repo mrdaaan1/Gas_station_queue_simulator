@@ -16,10 +16,22 @@ namespace GasQueue
 
         static readonly string[] CookLines =
         {
-            "Шашлык! Свиной, бараний, люля!", "Подходи, брат! Очередь всё равно стоит!", "Свежий, с дымком! Бензина нет — шашлык есть!",
-            "Лаваш, лучок — всё как надо!", "Покушай, джан, тебе ещё стоять и стоять!", "Пять минут — и готово, слово даю!",
+            "Барев, ахпер! Шашлык — огонь, клянусь мамой!", "Ара, подходи! Очередь стоит, а шашлык не ждёт!",
+            "Джан, такой свинины в Ереване не найдёшь!", "Вай, какой дымок! Чувствуешь, брат-джан?",
+            "Цавд танем, покушай — тебе ещё стоять и стоять!", "Бензина нет — шашлык есть! Шат лав, слушай!",
+            "Ахпер, люля-кебаб, лаваш, лучок — всё как дома!", "Ара, Гарик, переворачивай, сгорит же, вай!",
+            "Пять минут, джан, — и ты самый счастливый человек на этой очереди!", "Слушай, зачем тебе бензин? Покушай сначала!",
         };
-        static readonly string[] ServeLines = { "Держи, брат! Приятного аппетита!", "Кушай на здоровье, джан!", "Горячий, осторожно!", "Лучший шашлык на всей очереди!" };
+        static readonly string[] ServeLines =
+        {
+            "Держи, ахпер! Шат лав будет, клянусь!", "Кушай на здоровье, джан!", "Горячий, осторожно, цавд танем!",
+            "Вай, какой шашлык! Сам бы ел, но тебе отдаю!", "Приятного, брат-джан! Приходи ещё!", "Апрес! Лучший шашлык на всей очереди!",
+        };
+        /// <summary>Пока жарится заказ игрока.</summary>
+        static readonly string[] CookingLines =
+        {
+            "Сейчас, джан! Самый сочный тебе положу.", "Ара, Гарик, давай самый лучший шампур ахперу!", "Минутку, брат-джан, мясо любит терпение. Как очередь.",
+        };
 
         TrafficManager traffic;
         HumanRig fanner, turner;
@@ -170,7 +182,7 @@ namespace GasQueue
             {
                 PlayerOrder = 2;
                 if (gm.OnFoot && Vector3.Distance(playerPos, CityLayout.ShashlikOrder) < 4f) HandToPlayer(gm);
-                else gm.ShowMessage("Ашот: «Брат, твой шашлык готов! Забирай, пока горячий!»", 6f);
+                else gm.ShowMessage("Ашот: «Ахпер-джан, твой шашлык готов! Забирай, пока горячий, вай!»", 6f);
             }
 
             UpdateCustomers(dt);
@@ -182,7 +194,7 @@ namespace GasQueue
         {
             PlayerOrder = 1;
             playerReadyAt = Time.time + CookTime;
-            SpeechBubble.Show(turner.transform, "Сейчас, брат! Самый сочный тебе положу.", 1.5f);
+            SpeechBubble.Show(turner.transform, CookingLines[Random.Range(0, CookingLines.Length)], 1.5f);
         }
 
         /// <summary>Игрок у мангала, а заказ готов — отдаём шампур.</summary>
@@ -201,8 +213,9 @@ namespace GasQueue
         {
             customers.RemoveAll(c => c == null);
             spawnTimer -= dt;
-            if (spawnTimer > 0f || customers.Count >= 2) return;
-            spawnTimer = Random.Range(18f, 32f) / Mathf.Max(1f, traffic.Settings.Speedup * 0.6f);
+            // По одному: пока один ходит за шашлыком, другие ждут — иначе очередь рвётся
+            if (spawnTimer > 0f || customers.Count >= 1) return;
+            spawnTimer = Random.Range(35f, 60f) / Mathf.Max(1f, traffic.Settings.Speedup * 0.6f);
             NpcCar best = null;
             float bestD = float.MaxValue;
             foreach (var npc in traffic.Npcs)
@@ -234,8 +247,10 @@ namespace GasQueue
         enum Step { ToStand, Waiting, ToTable, Eating, ToCar }
 
         static readonly string[] GoLines = { "Пойду шашлычка возьму, всё равно стоим.", "Да ну эту очередь, есть хочу!", "Я быстро! Место моё!" };
-        static readonly string[] OrderLines = { "Две палки свиной!", "Мне один, с лучком.", "Люля есть? Давай люля." };
+        static readonly string[] OrderLines = { "Две палки свиной!", "Мне один, с лучком.", "Люля есть? Давай люля.", "Ахпер, мне как себе!" };
         static readonly string[] EatLines = { "М-м-м, вот это шашлык!", "Лучше, чем бензин!", "Ради этого стоило стоять." };
+        static readonly string[] HurryLines = { "Ой, очередь пошла! Давай на вынос!", "Моя машина! Бегу-бегу!", "Не занимайте, я тут стоял!" };
+        bool hurrying;
 
         public NpcCar Car { get; private set; }
         TrafficManager traffic;
@@ -292,6 +307,13 @@ namespace GasQueue
             timer += dt;
             // Машина без водителя никуда не едет
             if (Car != null) Car.Hold(0.5f);
+            if (rig.Knocked) { rig.Animate(0f, dt); return; } // сбила машина — лежит
+            // Очередь впереди уехала — бегом обратно, шашлык с собой (иначе в очереди дыра)
+            if (!hurrying && Car != null && GapAhead() > 6f)
+            {
+                if (step == Step.ToCar) hurrying = true; // уже идёт к машине — просто прибавляет шагу
+                else Hurry();
+            }
             float speed = 0f;
             switch (step)
             {
@@ -347,6 +369,42 @@ namespace GasQueue
             if (skewer != null) skewer.Throw();
         }
 
+        /// <summary>Свободное место перед его машиной в очереди.</summary>
+        float GapAhead()
+        {
+            var q = traffic.QueuePath;
+            if (Car.Path != q) return 0f;
+            float front = Car.S + Car.Length / 2f, best = float.MaxValue;
+            foreach (var n in traffic.Npcs)
+                if (n != Car && n.Path == q && n.Role == NpcRole.Queue && n.S > Car.S)
+                    best = Mathf.Min(best, n.S - n.Length / 2f - front);
+            if (traffic.PlayerInQueue && traffic.PlayerQueueS > Car.S)
+                best = Mathf.Min(best, traffic.PlayerQueueS - traffic.Player.Length / 2f - front);
+            return best == float.MaxValue ? 0f : best;
+        }
+
+        void Hurry()
+        {
+            hurrying = true;
+            SpeechBubble.Show(transform, HurryLines[Random.Range(0, HurryLines.Length)], 1.5f);
+            if (skewer == null && step != Step.ToStand)
+            {
+                // Не дождался у мангала — забирает «на вынос» недожаренный
+                stand.Serve(rig);
+                skewer = gameObject.AddComponent<ShashlikSkewer>();
+                skewer.Init(rig);
+                skewer.BiteInterval = 1.6f;
+            }
+            var here = transform.position;
+            var tr = Car.transform;
+            var rearL = tr.TransformPoint(new Vector3(-Car.Width / 2f - 0.5f, 0f, -Car.Length / 2f - 0.7f));
+            rearL.y = 0f;
+            var side = new Vector3(12.6f, 0f, rearL.z);
+            var d = Car.DriverDoor;
+            d.y = 0f;
+            Go(Step.ToCar, here.x > 12.8f ? new[] { side, rearL, d } : new[] { rearL, d });
+        }
+
         float Walk(float dt)
         {
             while (route.Count > 0)
@@ -355,7 +413,7 @@ namespace GasQueue
                 to.y = 0f;
                 if (to.magnitude > 0.1f)
                 {
-                    float sp = 1.6f;
+                    float sp = hurrying ? 3.6f : 1.6f;
                     transform.position += to.normalized * Mathf.Min(sp * dt, to.magnitude);
                     Face(route[0], dt);
                     return sp;

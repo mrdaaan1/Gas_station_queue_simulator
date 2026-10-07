@@ -149,6 +149,7 @@ namespace GasQueue
             if (dt <= 0f) return;
             var gm = GameManager.Instance;
             var player = traffic.Player;
+            if (rig.Knocked) { rig.Animate(0f, dt); return; } // сбила машина — лежит
             if (Kind == VendorKind.Fixer && UpdateFixer(dt, gm)) return;
             lineTimer -= dt;
             life += dt;
