@@ -171,7 +171,7 @@ namespace GasQueue
         {
             var root = new GameObject(name).transform;
             var visual = root.gameObject.AddComponent<CarVisual>();
-            var map = ModelSpawner.Spawn(X5Model.Get().root, root, key => CarMaterials.Get(key == "paint" ? "gold_camo" : key == "glass" ? "glass_dark" : key, paint));
+            var map = ModelSpawner.Spawn(X5Source().root, root, key => CarMaterials.Get(key == "paint" ? "gold_camo" : key == "glass" ? "glass_tint" : key, paint));
 
             visual.body = map["Body"];
             visual.length = 4.88f;
@@ -226,7 +226,30 @@ namespace GasQueue
 
             PlateText(map["PlateFront"], "Д 777 ДД");
             PlateText(map["PlateRear"], "Д 777 ДД");
+            root.gameObject.AddComponent<ChromeProbe>(); // хром отражает улицу, а не только небо
             return visual;
+        }
+
+        static Model x5File;
+        static bool x5Tried;
+
+        /// <summary>
+        /// Модель X5: доведённая в Blender (Assets/Resources/Models/X5.bytes, готовит Tools/Blender/x5_build.py) —
+        /// с толщиной панелей, скруглёнными кромками и детальными дисками; если файла нет — построенная кодом (<see cref="X5Model"/>).
+        /// </summary>
+        static Model X5Source()
+        {
+            if (!x5Tried)
+            {
+                x5Tried = true;
+                var file = Resources.Load<TextAsset>("Models/X5");
+                if (file != null)
+                {
+                    try { x5File = ModelFile.Read(file.bytes); }
+                    catch (System.Exception e) { Debug.LogWarning("X5.bytes не прочитан, беру модель из кода: " + e.Message); }
+                }
+            }
+            return x5File ?? X5Model.Get();
         }
 
         /// <summary>«Скайлайн» R34 из «Двойного форсажа»: правый руль, стрелочные приборы, раскраска полосами.</summary>

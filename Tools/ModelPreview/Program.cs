@@ -18,9 +18,10 @@ static class Program
         if (which == "normals") { Normals(args.Length > 1 ? args[1] : "supra"); return 0; }
         if (which == "ray") { Rays(args); return 0; }
         if (which == "poke") { Poke(args.Length > 1 ? args[1] : "supra"); return 0; }
+        if (which == "tree") { Tree(args[1], args[2]); return 0; }
         string outPath = args.Length > 1 ? args[1] : "model.json";
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        Model model = which switch
+        Model model = which.EndsWith(".bytes") ? ModelFile.Read(File.ReadAllBytes(which)) : which switch
         {
             "x5" => X5Model.Get(),
             "gelik" => GelikModel.Get(),
@@ -319,6 +320,45 @@ static class Program
         if (v < 0 || u + v > 1) return false;
         t = Vector3.Dot(e2, q) * inv;
         return t > 0;
+    }
+
+    // Дерево узлов в координатах Unity (локальные положения, повороты, сетки) — для Blender (Tools/Blender/x5_build.py)
+    static void Tree(string which, string outPath)
+    {
+        var model = ByName(which);
+        var sb = new StringBuilder("{\"nodes\":[");
+        int count = 0;
+        void Walk(ModelNode n, int parent)
+        {
+            int me = count++;
+            if (me > 0) sb.Append(',');
+            sb.Append("{\"name\":\"").Append(n.name).Append("\",\"parent\":").Append(parent)
+              .Append(",\"pos\":[").Append(F(n.pos.x)).Append(',').Append(F(n.pos.y)).Append(',').Append(F(n.pos.z))
+              .Append("],\"euler\":[").Append(F(n.euler.x)).Append(',').Append(F(n.euler.y)).Append(',').Append(F(n.euler.z)).Append("],\"meshes\":[");
+            bool first = true;
+            for (int k = 0; k < n.meshes.Count; k++)
+            {
+                var m = n.meshes[k];
+                if (m.t.Count == 0) continue;
+                if (!first) sb.Append(',');
+                first = false;
+                sb.Append("{\"mat\":\"").Append(n.mats[k]).Append("\",\"v\":[");
+                for (int i = 0; i < m.v.Count; i++) { if (i > 0) sb.Append(','); sb.Append(F(m.v[i].x)).Append(',').Append(F(m.v[i].y)).Append(',').Append(F(m.v[i].z)); }
+                sb.Append("],\"n\":[");
+                for (int i = 0; i < m.n.Count; i++) { if (i > 0) sb.Append(','); sb.Append(F(m.n[i].x)).Append(',').Append(F(m.n[i].y)).Append(',').Append(F(m.n[i].z)); }
+                sb.Append("],\"uv\":[");
+                for (int i = 0; i < m.uv.Count; i++) { if (i > 0) sb.Append(','); sb.Append(F(m.uv[i].x)).Append(',').Append(F(m.uv[i].y)); }
+                sb.Append("],\"t\":[");
+                for (int i = 0; i < m.t.Count; i++) { if (i > 0) sb.Append(','); sb.Append(m.t[i]); }
+                sb.Append("]}");
+            }
+            sb.Append("]}");
+            foreach (var c in n.children) Walk(c, me);
+        }
+        Walk(model.root, -1);
+        sb.Append("]}");
+        File.WriteAllText(outPath, sb.ToString());
+        Console.WriteLine($"nodes {count}");
     }
 
     static string F(float v) => float.IsNaN(v) ? "0" : v.ToString("0.#####", CultureInfo.InvariantCulture);

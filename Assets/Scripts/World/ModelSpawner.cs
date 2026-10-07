@@ -60,6 +60,7 @@ namespace GasQueue
             if (subs > 0)
             {
                 var v = new List<Vector3>(total);
+                var nrm = new List<Vector3>(total);
                 var uv = new List<Vector2>(total);
                 var tris = new List<int[]>();
                 foreach (var m in node.meshes)
@@ -67,6 +68,7 @@ namespace GasQueue
                     if (m.t.Count == 0) continue;
                     int start = v.Count;
                     v.AddRange(m.v);
+                    nrm.AddRange(m.n);
                     uv.AddRange(m.uv);
                     var t = new int[m.t.Count];
                     for (int i = 0; i < t.Length; i++) t[i] = m.t[i] + start;
@@ -80,7 +82,8 @@ namespace GasQueue
                 for (int i = 0; i < tris.Count; i++) mesh.SetTriangles(tris[i], i);
                 // Нормали считает сам Unity по треугольникам: с расчётными нормалями модели на изогнутых
                 // поверхностях (торпеда, стойки) в салоне вылезали чисто белые и чёрные пятна.
-                mesh.RecalculateNormals();
+                if (node.keepNormals) mesh.SetNormals(nrm); // модель из Blender: сглаживание и кромки уже посчитаны
+                else mesh.RecalculateNormals();
                 mesh.RecalculateBounds();
             }
             meshes[node] = mesh;
@@ -135,6 +138,7 @@ namespace GasQueue
                 case "screen_blue": return Glow(Hex("#0a1838"), Hex("#1a3a8a"));
                 case "ambient": return Glow(Hex("#2a5cff"), Hex("#2a5cff") * 1.4f);
                 case "glass": return CarGlass(new Color(0.12f, 0.16f, 0.2f, 0.45f));
+                case "glass_tint": return CarGlass(new Color(0.03f, 0.04f, 0.05f, 0.62f)); // тонировка: темнее снаружи, но изнутри дорогу видно
                 case "lens": return new Material(MeshFactory.Glass) { color = new Color(0.85f, 0.9f, 0.95f, 0.12f) };
                 case "black": return Surface(Hex("#0b0b0d"), 0.25f, 0f);
                 case "liner": return Surface(Hex("#0c0c0c"), 0.05f, 0f);

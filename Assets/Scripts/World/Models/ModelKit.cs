@@ -44,6 +44,8 @@ namespace GasQueue
         public readonly List<string> mats = new List<string>();
         public readonly List<MeshData> meshes = new List<MeshData>();
         public readonly List<ModelNode> children = new List<ModelNode>();
+        /// <summary>Нормали готовые (модель из файла Blender) — не пересчитывать при создании сетки.</summary>
+        public bool keepNormals;
 
         public MeshData M(string mat)
         {

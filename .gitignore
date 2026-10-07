@@ -57,3 +57,8 @@ Tools/**/node_modules/
 /Assets/Resources/RadioNews/*
 !/Assets/Resources/RadioNews/README.txt
 !/Assets/Resources/RadioNews/README.txt.meta
+
+# Сцены Blender для просмотра (большие, пересобираются Tools/Blender/x5_build.py)
+Tools/Blender/out/
+*.blend1
+__pycache__/

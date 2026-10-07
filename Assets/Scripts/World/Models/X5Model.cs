@@ -101,9 +101,7 @@ namespace GasQueue
                 bool win = Between(z, -0.12f, 0.78f) || Between(z, -1.12f, -0.24f) || Between(z, -1.92f, -1.26f);
                 bool frame = Between(z, -0.16f, 0.88f) || Between(z, -1.16f, -0.20f) || Between(z, -1.96f, -1.22f) || Between(z, -0.24f, -0.12f)
                     || Between(z, -1.26f, -1.12f) || z < -1.92f;
-                // «Изгиб Хофмайстера»: низ заднего бокового окна у стойки C поднимается вперёд-вверх
-                float kink = z < -1.55f ? (-1.55f - z) * 1.5f : 0f;
-                if (win && v > 0.07f + kink && v < 0.93f) mat = "glass";
+                if (win && v > 0.07f && v < 0.93f) mat = "glass";
                 else if (frame && v > 0.03f) mat = "black";
                 else if (z > 0.78f && v > 0.03f) mat = "black"; // треугольник у зеркала и стойка A
             }
@@ -394,6 +392,14 @@ namespace GasQueue
                 var dn = N(door);
                 Geo.RoundBox(dn.M("paint"), Frame.Identity, dn.WorldFrame().ToLocal(p + n * 0.012f), new Vector3(0.022f, 0.03f, 0.16f), 0.45f, 8);
             }
+            // «Изгиб Хофмайстера»: низ заднего бокового окна у стойки C загибается вверх — гладкая чёрная накладка поверх стекла
+            Patch(shell, "black", 16, 4, (a, b) =>
+            {
+                float z = Mathf.Lerp(-1.50f, -1.93f, a);
+                float yb = YBelt[z] + 0.005f;
+                float k = Mathf.SmoothStep(0f, 1f, a);
+                return (new Vector3(0.5f, Mathf.Lerp(yb, yb + 0.02f + 0.32f * k, b), z), Vector3.right);
+            }, 0.004f, side);
             // Жабры М на переднем крыле за колесом
             for (int k = 0; k < 4; k++)
             {
