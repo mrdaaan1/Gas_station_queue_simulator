@@ -266,7 +266,7 @@ namespace GasQueue
                 var fr = new Rect(w - 350 * k, h - 120 * k, 330 * k, 100 * k);
                 Panel(fr, new Color(0, 0, 0, 0.5f));
                 GUI.Label(new Rect(fr.x + 18 * k, fr.y + 10 * k, 300 * k, 30 * k), "ПЕШКОМ", accentStyle);
-                GUI.Label(new Rect(fr.x + 18 * k, fr.y + 44 * k, 300 * k, 26 * k), $"В кошельке: {gm.Money:0} руб.", smallStyle);
+                GUI.Label(new Rect(fr.x + 18 * k, fr.y + 44 * k, 300 * k, 26 * k), $"Наличные: {gm.Cash:0} руб. · карта: {gm.Card:0}", smallStyle);
                 GUI.Label(new Rect(fr.x + 18 * k, fr.y + 68 * k, 300 * k, 26 * k), $"В баке: {player.FuelLiters:0.0} л", smallStyle);
                 return;
             }
@@ -320,7 +320,7 @@ namespace GasQueue
                 Panel(new Rect(hpRect.x, hpRect.y + 8 * k, hpRect.width * hp, hpRect.height), Color.Lerp(Shapes.Hex("#e04a3c"), Shapes.Hex("#5be37d"), hp));
             }
             GUI.Label(new Rect(x, y, inner * 0.62f, 26 * k), radioText, smallStyle);
-            GUI.Label(new Rect(x + inner * 0.62f, y, inner * 0.38f, 26 * k), $"{gm.Money:0} руб.", smallStyle);
+            GUI.Label(new Rect(x + inner * 0.62f, y, inner * 0.38f, 26 * k), $"нал. {gm.Cash:0} руб.", smallStyle);
             if (radio != null && radio.CurrentLine != null)
             {
                 var lineRect = new Rect(r.x, r.y - (hp < 0.999f ? 116 : 70) * k, pw, 62 * k);
@@ -400,7 +400,8 @@ namespace GasQueue
                 $"Видели, как сдались и уехали: {gm.GiveUpsSeen}   ·   Глушили мотор: {gm.EngineStops}\n" +
                 $"Драк выиграно: {gm.FightsWon}   ·   проиграно: {gm.FightsLost}   ·   Пинков по машине: {gm.CarKicks}\n" +
                 $"Прыжков по машинам: {gm.CarJumps}   ·   Взяток заправщику: {gm.Bribes}   ·   Прочность машины: {Mathf.RoundToInt(gm.Player.damage.Health)}%\n" +
-                $"Залили: {gm.LitersFilled:0.0} л на {gm.MoneySpent:0} руб.   ·   Осталось: {gm.Money:0} руб.";
+                $"Залили: {gm.LitersFilled:0.0} л на {gm.MoneySpent:0} руб.   ·   Осталось: {gm.Money:0} руб.\n" +
+                $"«Терминал не работает»: {gm.TerminalRefusals}   ·   Ходили к банкомату: {gm.AtmWithdrawals}";
             GUI.Label(new Rect(w / 2 - 560 * k, h * 0.15f, 1120 * k, 340 * k), stats, bigStyle);
 
             string ach = "Достижения:\n" + string.Join("\n", gm.Achievements().ConvertAll(a => "• " + a));

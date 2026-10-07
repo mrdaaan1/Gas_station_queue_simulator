@@ -6,11 +6,21 @@ namespace GasQueue
     /// <summary>
     /// Водитель NPC на заправке: выходит, вставляет пистолет, идёт в магазин, стоит в очереди в кассу,
     /// платит, возвращается, ждёт, пока нальётся, вешает пистолет и уезжает.
+    /// Терминал на кассе не работает: у кого нет налички — идёт к банкомату и встаёт в конец очереди.
     /// Его можно ударить: дерётся в ответ, а если упадёт в очереди — игрок занимает его место.
     /// </summary>
     public class PumpCustomer : MonoBehaviour
     {
-        enum Step { ToNozzle, Nozzle, ToShop, InLine, Paying, ToPump, WaitFuel, HangUp, ToCar }
+        enum Step { ToNozzle, Nozzle, ToShop, InLine, Paying, ToPump, WaitFuel, HangUp, ToCar, ToAtm, AtAtm }
+
+        static readonly string[] CardLines =
+        {
+            "Как это карту не принимаете?!", "А когда терминал починят?", "Двадцать первый век на дворе!",
+            "У меня только карта...", "Опять?! Вчера тоже не работал!",
+        };
+        static readonly string[] AtmLines = { "Комиссию ещё взял, зараза.", "Еле выдал...", "Мелкими не даёт, одни пятитысячные.", "Так, теперь опять в конец..." };
+        /// <summary>Есть наличные (сразу или уже сходил к банкомату).</summary>
+        bool hasCash;
 
         static readonly string[] PayLines =
         {
@@ -61,6 +71,7 @@ namespace GasQueue
             c.Fighter = Fighter.AddTo(rig, "Водитель");
             c.lastHealth = c.Fighter.Health;
             c.walkSpeed = Mathf.Min(2.6f, 1.5f * Mathf.Sqrt(traffic.Settings.Speedup));
+            c.hasCash = Random.value < 0.6f; // у остальных — только карта
 
             var t = car.transform;
             float hw = car.Width / 2f, hl = car.Length / 2f;
@@ -185,6 +196,17 @@ namespace GasQueue
                     }
                     if (i == 0 && speed == 0f && !CashierLine.CashierAway)
                     {
+                        if (!hasCash)
+                        {
+                            // «Терминал не работает, только наличные» — к банкомату, потом в конец очереди
+                            hasCash = true;
+                            Say(CardLines);
+                            if (CashierLine.Cashier != null)
+                                SpeechBubble.Show(CashierLine.Cashier, Random.value < 0.5f ? "Терминал не работает. Только наличные!" : "Наличкой, мужчина! Банкомат у входа.", 1.5f);
+                            CashierLine.Leave(this);
+                            Go(Step.ToAtm, CityLayout.AtmFront + new Vector3(0.2f, 0f, Random.Range(-0.3f, 0.3f)));
+                            break;
+                        }
                         step = Step.Paying;
                         timer = 0f;
                         Say(PayLines);
@@ -202,6 +224,19 @@ namespace GasQueue
                             SpeechBubble.Show(CashierLine.Cashier, "Следующий!", 1.5f);
                         Go(Step.ToPump, DoorInside, DoorOutside, new Vector3(DoorOutside.x, 0f, CorridorZ),
                             new Vector3(rearRight.x, 0f, CorridorZ), rearRight, stand);
+                    }
+                    break;
+                case Step.ToAtm:
+                    speed = Walk(dt);
+                    if (speed == 0f) { step = Step.AtAtm; timer = 0f; }
+                    break;
+                case Step.AtAtm:
+                    Face(CityLayout.AtmSpot, dt);
+                    if (timer > Mathf.Max(2f, 6f / traffic.Settings.Speedup))
+                    {
+                        if (Random.value < 0.6f) Say(AtmLines);
+                        // В конец очереди в кассу (место у прилавка уже заняли)
+                        Go(Step.ToShop, CashierLine.Slot(Mathf.Min(CashierLine.Count, 6)));
                     }
                     break;
                 case Step.ToPump:

@@ -46,7 +46,20 @@ namespace GasQueue
 
         // Игрок
         public bool OnFoot { get; private set; }
-        public float Money { get; private set; }
+        /// <summary>Наличные в кошельке. Терминал на кассе «временно» не работает — платить только ими.</summary>
+        public float Cash { get; private set; }
+        /// <summary>Деньги на карте: снимаются в банкомате «СБЕРКАССА» в магазине.</summary>
+        public float Card { get; private set; }
+        public float Money => Cash + Card;
+        /// <summary>Сколько раз снимали наличные.</summary>
+        public int AtmWithdrawals { get; private set; }
+        /// <summary>Сколько раз кассир сказал «терминал не работает».</summary>
+        public int TerminalRefusals { get; private set; }
+        /// <summary>Банкомат «думает»: секунд до выдачи денег (≤ 0 — свободен).</summary>
+        public float AtmBusy { get; private set; }
+        float atmAmount;
+        bool atmFailedOnce;
+        const float StartCash = 300f;
         public bool Paid { get; private set; }
         public float PaidLiters { get; private set; }
         public bool NozzleIn { get; private set; }
@@ -132,7 +145,7 @@ namespace GasQueue
         const int BribePrice = 1000;
         const float LiterLimit = 20f;
 
-        enum DialogWith { Cashier, Attendant, Driver }
+        enum DialogWith { Cashier, Attendant, Driver, Atm }
         NpcCar talkNpc;
         static readonly string[] CigaretteGive =
         {
@@ -186,7 +199,8 @@ namespace GasQueue
             this.cashier = cashier;
             this.restart = restart;
             QueueSeconds = settings.startMinutes * 60.0;
-            Money = settings.startMoney;
+            Cash = Mathf.Min(StartCash, settings.startMoney);
+            Card = settings.startMoney - Cash;
 
             hose = Shapes.Make(PrimitiveType.Cylinder, transform, Vector3.zero, Vector3.one, Shapes.Hex("#1b1b1b"), name: "Hose").transform;
             hose.gameObject.SetActive(false);
@@ -253,6 +267,7 @@ namespace GasQueue
             UpdateTanker(dt);
             UpdateFueling(dt);
             UpdateCashier(dt);
+            UpdateAtm(dt);
             UpdateAttendant(dt);
             UpdatePlayerFlow();
             UpdateInteractions();
@@ -413,6 +428,11 @@ namespace GasQueue
             {
                 Prompt = "Ваша очередь в кассу! Подойдите к прилавку";
             }
+            else if (Vector3.Distance(me, CityLayout.AtmFront) < 1.3f)
+            {
+                Prompt = AtmBusy > 0f ? "Банкомат думает... шуршит..." : $"E — банкомат «СБЕРКАССА» (на карте {Card:0} руб., наличными {Cash:0} руб.)";
+                if (AtmBusy <= 0f && GameInput.InteractPressed) OpenAtmDialog();
+            }
             else if (nearPump && Paid && !NozzleIn && !PlayerFueled)
             {
                 Prompt = $"E — вставить пистолет в бак (колонка №{carPump.Number})";
@@ -443,12 +463,15 @@ namespace GasQueue
         void Buy(Vendor vendor)
         {
             int price = vendor.Price;
-            if (Money < price)
+            if (Cash < price)
             {
-                ShowMessage("Денег не хватает.");
+                // С рук — только наличные
+                ShowMessage(Money >= price
+                    ? $"«Карту? Я тебе что, терминал? Только наличка!» Нужно {price} руб. наличными, у вас {Cash:0}. Банкомат — в магазине на заправке."
+                    : "Денег не хватает.", 7f);
                 return;
             }
-            Money -= price;
+            Cash -= price;
             vendor.Sold();
             if (vendor.Kind == VendorKind.Canister)
             {
@@ -491,6 +514,7 @@ namespace GasQueue
         // ---------- Касса ----------
 
         Vector3 DialogAnchor => dialogWith == DialogWith.Cashier ? CityLayout.CounterFront
+            : dialogWith == DialogWith.Atm ? CityLayout.AtmFront
             : dialogWith == DialogWith.Driver && talkNpc != null ? talkNpc.DriverDoor : CityLayout.AttendantSpot;
 
         // ---------- Водители в очереди ----------
@@ -566,7 +590,9 @@ namespace GasQueue
             DialogOpen = true;
             DialogTitle = "Кассир: «Слушаю вас. Какая колонка?»";
             DialogOptions.Clear();
-            DialogOptions.Add(Paid ? "Я уже оплатил(а)..." : $"Оплатить полный бак (АИ-95, {PriceBoard.CurrentPrice:0.00} руб/л)");
+            DialogOptions.Add(Paid ? "Я уже оплатил(а)..."
+                : TerminalRefusals == 0 ? $"Оплатить полный бак картой (АИ-95, {PriceBoard.CurrentPrice:0.00} руб/л)"
+                : $"Оплатить наличными (у вас {Cash:0} руб., АИ-95 — {PriceBoard.CurrentPrice:0.00} руб/л)");
             DialogOptions.Add("Поругаться");
             DialogOptions.Add("Уйти");
         }
@@ -664,6 +690,11 @@ namespace GasQueue
                 ChooseDriver(choice);
                 return;
             }
+            if (dialogWith == DialogWith.Atm)
+            {
+                ChooseAtm(choice);
+                return;
+            }
             switch (choice)
             {
                 case 1: TryPay(); break;
@@ -701,7 +732,19 @@ namespace GasQueue
             }
 
             float cost = liters * price;
-            Money -= cost;
+            if (Cash < cost)
+            {
+                // Терминал «временно» не работает. Всегда.
+                TerminalRefusals++;
+                CashierSays(TerminalRefusals == 1
+                    ? "Терминал не работает. Только наличные!"
+                    : Cash > 0f ? $"Наличными нужно {cost:0}. У вас {Cash:0}. Банкомат у входа." : "Я же сказала: только наличные!");
+                if (TerminalRefusals == 1)
+                    ShowMessage($"«Терминал временно не работает». Нужно {cost:0} руб. наличными, у вас {Cash:0}. " +
+                                "Зелёный банкомат «СБЕРКАССА» — у входа в магазин. Отойдёте от кассы — место в очереди займут.", 10f);
+                return;
+            }
+            Cash -= cost;
             MoneySpent += cost;
             Paid = true;
             PaidLiters = liters;
@@ -713,6 +756,54 @@ namespace GasQueue
                 ? $"Терминал завис... А, прошло. Колонка №{pump.Number}, {liters:0} л. Вставляйте пистолет."
                 : $"Колонка №{pump.Number}, {liters:0} литров, {cost:0} руб. Вставляйте пистолет.");
             ShowMessage($"Оплачено: {liters:0} л на колонке №{pump.Number}. Подойдите к лючку бака (справа сзади) и нажмите E.", 8f);
+        }
+
+        // ---------- Банкомат «СБЕРКАССА» ----------
+
+        void OpenAtmDialog()
+        {
+            dialogWith = DialogWith.Atm;
+            DialogOpen = true;
+            DialogOptions.Clear();
+            if (Card < 1f)
+            {
+                DialogTitle = "СБЕРКАССА: «Недостаточно средств на карте»";
+                DialogOptions.Add("Ну конечно...");
+                return;
+            }
+            DialogTitle = $"СБЕРКАССА: «Введите сумму». На карте: {Card:0} руб.";
+            DialogOptions.Add(Card >= 1000f ? "Снять 1 000 руб." : $"Снять {Card:0} руб.");
+            DialogOptions.Add(Card >= 3000f ? "Снять 3 000 руб." : $"Снять всё ({Card:0} руб.)");
+            DialogOptions.Add($"Снять всё ({Card:0} руб.)");
+        }
+
+        void ChooseAtm(int choice)
+        {
+            if (Card < 1f || AtmBusy > 0f) { CloseDialog(); return; }
+            float amount = choice == 1 ? Mathf.Min(1000f, Card) : choice == 2 ? Mathf.Min(3000f, Card) : Card;
+            // Как положено: с первого раза — «нет связи с банком»
+            if (!atmFailedOnce)
+            {
+                atmFailedOnce = true;
+                DialogTitle = "СБЕРКАССА: «Операция не может быть выполнена. Повторите попытку позже»";
+                ShowMessage("Банкомат подумал и отказал. Попробуйте ещё раз — он просто проснулся.", 6f);
+                return;
+            }
+            atmAmount = Mathf.Floor(amount);
+            AtmBusy = 4f / Mathf.Max(1f, Settings.Speedup * 0.75f);
+            CloseDialog();
+            ShowMessage("Банкомат думает... шуршит... считает купюры...", 4f);
+        }
+
+        void UpdateAtm(float dt)
+        {
+            if (AtmBusy <= 0f) return;
+            AtmBusy -= dt;
+            if (AtmBusy > 0f) return;
+            Card -= atmAmount;
+            Cash += atmAmount;
+            AtmWithdrawals++;
+            ShowMessage($"Банкомат выдал {atmAmount:0} руб. (наличными теперь {Cash:0}). Обратно в очередь в кассу!", 7f);
         }
 
         void UpdateCashier(float dt)
@@ -816,6 +907,7 @@ namespace GasQueue
             if (BribeScammed) { AttendantSays("Какую тысячу? Я тебя первый раз вижу."); return; }
             if (State == GameState.OutOfFuel) { AttendantSays("Бензина нет. Хоть миллион давай — из воздуха не налью."); return; }
             if (Money < BribePrice) { AttendantSays("Ты мне мелочь не суй."); return; }
+            if (Cash < BribePrice) { AttendantSays("Переводом не беру. Наличкой давай — банкомат в магазине."); return; }
 
             float roll = Random.value;
             if (roll < 0.2f)
@@ -823,7 +915,7 @@ namespace GasQueue
                 AttendantSays("Ты чё, тут камеры! Стой как все.");
                 return;
             }
-            Money -= BribePrice;
+            Cash -= BribePrice;
             MoneySpent += BribePrice;
             Bribes++;
             if (roll < 0.45f)
@@ -1215,6 +1307,8 @@ namespace GasQueue
             if (BribeScammed) list.Add("Кинули на тысячу");
             if (HitLiterLimit) list.Add("20 литров в одни руки");
             if (WaitedCashierBreak) list.Add("Перерыв 15 минут");
+            if (TerminalRefusals >= 1) list.Add("Терминал не работает, только наличные");
+            if (AtmWithdrawals >= 2) list.Add("Постоянный клиент СБЕРКАССЫ");
             if (LinePlacesTaken >= 1) list.Add("Очередь по понятиям");
             if (LineCutAttempts >= 3) list.Add("Я только чек спросить");
             return list;

@@ -31,6 +31,7 @@ namespace GasQueue
             BuildGround(root);
             BuildStreetFurniture(root);
             BuildBuildings(root);
+            BuildCareBanner(root);
             return BuildStation(root);
         }
 
@@ -489,6 +490,59 @@ namespace GasQueue
 
         // ---------- Магазин с кассой ----------
 
+        /// <summary>Листок А4 на скотче, смотрит наружу (к −X), надпись от руки.</summary>
+        static void Paper(Transform parent, Vector3 at, float size, string text, float charSize)
+        {
+            var p = Shapes.Group("Paper", parent, at, new Vector3(0f, 90f, 0f));
+            Shapes.Box(p, Vector3.zero, new Vector3(size * 0.7f, size, 0.01f), Shapes.Hex("#fbfbf6"), name: "Sheet");
+            Shapes.Box(p, new Vector3(0f, size * 0.5f, -0.006f), new Vector3(size * 0.3f, 0.06f, 0.005f), Shapes.Hex("#e8dfa0"), name: "Tape");
+            var t = Fonts.WorldText(p, new Vector3(0f, 0f, -0.012f), text, Shapes.Hex("#1f2a7a"), charSize);
+            t.transform.localRotation = Quaternion.identity;
+        }
+
+        /// <summary>
+        /// Банкомат «СБЕРКАССА»: зелёный, с экраном и клавиатурой. Стоит у фасада внутри магазина,
+        /// экраном в зал. Тут снимают наличные, потому что терминал на кассе «временно» не работает.
+        /// </summary>
+        static void BuildAtm(Transform shop)
+        {
+            var green = Shapes.Hex("#21a038");
+            var atm = Shapes.Group("Atm", shop, CityLayout.AtmSpot, new Vector3(0f, 90f, 0f)); // вперёд (+Z) — в зал, к +X
+            Shapes.Box(atm, new Vector3(0f, 0.85f, 0f), new Vector3(0.85f, 1.7f, 0.6f), green, name: "Body");
+            Shapes.Box(atm, new Vector3(0f, 1.82f, 0f), new Vector3(0.9f, 0.3f, 0.65f), Shapes.Hex("#f2f2ee"), name: "Top");
+            var title = Fonts.WorldText(atm, new Vector3(0f, 1.82f, 0.33f), "СБЕРКАССА", green, 0.022f);
+            title.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            Shapes.Box(atm, new Vector3(0f, 1.35f, 0.29f), new Vector3(0.5f, 0.36f, 0.04f), Shapes.Hex("#1d3a5a"), name: "Screen");
+            var screen = Fonts.WorldText(atm, new Vector3(0f, 1.35f, 0.315f), "Вставьте\nкарту", Shapes.Hex("#9fe0b0"), 0.014f);
+            screen.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            Shapes.Box(atm, new Vector3(0f, 1.02f, 0.33f), new Vector3(0.4f, 0.06f, 0.18f), Shapes.Hex("#3a3a3e"), new Vector3(20f, 0f, 0f), "Keypad");
+            Shapes.Box(atm, new Vector3(0f, 0.82f, 0.31f), new Vector3(0.36f, 0.05f, 0.02f), Shapes.Hex("#111111"), name: "CashSlot");
+            Obstacles.AddBox(CityLayout.AtmSpot, 0.6f, 0.85f, "банкомат");
+        }
+
+        /// <summary>Растяжка над дорогой перед заправкой: «ЛУКАВОЙЛ — мы заботимся о вас». Видно из очереди.</summary>
+        static void BuildCareBanner(Transform root)
+        {
+            var g = Shapes.Group("CareBanner", root);
+            foreach (float z in new[] { -150f, -360f })
+            {
+                foreach (float x in new[] { -12.4f, 12.4f })
+                {
+                    Shapes.Make(PrimitiveType.Cylinder, g, new Vector3(x, 4.4f, z), new Vector3(0.22f, 4.4f, 0.22f), Metal);
+                    Obstacles.AddBox(new Vector3(x, 0f, z), 0.3f, 0.3f, "опора растяжки");
+                }
+                Shapes.Box(g, new Vector3(0f, 7.6f, z), new Vector3(24.8f, 2.2f, 0.06f), Red, name: "Banner");
+                Shapes.Box(g, new Vector3(0f, 6.6f, z), new Vector3(24.8f, 0.2f, 0.07f), White, name: "BannerStripe");
+                foreach (float face in new[] { -1f, 1f })
+                {
+                    var t = Fonts.WorldText(g, new Vector3(0f, 7.75f, z + 0.05f * face), Brand + " — МЫ ЗАБОТИМСЯ О ВАС", White, 0.13f);
+                    t.transform.localRotation = Quaternion.Euler(0f, face > 0f ? 180f : 0f, 0f);
+                    var small = Fonts.WorldText(g, new Vector3(0f, 7.0f, z + 0.05f * face), "Бензин есть всегда*          *при наличии бензина", Shapes.Hex("#ffe0dc"), 0.045f);
+                    small.transform.localRotation = Quaternion.Euler(0f, face > 0f ? 180f : 0f, 0f);
+                }
+            }
+        }
+
         static HumanRig BuildShop(Transform st)
         {
             float x0 = CityLayout.ShopMinX, x1 = CityLayout.ShopMaxX, z0 = CityLayout.ShopMinZ, z1 = CityLayout.ShopMaxZ;
@@ -539,6 +593,11 @@ namespace GasQueue
             }
             Shapes.Box(shop, new Vector3(42f, 1f, -1.5f), new Vector3(0.7f, 2f, 1.6f), Shapes.Hex("#d8e6ee"), name: "Fridge");
             Obstacles.AddBox(new Vector3(42f, 0, -1.5f), 0.7f, 1.6f, "холодильник");
+
+            BuildAtm(shop);
+            // Бумажки «терминал не работает» — на прилавке и на витрине у входа
+            Paper(shop, new Vector3(39.93f, 1.3f, 3.7f), 0.75f, "ТЕРМИНАЛ\nНЕ РАБОТАЕТ\nтолько наличные", 0.012f);
+            Paper(shop, new Vector3(x0 - 0.13f, 1.45f, CityLayout.ShopDoorZ - 4.2f), 0.9f, "КАРТЫ\nНЕ ПРИНИМАЕМ!\nбанкомат внутри", 0.014f);
 
             var lightGo = new GameObject("ShopLight");
             lightGo.transform.SetParent(shop, false);
