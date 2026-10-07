@@ -523,26 +523,49 @@ namespace GasQueue
             Obstacles.AddBox(CityLayout.AtmSpot, 0.6f, 0.85f, "банкомат");
         }
 
-        /// <summary>Растяжка над дорогой перед заправкой: «ЛУКАВОЙЛ — мы заботимся о вас». Видно из очереди.</summary>
+        /// <summary>
+        /// Растяжки над дорогой: перед заправкой (игрок появляется на Z ≈ −142 — растяжка впереди, на −70)
+        /// и после выезда — уже на прощание. Плюс большой щит у самого въезда.
+        /// </summary>
         static void BuildCareBanner(Transform root)
         {
             var g = Shapes.Group("CareBanner", root);
-            foreach (float z in new[] { -150f, -360f })
+            Stretch(g, -70f, Brand + " — МЫ ЗАБОТИМСЯ О ВАС", "Бензин есть всегда*          *при наличии бензина");
+            Stretch(g, 150f, Brand + " — СПАСИБО, ЧТО ВЫБРАЛИ НАС", "Выбора у вас всё равно не было");
+
+            // Щит у въезда: смотрит навстречу очереди, видно издалека
+            var board = Shapes.Group("CareBillboard", g, new Vector3(18.5f, 0f, -48f));
+            foreach (float x in new[] { -3.2f, 3.2f })
             {
-                foreach (float x in new[] { -12.4f, 12.4f })
-                {
-                    Shapes.Make(PrimitiveType.Cylinder, g, new Vector3(x, 4.4f, z), new Vector3(0.22f, 4.4f, 0.22f), Metal);
-                    Obstacles.AddBox(new Vector3(x, 0f, z), 0.3f, 0.3f, "опора растяжки");
-                }
-                Shapes.Box(g, new Vector3(0f, 7.6f, z), new Vector3(24.8f, 2.2f, 0.06f), Red, name: "Banner");
-                Shapes.Box(g, new Vector3(0f, 6.6f, z), new Vector3(24.8f, 0.2f, 0.07f), White, name: "BannerStripe");
-                foreach (float face in new[] { -1f, 1f })
-                {
-                    var t = Fonts.WorldText(g, new Vector3(0f, 7.75f, z + 0.05f * face), Brand + " — МЫ ЗАБОТИМСЯ О ВАС", White, 0.13f);
-                    t.transform.localRotation = Quaternion.Euler(0f, face > 0f ? 180f : 0f, 0f);
-                    var small = Fonts.WorldText(g, new Vector3(0f, 7.0f, z + 0.05f * face), "Бензин есть всегда*          *при наличии бензина", Shapes.Hex("#ffe0dc"), 0.045f);
-                    small.transform.localRotation = Quaternion.Euler(0f, face > 0f ? 180f : 0f, 0f);
-                }
+                Shapes.Box(board, new Vector3(x, 3f, 0f), new Vector3(0.3f, 6f, 0.3f), Metal);
+                Obstacles.AddBox(board.position + new Vector3(x, 0f, 0f), 0.35f, 0.35f, "опора щита");
+            }
+            Shapes.Box(board, new Vector3(0f, 7.2f, 0f), new Vector3(8.4f, 3.6f, 0.2f), Red, name: "Board");
+            Shapes.Box(board, new Vector3(0f, 7.2f, -0.11f), new Vector3(7.9f, 3.1f, 0.02f), White, name: "BoardInner");
+            var t1 = Fonts.WorldText(board, new Vector3(0f, 7.9f, -0.13f), Brand, Red, 0.14f);
+            t1.transform.localRotation = Quaternion.identity;
+            var t2 = Fonts.WorldText(board, new Vector3(0f, 6.85f, -0.13f), "МЫ ЗАБОТИМСЯ О ВАС\nзаправляем с любовью ♥", Shapes.Hex("#2a2a2e"), 0.06f);
+            t2.transform.localRotation = Quaternion.identity;
+            var t3 = Fonts.WorldText(board, new Vector3(0f, 5.65f, -0.13f), "*очередь — тоже часть заботы", Shapes.Hex("#7a7a7a"), 0.03f);
+            t3.transform.localRotation = Quaternion.identity;
+        }
+
+        /// <summary>Растяжка поперёк всей дороги на двух столбах, надписи с обеих сторон.</summary>
+        static void Stretch(Transform g, float z, string title, string small)
+        {
+            foreach (float x in new[] { -12.4f, 12.4f })
+            {
+                Shapes.Make(PrimitiveType.Cylinder, g, new Vector3(x, 4.4f, z), new Vector3(0.22f, 4.4f, 0.22f), Metal);
+                Obstacles.AddBox(new Vector3(x, 0f, z), 0.3f, 0.3f, "опора растяжки");
+            }
+            Shapes.Box(g, new Vector3(0f, 7.6f, z), new Vector3(24.8f, 2.2f, 0.06f), Red, name: "Banner");
+            Shapes.Box(g, new Vector3(0f, 6.6f, z), new Vector3(24.8f, 0.2f, 0.07f), White, name: "BannerStripe");
+            foreach (float face in new[] { -1f, 1f })
+            {
+                var t = Fonts.WorldText(g, new Vector3(0f, 7.75f, z + 0.05f * face), title, White, 0.13f);
+                t.transform.localRotation = Quaternion.Euler(0f, face > 0f ? 180f : 0f, 0f);
+                var sm = Fonts.WorldText(g, new Vector3(0f, 7.0f, z + 0.05f * face), small, Shapes.Hex("#ffe0dc"), 0.045f);
+                sm.transform.localRotation = Quaternion.Euler(0f, face > 0f ? 180f : 0f, 0f);
             }
         }
 
