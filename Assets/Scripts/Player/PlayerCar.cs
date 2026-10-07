@@ -48,6 +48,7 @@ namespace GasQueue
         float startTimer;
         float lampBlink;
         bool warnedEngineOff;
+        bool warnedHandbrake;
         readonly Dictionary<object, float> lastHit = new Dictionary<object, float>();
 
         public void Init(CarVisual v, GameSettings s, Transform worldRoot)
@@ -99,6 +100,7 @@ namespace GasQueue
                 GameManager.Instance.ShowMessage("Двигатель заглушен. Нажмите I, чтобы завести.");
             }
             if (!gas && !back) warnedEngineOff = false;
+            if (!controlsEnabled || !GameInput.Handbrake) warnedHandbrake = false;
 
             // Газ, тормоз, задний ход
             // Побитая машина тянет хуже
@@ -107,16 +109,23 @@ namespace GasQueue
             if (gas)
             {
                 if (Speed < -0.1f) Speed = Mathf.Min(0f, Speed + brakeDecel * dt);
-                else if (running) Speed = Mathf.Min(maxSpeed, Speed + visual.accel * power * (1f - Speed / (maxSpeed * 1.2f)) * dt);
+                // На ручнике задние колёса заблокированы — газ машину не тянет
+                else if (running && !handbrake) Speed = Mathf.Min(maxSpeed, Speed + visual.accel * power * (1f - Speed / (maxSpeed * 1.2f)) * dt);
             }
             else if (back)
             {
                 if (Speed > 0.1f) Speed = Mathf.Max(0f, Speed - brakeDecel * dt);
-                else if (running) Speed = Mathf.Max(-MaxReverse, Speed - ReverseAccel * dt);
+                else if (running && !handbrake) Speed = Mathf.Max(-MaxReverse, Speed - ReverseAccel * dt);
             }
             else Speed = Mathf.MoveTowards(Speed, 0f, CoastDecel * dt);
             // Ручник: задние колёса блокируются — машина теряет скорость и идёт в занос
-            if (handbrake) Speed = Mathf.MoveTowards(Speed, 0f, HandbrakeDecel * dt);
+            // На малой скорости ручник держит намертво
+            if (handbrake) Speed = Mathf.MoveTowards(Speed, 0f, (Mathf.Abs(Speed) < 7f ? HandbrakeDecel * 2f : HandbrakeDecel) * dt);
+            if (handbrake && (gas || back) && running && Mathf.Abs(Speed) < 0.5f && !warnedHandbrake)
+            {
+                warnedHandbrake = true;
+                GameManager.Instance.ShowMessage("Машина не едет: зажат ручник (Пробел). Отпустите его.", 5f);
+            }
             bool drifting = handbrake && Speed > 7f;
 
             // Руль: быстрее возвращается в ноль, на скорости поворачивается меньше
