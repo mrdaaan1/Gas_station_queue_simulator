@@ -404,6 +404,7 @@ namespace GasQueue
             {
                 shoutCooldown = 8f;
                 Say(IntolerantShouts[Random.Range(0, IntolerantShouts.Length)]);
+                if (traffic.PlayerCutTarget == this) traffic.OnIntolerantBlocksPlayer();
                 Honk();
             }
 
@@ -506,11 +507,20 @@ namespace GasQueue
         // иначе застрявшая наполовину в очереди машина перекрывает её навсегда. В игрока не въезжаем никогда.
         bool Blocked(Obb newBox, Obb current) =>
             traffic.WouldHitPlayer(newBox, current) ||
-            (laneBlockedTimer < 3f && traffic.WouldHitNpc(this, newBox, current));
+            ((laneBlockedTimer < 3f || Role == NpcRole.Through) && traffic.WouldHitNpc(this, newBox, current));
 
         /// <summary>Едет мимо по среднему ряду, а там встал «второй ряд» — уходит в левый ряд и объезжает.</summary>
         void UpdateOvertake(float dt, Vehicle blocker)
         {
+            // Объезд не удался (в левом ряду кто-то подъехал) — возвращаемся в свой ряд, а не протискиваемся
+            if (Role == NpcRole.Through && Path == traffic.MiddlePath && pathAfterLaneChange == traffic.LeftPath && laneBlockedTimer > 2f)
+            {
+                targetOffset = 0f;
+                pathAfterLaneChange = null;
+                laneBlockedTimer = 0f;
+                stuckBehindTimer = -3f; // и не сразу пробуем снова
+                return;
+            }
             if (Role != NpcRole.Through || Path != traffic.MiddlePath || pathAfterLaneChange != null) { stuckBehindTimer = 0f; return; }
             bool stuck = blocker != null && blocker.Speed < 0.3f && Speed < 0.3f && !blocker.IsPlayer;
             stuckBehindTimer = stuck ? stuckBehindTimer + dt : 0f;
@@ -637,11 +647,11 @@ namespace GasQueue
         };
         VipLights vipLights;
 
-        public void SetupVip(LanePath path)
+        public void SetupVip(LanePath path, float s)
         {
             IsVip = true;
             vipLights = GetComponent<VipLights>();
-            Setup(NpcRole.Vip, path, 0f, true);
+            Setup(NpcRole.Vip, path, s, true);
             moving = true;
             Speed = path.speedLimit * 0.8f;
         }

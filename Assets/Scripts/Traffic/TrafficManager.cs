@@ -509,6 +509,7 @@ namespace GasQueue
 
             RebuildLanes();
             RebuildQueue();
+            UpdatePlayerCutTarget();
             if (Gm == null || Gm.State == GameState.Finished) return;
             if (StreetRace) return; // в Тольятти нет ни заправки, ни очереди, ни продавцов
 
@@ -998,10 +999,55 @@ namespace GasQueue
             return false;
         }
 
-        /// <summary>Кто-то невежливо целится влезть прямо перед этой машиной.</summary>
+        /// <summary>
+        /// Машина очереди, перед которой сейчас пытается влезть игрок (стоит вторым рядом вплотную к очереди),
+        /// или null. Нетерпилы на это поджимаются к машине впереди и орут — игрока не пускают.
+        /// </summary>
+        public NpcCar PlayerCutTarget { get; private set; }
+
+        float playerLeftQueueAt = -99f;
+
+        void UpdatePlayerCutTarget()
+        {
+            PlayerCutTarget = null;
+            if (PlayerInQueue) playerLeftQueueAt = Time.time;
+            // Только что сам выехал из очереди — это не «влезть»
+            if (Time.time - playerLeftQueueAt < 4f) return;
+            if (RaceMode || PlayerInQueue || Gm == null || Gm.OnFoot || Gm.PlayerFueled || Gm.State == GameState.DrivingAway) return;
+            float ps = QueuePath.Project(Player.Position, out float lat);
+            // Слева от очереди, вплотную (во втором ряду или уже наполовину в очереди), у дороги, а не на заправке
+            if (lat > -0.6f || lat < -5.5f || ps > QueueRoadEndS || Mathf.Abs(Player.Speed) > 6f) return;
+            // Просто проезжает мимо вторым рядом — не повод. Повод: встал рядом, моргает вправо или уже лезет носом
+            bool trying = Mathf.Abs(Player.Speed) < 2.5f || Player.visual.blinker == 1 || lat > -2.8f;
+            if (!trying) return;
+            // Влезть можно только перед машиной, которая сзади нас (её нос — у нашего зада или чуть впереди)
+            NpcCar best = null;
+            float bestS = float.MinValue;
+            foreach (var e in queue)
+            {
+                if (!(e.v is NpcCar npc) || npc == courtesyGiver) continue;
+                float front = e.s + npc.Length / 2f;
+                if (front > ps + 1.5f || front < ps - Player.Length / 2f - 9f) continue;
+                if (e.s > bestS) { bestS = e.s; best = npc; }
+            }
+            PlayerCutTarget = best;
+        }
+
+        bool intolerantAnnounced;
+
+        /// <summary>Нетерпила поджался к машине впереди, чтобы не пустить игрока.</summary>
+        public void OnIntolerantBlocksPlayer()
+        {
+            if (intolerantAnnounced || Gm == null) return;
+            intolerantAnnounced = true;
+            Gm.ShowMessage("Сосед сзади поджался вплотную к машине впереди — не пускает. Нетерпила. Попробуйте перед другим (или поворотник Q/E: кто-то, может, и пропустит).", 9f);
+        }
+
+        /// <summary>Кто-то невежливо целится влезть прямо перед этой машиной (наглец-NPC или игрок).</summary>
         public bool IsCutterTarget(NpcCar me)
         {
             if (me.Role != NpcRole.Queue) return false;
+            if (me == PlayerCutTarget) return true;
             foreach (var npc in Npcs)
                 if (npc.Role == NpcRole.Cutter && npc.CutFollower == me && !npc.CutPolite && npc.Cut != NpcCar.CutState.Looking)
                     return true;
@@ -1142,7 +1188,7 @@ namespace GasQueue
                 if (throughTimers[i] > 0f) continue;
                 throughTimers[i] = Random.Range(Settings.trafficIntervalMin, Settings.trafficIntervalMax);
                 var lane = i == 0 ? leftPath : oncoming[i - 1];
-                if (total < 110 && LaneClearNear(lane, 0f, 25f))
+                if (total < 110 && LaneClearNear(lane, 0f, 25f) && AreaClear(lane.PointAt(0f), 12f))
                     SpawnNpc("Car").Setup(NpcRole.Through, lane, 0f, false);
             }
 
@@ -1237,16 +1283,20 @@ namespace GasQueue
                 ? "У всех «бензина нет», а у служебной колонки «для своих» — есть. Депутат заправляется."
                 : "Депутат заправляется у служебной колонки «для своих». Без очереди, разумеется.", 7f);
         }
-        float vipTimer = 200f;
+        // Первый — примерно через минуту после начала, дальше — каждые 2,5–3,5 минуты (с ускорением ×2)
+        float vipTimer = 120f;
 
         void UpdateVip(float dt)
         {
             vipTimer -= dt * (Settings.fastTestMode ? Settings.testSpeedup : 1f);
             if (vipTimer > 0f) return;
-            vipTimer = Random.Range(650f, 850f);
+            // Место занято или прошлый депутат ещё тут — пробуем снова через пару секунд
+            // (раньше неудачная попытка откладывала следующую на 6 минут, и депутата можно было не увидеть вовсе)
+            vipTimer = 5f;
             foreach (var n in Npcs) if (n.IsVip && n.Role != NpcRole.Exiting) return; // один депутат за раз
             float s = Random.Range(60f, 140f);
             if (!AreaClear(vipPath.PointAt(s), 14f)) return;
+            vipTimer = Random.Range(300f, 420f);
             var visual = CarFactory.Build($"VIP {++carCounter}", new Color(0.04f, 0.04f, 0.05f), CarModel.Maybach, false);
             visual.transform.SetParent(transform, false);
             var npc = visual.gameObject.AddComponent<NpcCar>();
@@ -1255,7 +1305,7 @@ namespace GasQueue
             npc.damage = visual.gameObject.AddComponent<CarDamage>();
             npc.damage.Init(visual, WorldRoot);
             Npcs.Add(npc);
-            npc.SetupVip(vipPath);
+            npc.SetupVip(vipPath, s);
             Gm.OnVipArrived();
         }
 
