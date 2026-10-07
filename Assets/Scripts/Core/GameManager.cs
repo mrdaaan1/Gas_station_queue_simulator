@@ -808,16 +808,26 @@ namespace GasQueue
         public void OnFixerRan()
         {
             ShowMessage(OnFoot
-                ? "Решала побежал! Догоняйте (Shift — бежать, ЛКМ — ударить)... хотя деньги он уже спрятал."
-                : "Решала побежал по тротуару назад. Кажется, вас кинули. Выйти (F) и догнать? Деньги он всё равно не отдаст.", 9f);
+                ? "Решала побежал с вашими деньгами! Догоняйте (Shift — бежать, ЛКМ — ударить) — уложите, и он всё вернёт."
+                : "Решала побежал по тротуару назад. Вас кинули! Выйдите (F), догоните и уложите — деньги вернёт.", 9f);
         }
 
-        /// <summary>Решалу догнали и уложили.</summary>
-        public void OnFixerKnocked()
+        /// <summary>Решалу догнали и уложили — отдаёт деньги.</summary>
+        public void OnFixerKnocked(Vendor fixer)
         {
             FixersBeaten++;
-            ShowMessage("Решала лежит и божится, что денег нет. Обыскать нечего — «всё у партнёра». Ну хоть душу отвели.", 8f);
+            if (fixer.Taken > 0)
+            {
+                Cash += fixer.Taken;
+                MoneyRecovered += fixer.Taken;
+                ShowMessage($"Решала лежит и отдаёт ваши {fixer.Taken} руб.: «Всё-всё, забирай!» Справедливость восторжествовала.", 8f);
+                fixer.Taken = 0;
+            }
+            else ShowMessage("Решалу уложили. Денег вы ему не давали — просто за всё хорошее.", 7f);
         }
+
+        /// <summary>Сколько денег отбили у кидал.</summary>
+        public int MoneyRecovered { get; private set; }
         public int SeedsBought { get; private set; }
 
         public void OnShashlikServed()
@@ -1389,7 +1399,8 @@ namespace GasQueue
             if (TerminalRefusals >= 1) list.Add("Терминал не работает, только наличные");
             if (ShashlikEaten >= 1) list.Add("Шашлык в очереди");
             if (FixerScams >= 1) list.Add($"Место в первой пятёрке (минус {Vendor.FixerPrice} руб.)");
-            if (FixersBeaten >= 1) list.Add("Догнал решалу (деньги не вернул)");
+            if (MoneyRecovered > 0) list.Add("Догнал решалу и вернул своё");
+            else if (FixerScams >= 1) list.Add("Кинули и убежали");
             if (ShashlikEaten >= 3) list.Add("Шашлычный марафон: очередь подождёт");
             if (SeedsBought >= 1) list.Add("Шелуха до самой колонки");
             if (AtmWithdrawals >= 2) list.Add("Постоянный клиент СБЕРКАССЫ");

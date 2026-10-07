@@ -28,7 +28,7 @@ namespace GasQueue
             "Брат, место в первой пятёрке надо? Две тыщи — и ты у колонки.", "У меня там свой человек стоит, место держит!",
             "Всё по-честному, гарантия! Я тут всех знаю.", "Последнее место осталось, бери, пока дают!",
         };
-        static readonly string[] FixerCaught = { "Какие деньги?! Я тебя первый раз вижу!", "Нету у меня ничего, обыщи!", "Ой-ой! Ладно-ладно... но денег нет!" };
+        static readonly string[] FixerCaught = { "Всё-всё, забирай свои деньги!", "Ладно, брат, бес попутал!", "Ой-ой! На, подавись!" };
         static readonly string[] PieLines =
         {
             "Пирожки! С капустой, с картошкой!", "Чай горячий, пирожки домашние!", "Подкрепитесь, вам ещё стоять и стоять!",
@@ -45,6 +45,8 @@ namespace GasQueue
         bool wasDown;
         readonly System.Collections.Generic.List<Vector3> runRoute = new System.Collections.Generic.List<Vector3>();
         public const int FixerPrice = 2000;
+        /// <summary>Сколько решала взял у игрока (вернёт, если его догнать и уложить).</summary>
+        public int Taken { get; set; }
         public bool Offering { get; private set; }
         /// <summary>Можно купить (решала, уже взявший деньги, ничего не продаёт).</summary>
         public bool CanBuy => scam == Scam.None;
@@ -212,7 +214,7 @@ namespace GasQueue
         {
             if (Fighter != null && Fighter.Down)
             {
-                if (!wasDown) gm?.OnFixerKnocked();
+                if (!wasDown) gm?.OnFixerKnocked(this);
                 wasDown = true;
                 rig.Animate(0f, dt);
                 return true;
@@ -273,6 +275,7 @@ namespace GasQueue
                 // Деньги взял — «пошёл договариваться»
                 scam = Scam.Leaving;
                 scamTimer = 4f;
+                Taken = Price;
                 visitedPlayer = true;
                 SpeechBubble.Show(transform, "Жди тут, брат! Ща всё решу, я мигом!", 1.5f);
                 return;
