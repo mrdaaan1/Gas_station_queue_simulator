@@ -111,10 +111,12 @@ namespace GasQueue
                 if (Between(z, DoorSplit, FrontDoorF)) node = side > 0 ? "DoorFR" : "DoorFL";
                 else if (Between(z, RearDoorR, DoorSplit)) node = side > 0 ? "DoorRR" : "DoorRL";
             }
-            if (z < -2.30f && seg >= SegB && p.y >= 0.72f) node = "Tailgate";
-            // Бамперы — часть кузова (форма общая), но отдельные узлы: мнутся и отваливаются
-            if (seg <= SegC && p.y < 0.72f && z > 2.12f) node = "BumperF";
-            if (seg <= SegC && p.y < 0.72f && z < -2.12f) node = "BumperR";
+            // Бамперы — часть кузова (форма общая), но отдельные узлы: мнутся и отваливаются. Граница — по ряду клеток
+            // (сегмент и доля v), а не по высоте: так шов идёт ровной линией вдоль кузова, без «лесенки».
+            bool bumperRow = seg <= SegB || (seg == SegC && v < 0.22f);
+            if (z < -2.30f && seg >= SegB && !bumperRow) node = "Tailgate";
+            if (bumperRow && z > 2.12f) node = "BumperF";
+            if (bumperRow && z < -2.12f) node = "BumperR";
             if (mat != "glass" && z < Cowl) inner = seg == SegA ? "carpet" : seg >= SegD ? "int_roof" : "int_door";
             return new CellInfo { node = node, mat = mat, innerMat = inner };
         }
@@ -154,6 +156,7 @@ namespace GasQueue
                 foreach (var a in arches) Flare(a, side);
             }
             FrontEnd();
+            Wipers();
             RearDetails();
             Pitbulls();
             Chassis();
@@ -278,7 +281,9 @@ namespace GasQueue
                 var rf = Facing(f.ToLocal(p + n * 0.012f), f.DirToLocal(n));
                 Geo.Torus(node.M("lamp_glow"), rf, r, 0.0055f, 36, 6);
                 Geo.Lathe(node.M("reflector"), rf, new[] { new Vector2(r - 0.004f, 0f), new Vector2(r * 0.6f, -0.006f), new Vector2(0f, -0.008f) }, 24, true, true);
-                Geo.Lathe(node.M("lamp_glow"), rf, new[] { new Vector2(0.016f, 0f), new Vector2(0.011f, 0.008f), new Vector2(0f, 0.011f) }, 20);
+                // Линза-проектор: тёмный стеклянный купол внутри кольца, с хромированной оправой
+                Geo.Torus(node.M("chrome"), rf.Mul(Fy(0.004f)), r * 0.62f, 0.004f, 28, 6);
+                Geo.Lathe(node.M("glass_dark"), rf, new[] { new Vector2(r * 0.58f, 0.002f), new Vector2(r * 0.45f, 0.012f), new Vector2(r * 0.25f, 0.018f), new Vector2(0f, 0.02f) }, 28);
             }
             var brow = new List<(Vector3, Vector3)>();
             for (int i = 0; i <= 16; i++) { float t = i / 16f; brow.Add((new Vector3(Mathf.Lerp(0.43f, 0.84f, t), yt(t) - 0.013f, 1.9f), Vector3.forward)); }
@@ -358,6 +363,26 @@ namespace GasQueue
             Geo.RoundBox(bf.M("black"), id, bfr.ToLocal(new Vector3(0f, 0.32f, 2.33f)), new Vector3(1.62f, 0.035f, 0.18f), 0.3f, 8);
             var pp = FrontPoint(0f, 0.50f, out var pn);
             PlateAt(bf, pp + pn * 0.016f, pn, "PlateFront");
+        }
+
+        /// <summary>Дворники: два чёрных поводка с щётками, лежат у основания лобового стекла.</summary>
+        void Wipers()
+        {
+            var shell = N("Shell");
+            // Ribbon кладёт точки на половину side, поэтому x — по модулю, а сторона — знаком
+            foreach (var (x0, x1, side) in new[] { (0.62f, 0.04f, -1f), (0.06f, 0.64f, 1f) })
+            {
+                var arm = new List<(Vector3, Vector3)>();
+                for (int i = 0; i <= 16; i++)
+                {
+                    float t = i / 16f;
+                    float x = Mathf.Lerp(x0, x1, t);
+                    float z = Cowl - 0.05f - 0.06f * (side < 0 ? 1f - t : t);   // чуть поднимается по стеклу к концу щётки
+                    arm.Add((new Vector3(x, 1.0f, z), Vector3.up));
+                }
+                Ribbon(shell, "black", arm, 0.022f, 0.012f, side);
+                Ribbon(shell, "black_satin", arm, 0.010f, 0.022f, side);
+            }
         }
 
         // ---------- Бока ----------
@@ -483,6 +508,9 @@ namespace GasQueue
             }
             var roof = N("Roof");
             var rf = roof.WorldFrame();
+            // Антенна-«плавник» на крыше у задней кромки
+            Geo.RoundBox(roof.M("black"), Frame.Identity, rf.ToLocal(new Vector3(0f, 1.79f, -1.70f)), new Vector3(0.07f, 0.07f, 0.20f), 0.55f, 12);
+            Geo.RoundBox(roof.M("black"), Frame.Identity, rf.ToLocal(new Vector3(0f, 1.765f, -1.68f)), new Vector3(0.085f, 0.02f, 0.25f), 0.5f, 8);
             Geo.RoundBox(roof.M("paint"), Frame.Identity, rf.ToLocal(new Vector3(0f, 1.68f, -2.01f)), new Vector3(1.30f, 0.045f, 0.17f), 0.4f, 10);
             Geo.Box(roof.M("tail_red"), Frame.Identity, rf.ToLocal(new Vector3(0f, 1.68f, -2.098f)), new Vector3(0.56f, 0.014f, 0.006f));
 

@@ -60,7 +60,7 @@ SPEC = {
 EMIT = {
     'lamp_glow': ('#fff7e0', '#fff2c8', 3.0), 'amber': ('#ff8a1c', '#ff7a00', 0.6), 'tail_red': ('#c8121a', '#ff1010', 1.0),
     'tail_smoke': ('#3a0c10', '#300004', 0.5), 'screen_blue': ('#0a1838', '#1a3a8a', 2.0), 'white': ('#f2f2f2', '#ffffff', 0.5),
-    'ambient': ('#2a5cff', '#2a5cff', 2.0), 'needle': ('#ff3320', '#ff2200', 1.0),
+    'ambient': ('#2a5cff', '#2a5cff', 2.0), 'screen_dark': ('#05080c', '#0a1424', 1.0), 'needle': ('#ff3320', '#ff2200', 1.0),
 }
 
 def get_mat(key):

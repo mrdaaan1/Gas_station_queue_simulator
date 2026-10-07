@@ -14,6 +14,8 @@ namespace GasQueue
         public readonly List<Vector3> n = new List<Vector3>();
         public readonly List<Vector2> uv = new List<Vector2>();
         public readonly List<int> t = new List<int>();
+        /// <summary>Запечённое затенение по вершинам (0 — тень, 1 — светло), если модель из Blender; иначе null.</summary>
+        public List<float> ao;
 
         public int Add(Vector3 p, Vector3 normal, Vector2 texcoord = default)
         {

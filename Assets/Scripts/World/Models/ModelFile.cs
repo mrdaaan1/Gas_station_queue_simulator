@@ -7,9 +7,9 @@ using UnityEngine;
 namespace GasQueue
 {
     /// <summary>
-    /// Модель машины из файла (её готовит Blender: Tools/Blender/x5_build.py). Формат «GQM1», сжат gzip:
+    /// Модель машины из файла (её готовит Blender: Tools/Blender/x5_build.py). Формат «GQM1»/«GQM2», сжат gzip:
     /// узлы по порядку обхода (имя, родитель, положение, углы Эйлера как в Unity) и их сетки по материалам
-    /// (вершины, нормали, UV, треугольники) — в локальных координатах узла, как <see cref="ModelNode"/>.
+    /// (вершины, нормали, UV, в GQM2 — ещё запечённое затенение байтом, треугольники) — в локальных координатах узла.
     /// Нормали в файле готовые (сглаживание и острые кромки из Blender), их не пересчитываем.
     /// </summary>
     public static class ModelFile
@@ -19,7 +19,9 @@ namespace GasQueue
             using (var gz = new GZipStream(new MemoryStream(bytes), CompressionMode.Decompress))
             using (var r = new BinaryReader(gz, Encoding.UTF8))
             {
-                if (new string(r.ReadChars(4)) != "GQM1") throw new InvalidDataException("не GQM1");
+                string magic = new string(r.ReadChars(4));
+                if (magic != "GQM1" && magic != "GQM2") throw new InvalidDataException("не GQM: " + magic);
+                bool hasAo = magic == "GQM2";
                 int count = r.ReadInt32();
                 var nodes = new ModelNode[count];
                 var model = new Model();
@@ -45,12 +47,14 @@ namespace GasQueue
                     {
                         var m = node.M(r.ReadString());
                         int nv = r.ReadInt32();
+                        if (hasAo) m.ao = new System.Collections.Generic.List<float>(nv);
                         for (int j = 0; j < nv; j++)
                         {
                             var p = V3(r);
                             var n = V3(r);
                             var uv = new Vector2(r.ReadSingle(), r.ReadSingle());
                             m.Add(p, n, uv);
+                            if (hasAo) m.ao.Add(r.ReadByte() / 255f);
                         }
                         int ni = r.ReadInt32();
                         for (int j = 0; j < ni; j++) m.t.Add(r.ReadInt32());

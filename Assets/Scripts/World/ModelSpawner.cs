@@ -138,6 +138,7 @@ namespace GasQueue
                 case "screen_blue": return Glow(Hex("#0a1838"), Hex("#1a3a8a"));
                 case "ambient": return Glow(Hex("#2a5cff"), Hex("#2a5cff") * 1.4f);
                 case "glass": return CarGlass(new Color(0.12f, 0.16f, 0.2f, 0.45f));
+                case "screen_dark": return Glow(Hex("#05080c"), Hex("#0a1424")); // экран почти чёрный, цифры светятся сами
                 case "glass_tint": return CarGlass(new Color(0.03f, 0.04f, 0.05f, 0.62f)); // тонировка: темнее снаружи, но изнутри дорогу видно
                 case "lens": return new Material(MeshFactory.Glass) { color = new Color(0.85f, 0.9f, 0.95f, 0.12f) };
                 case "black": return Surface(Hex("#0b0b0d"), 0.25f, 0f);
@@ -182,6 +183,7 @@ namespace GasQueue
         }
 
         static Color Hex(string h) => Shapes.Hex(h);
+
 
         /// <summary>Золотой хромированный камуфляж: текстура-«пятна» с высоким блеском. UV кузова — (z в метрах, доля контура), поэтому тайлинг растянут.</summary>
         static Material GoldCamo()

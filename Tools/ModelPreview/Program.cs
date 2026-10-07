@@ -64,6 +64,11 @@ static class Program
                     if (i > 0) sb.Append(',');
                     sb.Append(F(m.uv[i].x)).Append(',').Append(F(m.uv[i].y));
                 }
+                if (m.ao != null)
+                {
+                    sb.Append("],\"ao\":[");
+                    for (int i = 0; i < m.ao.Count; i++) { if (i > 0) sb.Append(','); sb.Append(F(m.ao[i])); }
+                }
                 sb.Append("],\"i\":[");
                 for (int i = 0; i < m.t.Count; i += 3)
                 {

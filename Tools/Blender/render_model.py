@@ -45,7 +45,24 @@ for k, m in enumerate(data["meshes"]):
     me.validate()
     for poly in me.polygons:
         poly.use_smooth = True
-    me.materials.append(get_mat(m["mat"]))
+    if os.environ.get("AOVIEW") and m.get("ao"):
+        # Проверка запечённого затенения: модель окрашена значениями AO
+        ao = m["ao"]
+        ca = me.color_attributes.new("AO", 'FLOAT_COLOR', 'POINT')
+        for i, c in enumerate(ca.data):
+            c.color = (ao[i], ao[i], ao[i], 1.0)
+        if "aoview" not in bpy.data.materials:
+            am = bpy.data.materials.new("aoview")
+            am.use_nodes = True
+            nt = am.node_tree
+            attr = nt.nodes.new("ShaderNodeAttribute")
+            attr.attribute_name = "AO"
+            em = nt.nodes.new("ShaderNodeEmission")
+            nt.links.new(attr.outputs["Color"], em.inputs["Color"])
+            nt.links.new(em.outputs["Emission"], nt.nodes["Material Output"].inputs["Surface"])
+        me.materials.append(bpy.data.materials["aoview"])
+    else:
+        me.materials.append(get_mat(m["mat"]))
     ob = bpy.data.objects.new(me.name, me)
     ob.parent = car
     scene.collection.objects.link(ob)
@@ -148,6 +165,7 @@ VIEWS = [
     ("side", (8.5, 0.9, 0), (0, 0.7, 0), 30), ("top", (2.6, 3.6, -1.6), (0, 0.9, 0.2), 45),
     ("front", (0, 1.0, 8), (0, 0.75, 0), 24), ("rear", (0, 1.1, -8), (0, 0.8, 0), 24),
     ("cab", (-0.38, 1.40, -0.30), (-0.25, 1.15, 1.5), 75), ("cab2", (0.55, 1.45, -1.3), (-0.3, 1.0, 0.6), 80), ("cabtop", (0.9, 3.2, -1.6), (0, 0.9, 0.1), 48),
+    ("wheel", (2.2, 0.55, 2.4), (0.8, 0.37, 1.47), 26), ("wheel2", (1.9, 0.30, 0.1), (0.85, 0.37, 1.47), 30),
 ]
 only = os.environ.get("VIEWS")
 files = []
