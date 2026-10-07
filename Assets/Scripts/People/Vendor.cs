@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace GasQueue
 {
-    public enum VendorKind { Canister, Pies, Seeds }
+    public enum VendorKind { Canister, Pies, Seeds, Fixer }
 
     /// <summary>
     /// Ходит между рядами вдоль очереди и торгует: мужик с канистрами (бензин втридорога)
@@ -23,13 +23,31 @@ namespace GasQueue
             "Семечки! Жареные, свежие!", "Стаканчик — пятьдесят рублей, сынок!", "Возьми семечек — время быстрее пойдёт!",
             "Подсолнечные, тыквенные! Сама жарила!", "Внучок, купи у бабушки семечек!",
         };
+        static readonly string[] FixerLines =
+        {
+            "Брат, место в первой пятёрке надо? Две тыщи — и ты у колонки.", "У меня там свой человек стоит, место держит!",
+            "Всё по-честному, гарантия! Я тут всех знаю.", "Последнее место осталось, бери, пока дают!",
+        };
+        static readonly string[] FixerCaught = { "Какие деньги?! Я тебя первый раз вижу!", "Нету у меня ничего, обыщи!", "Ой-ой! Ладно-ладно... но денег нет!" };
         static readonly string[] PieLines =
         {
             "Пирожки! С капустой, с картошкой!", "Чай горячий, пирожки домашние!", "Подкрепитесь, вам ещё стоять и стоять!",
         };
 
         public VendorKind Kind { get; private set; }
+        /// <summary>Решала-кидала: можно побить (деньги всё равно не вернёт).</summary>
+        public Fighter Fighter { get; private set; }
+
+        // Решала: взял деньги → «пошёл договариваться» → побежал
+        enum Scam { None, Leaving, Running }
+        Scam scam;
+        float scamTimer;
+        bool wasDown;
+        readonly System.Collections.Generic.List<Vector3> runRoute = new System.Collections.Generic.List<Vector3>();
+        public const int FixerPrice = 2000;
         public bool Offering { get; private set; }
+        /// <summary>Можно купить (решала, уже взявший деньги, ничего не продаёт).</summary>
+        public bool CanBuy => scam == Scam.None;
 
         HumanRig rig;
         TrafficManager traffic;
@@ -44,13 +62,15 @@ namespace GasQueue
             get
             {
                 var gm = GameManager.Instance;
-                return Kind == VendorKind.Canister ? Mathf.RoundToInt(gm.PriceBoard.price95 * 3f * 10f / 10f) * 10 : Kind == VendorKind.Seeds ? 50 : 150;
+                return Kind == VendorKind.Canister ? Mathf.RoundToInt(gm.PriceBoard.price95 * 3f * 10f / 10f) * 10
+                    : Kind == VendorKind.Seeds ? 50 : Kind == VendorKind.Fixer ? FixerPrice : 150;
             }
         }
 
         public string Offer => Kind == VendorKind.Canister
             ? $"E — купить канистру 10 л за {Price} руб. (втрое дороже, чем на заправке)"
             : Kind == VendorKind.Seeds ? $"E — купить стаканчик семечек за {Price} руб. (наличными)"
+            : Kind == VendorKind.Fixer ? $"E — купить место в первой пятёрке за {Price} руб. (наличными, «гарантия»)"
             : $"E — купить пирожок и чай за {Price} руб. (восстанавливает силы)";
 
         public static Vendor Spawn(VendorKind kind, TrafficManager traffic, float startZ, float direction)
@@ -60,6 +80,12 @@ namespace GasQueue
             {
                 look.shirt = Shapes.Hex("#b5485d");
                 look.hair = Shapes.Hex("#9a9a9a");
+            }
+            if (kind == VendorKind.Fixer)
+            {
+                look.shirt = Shapes.Hex("#1b1b1d"); // кожанка
+                look.pants = Shapes.Hex("#1f2a4a"); // треники
+                look.hair = Shapes.Hex("#2a2420");
             }
             if (kind == VendorKind.Seeds)
             {
@@ -77,6 +103,16 @@ namespace GasQueue
                 var can = Shapes.Group("Canister", rig.armR, new Vector3(0f, -0.62f, 0f));
                 Shapes.Box(can, new Vector3(0, -0.2f, 0), new Vector3(0.14f, 0.4f, 0.32f), Shapes.Hex("#b3241b"));
                 Shapes.Box(can, new Vector3(0, 0.02f, 0), new Vector3(0.05f, 0.05f, 0.18f), Shapes.Hex("#1b1b1b"), name: "Handle");
+            }
+            else if (kind == VendorKind.Fixer)
+            {
+                // Кепка и телефон у уха — «сейчас позвоню своему человеку»
+                Shapes.Box(rig.head, new Vector3(0f, 0.14f, 0.02f), new Vector3(0.27f, 0.07f, 0.29f), Shapes.Hex("#2b2b2e"), name: "Cap");
+                Shapes.Box(rig.head, new Vector3(0f, 0.11f, 0.19f), new Vector3(0.25f, 0.025f, 0.12f), Shapes.Hex("#2b2b2e"), name: "Visor");
+                Shapes.Box(rig.armR, new Vector3(0f, -0.66f, 0.06f), new Vector3(0.05f, 0.13f, 0.08f), Shapes.Hex("#111111"), name: "Phone");
+                // Белые лампасы на трениках
+                Shapes.Box(rig.legL, new Vector3(-0.075f, -0.4f, 0f), new Vector3(0.012f, 0.7f, 0.04f), Color.white, name: "Stripe");
+                Shapes.Box(rig.legR, new Vector3(0.075f, -0.4f, 0f), new Vector3(0.012f, 0.7f, 0.04f), Color.white, name: "Stripe");
             }
             else if (kind == VendorKind.Seeds)
             {
@@ -100,6 +136,7 @@ namespace GasQueue
             v.rig = rig;
             v.traffic = traffic;
             v.direction = direction;
+            if (kind == VendorKind.Fixer) v.Fighter = Fighter.AddTo(rig, "Решала");
             traffic.Pedestrians.Add(rig.transform);
             return v;
         }
@@ -110,6 +147,7 @@ namespace GasQueue
             if (dt <= 0f) return;
             var gm = GameManager.Instance;
             var player = traffic.Player;
+            if (Kind == VendorKind.Fixer && UpdateFixer(dt, gm)) return;
             lineTimer -= dt;
             life += dt;
             if (life > 70f) visitedPlayer = true; // так и не дождался — идёт дальше
@@ -137,7 +175,7 @@ namespace GasQueue
                 if (lineTimer <= 0f)
                 {
                     lineTimer = 4.5f;
-                    var lines = Kind == VendorKind.Canister ? CanisterLines : Kind == VendorKind.Seeds ? SeedLines : PieLines;
+                    var lines = Kind == VendorKind.Canister ? CanisterLines : Kind == VendorKind.Seeds ? SeedLines : Kind == VendorKind.Fixer ? FixerLines : PieLines;
                     SpeechBubble.Show(transform, lines[Random.Range(0, lines.Length)], 1.5f);
                 }
                 rig.Animate(0f, dt);
@@ -166,10 +204,79 @@ namespace GasQueue
             }
         }
 
+        /// <summary>
+        /// Решала после оплаты: «жди тут, я договорюсь» — идёт вперёд вдоль очереди, потом разворачивается и бежит
+        /// по тротуару назад. Догнать и побить можно, деньги — нет. Возвращает true, если обычное поведение не нужно.
+        /// </summary>
+        bool UpdateFixer(float dt, GameManager gm)
+        {
+            if (Fighter != null && Fighter.Down)
+            {
+                if (!wasDown) gm?.OnFixerKnocked();
+                wasDown = true;
+                rig.Animate(0f, dt);
+                return true;
+            }
+            if (wasDown)
+            {
+                wasDown = false;
+                SpeechBubble.Show(transform, FixerCaught[Random.Range(0, FixerCaught.Length)], 1.5f);
+                scamTimer = Mathf.Max(scamTimer, 0.5f); // встал — и дальше бежать
+            }
+            if (scam == Scam.None) return false;
+            scamTimer -= dt;
+            if (scam == Scam.Leaving)
+            {
+                // Неспешно идёт вперёд вдоль очереди, «звонит своему человеку»
+                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(Vector3.forward), dt * 6f);
+                transform.position += Vector3.forward * 1.1f * dt;
+                rig.Animate(1.1f, dt);
+                if (scamTimer <= 0f)
+                {
+                    scam = Scam.Running;
+                    var p = transform.position;
+                    runRoute.Clear();
+                    runRoute.Add(new Vector3(12.6f, 0f, p.z - 3f));   // на тротуар
+                    runRoute.Add(new Vector3(12.6f, 0f, p.z - 90f));  // и назад вдоль очереди
+                    SpeechBubble.Show(transform, "Ой, мне пора!", 1.5f);
+                    gm?.OnFixerRan();
+                }
+                return true;
+            }
+            // Бежит. Хромой — медленнее
+            float speed = Fighter != null && Fighter.Limping ? 2.2f : 4.3f;
+            while (runRoute.Count > 0)
+            {
+                var to = runRoute[0] - transform.position;
+                to.y = 0f;
+                if (to.magnitude > 0.2f)
+                {
+                    transform.position += to.normalized * Mathf.Min(speed * dt, to.magnitude);
+                    transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(to.normalized), dt * 10f);
+                    rig.Animate(speed, dt);
+                    return true;
+                }
+                runRoute.RemoveAt(0);
+            }
+            // Убежал
+            traffic.Pedestrians.Remove(transform);
+            Destroy(gameObject);
+            return true;
+        }
+
         /// <summary>Игрок купил товар.</summary>
         public void Sold()
         {
             Offering = false;
+            if (Kind == VendorKind.Fixer)
+            {
+                // Деньги взял — «пошёл договариваться»
+                scam = Scam.Leaving;
+                scamTimer = 4f;
+                visitedPlayer = true;
+                SpeechBubble.Show(transform, "Жди тут, брат! Ща всё решу, я мигом!", 1.5f);
+                return;
+            }
             SpeechBubble.Show(transform, Kind == VendorKind.Canister ? "Приятно иметь дело!" : Kind == VendorKind.Seeds ? "Шелуху в пакетик, сынок!" : "Кушайте на здоровье!", 1.5f);
         }
     }

@@ -341,6 +341,7 @@ namespace GasQueue
 
             // Продавец у окна (в машине) или рядом (пешком)
             var vendor = OnFoot ? Traffic.VendorNear(Walker.transform.position, 1.8f) : Traffic.VendorAtCar(1.5f);
+            if (vendor != null && !vendor.CanBuy) vendor = null;
             VendorAtWindow = !OnFoot && vendor != null && vendor.Offering;
             if (vendor != null && (OnFoot || vendor.Offering))
             {
@@ -497,6 +498,12 @@ namespace GasQueue
             }
             Cash -= price;
             vendor.Sold();
+            if (vendor.Kind == VendorKind.Fixer)
+            {
+                FixerScams++;
+                ShowMessage($"Вы отдали решале {price} руб. наличными. «Жди тут, брат, ща всё решу!» Ждём...", 8f);
+                return;
+            }
             if (vendor.Kind == VendorKind.Seeds)
             {
                 SeedsBought++;
@@ -794,6 +801,23 @@ namespace GasQueue
         // ---------- Шашлык у дороги ----------
 
         public int ShashlikEaten { get; private set; }
+        public int FixerScams { get; private set; }
+        public int FixersBeaten { get; private set; }
+
+        /// <summary>Решала с деньгами побежал.</summary>
+        public void OnFixerRan()
+        {
+            ShowMessage(OnFoot
+                ? "Решала побежал! Догоняйте (Shift — бежать, ЛКМ — ударить)... хотя деньги он уже спрятал."
+                : "Решала побежал по тротуару назад. Кажется, вас кинули. Выйти (F) и догнать? Деньги он всё равно не отдаст.", 9f);
+        }
+
+        /// <summary>Решалу догнали и уложили.</summary>
+        public void OnFixerKnocked()
+        {
+            FixersBeaten++;
+            ShowMessage("Решала лежит и божится, что денег нет. Обыскать нечего — «всё у партнёра». Ну хоть душу отвели.", 8f);
+        }
         public int SeedsBought { get; private set; }
 
         public void OnShashlikServed()
@@ -1364,6 +1388,8 @@ namespace GasQueue
             if (WaitedCashierBreak) list.Add("Перерыв 15 минут");
             if (TerminalRefusals >= 1) list.Add("Терминал не работает, только наличные");
             if (ShashlikEaten >= 1) list.Add("Шашлык в очереди");
+            if (FixerScams >= 1) list.Add($"Место в первой пятёрке (минус {Vendor.FixerPrice} руб.)");
+            if (FixersBeaten >= 1) list.Add("Догнал решалу (деньги не вернул)");
             if (ShashlikEaten >= 3) list.Add("Шашлычный марафон: очередь подождёт");
             if (SeedsBought >= 1) list.Add("Шелуха до самой колонки");
             if (AtmWithdrawals >= 2) list.Add("Постоянный клиент СБЕРКАССЫ");

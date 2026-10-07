@@ -140,7 +140,7 @@ namespace GasQueue
         int rumorReturnCount;
         float rumorSpawnTimer;
         readonly List<(NpcCar car, float at)> rumorQuitters = new List<(NpcCar, float)>();
-        float canisterTimer = 25f, pieTimer = 50f, seedsTimer = 35f;
+        float canisterTimer = 25f, pieTimer = 50f, seedsTimer = 35f, fixerTimer = 100f;
         readonly HashSet<Vehicle> aheadWhenLeft = new HashSet<Vehicle>();
 
         GameManager Gm => GameManager.Instance;
@@ -1334,6 +1334,14 @@ namespace GasQueue
             {
                 seedsTimer = Random.Range(55f, 90f);
                 TrySpawnVendor(VendorKind.Seeds); // бабушка с семечками
+            }
+            fixerTimer -= dt;
+            if (fixerTimer <= 0f)
+            {
+                fixerTimer = Random.Range(200f, 280f);
+                // Решала «продаёт место поближе» только тем, кто стоит в очереди (и только в основной игре)
+                if (!RaceMode && PlayerInQueue && PlayerQueueIndex > 5) TrySpawnVendor(VendorKind.Fixer);
+                else fixerTimer = 20f;
             }
         }
 

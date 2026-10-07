@@ -358,6 +358,19 @@ namespace GasQueue
             {
                 // Любой водитель на заправке или в очереди в кассу
                 float best = 2.2f;
+                // ...и решала, который взял деньги и убегает
+                foreach (var v in traffic.Vendors)
+                {
+                    if (v == null || v.Fighter == null || v.Fighter.Down) continue;
+                    var to = v.transform.position - transform.position;
+                    if (Mathf.Abs(to.y) > 0.6f) continue;
+                    to.y = 0f;
+                    if (to.magnitude < best)
+                    {
+                        best = to.magnitude;
+                        target = v.Fighter;
+                    }
+                }
                 foreach (var c in PumpCustomer.All)
                 {
                     if (c == null || c.Fighter.Down) continue;
