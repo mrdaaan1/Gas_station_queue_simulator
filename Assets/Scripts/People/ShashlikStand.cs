@@ -24,6 +24,7 @@ namespace GasQueue
         TrafficManager traffic;
         HumanRig fanner, turner;
         float lineTimer = 3f, spawnTimer = 12f;
+        bool announced;
         readonly List<ShashlikCustomer> customers = new List<ShashlikCustomer>();
 
         // Заказ игрока: 0 — нет, 1 — жарится, 2 — готов
@@ -84,6 +85,17 @@ namespace GasQueue
             text.transform.localRotation = Quaternion.identity;
             Obstacles.AddBox(CityLayout.MangalSpot + new Vector3(-1.4f, 0f, 3.1f), 0.2f, 0.2f, "щит шашлычной");
 
+            // Высокая вывеска на столбе — видно издалека из очереди
+            var tall = Shapes.Group("ShashlikTallSign", g, new Vector3(-0.9f, 0f, -3.4f), new Vector3(0f, 90f, 0f));
+            Shapes.Make(PrimitiveType.Cylinder, tall, new Vector3(0f, 2.6f, 0f), new Vector3(0.14f, 2.6f, 0.14f), steel);
+            Shapes.Box(tall, new Vector3(0f, 5.6f, 0f), new Vector3(3.6f, 1.3f, 0.12f), Shapes.Hex("#c8312b"));
+            foreach (float face in new[] { -1f, 1f })
+            {
+                var big = Fonts.WorldText(tall, new Vector3(0f, 5.6f, 0.08f * face), "ШАШЛЫК", Color.white, 0.09f);
+                big.transform.localRotation = Quaternion.Euler(0f, face > 0f ? 180f : 0f, 0f);
+            }
+            Obstacles.AddBox(CityLayout.MangalSpot + new Vector3(-0.9f, 0f, -3.4f), 0.3f, 0.3f, "столб вывески");
+
             // Пластиковый столик и стулья
             var table = CityLayout.ShashlikTable - CityLayout.MangalSpot;
             Shapes.Box(g, table + new Vector3(0f, 0.72f, 0f), new Vector3(1.0f, 0.04f, 1.0f), Color.white, name: "Table");
@@ -137,6 +149,13 @@ namespace GasQueue
             var gm = GameManager.Instance;
             if (gm == null) return;
             var playerPos = gm.OnFoot && gm.Walker != null ? gm.Walker.transform.position : traffic.Player.Position;
+
+            // Один раз подсказываем, что это и как купить
+            if (!announced && Vector3.Distance(playerPos, CityLayout.MangalSpot) < 60f)
+            {
+                announced = true;
+                gm.ShowMessage("Справа у дороги — шашлычная! Выйдите из машины (F), подойдите к мангалу и нажмите E. Только наличными.", 9f);
+            }
 
             // Зазывают, когда игрок рядом
             lineTimer -= dt;
