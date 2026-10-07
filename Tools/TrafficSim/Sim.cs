@@ -1,4 +1,14 @@
 using System; using System.Collections.Generic; using System.Linq; using System.Reflection; using UnityEngine; using GasQueue;
+public static class Stall { static NpcCar car; static float t0=-1, next; public static int Bypasses;
+  public static void Tick(TrafficManager tr){
+    if(t0<0 && Time.time>30){ car=tr.Npcs.Where(n=>n.Role==NpcRole.Queue&&n.Path==tr.QueuePath&&n.S>tr.PlayerQueueS+20).OrderBy(n=>n.S).FirstOrDefault(); if(car==null) return; t0=Time.time; GameManager.Log($"STALL {car.gameObject.name} at z={car.Position.z:F0}"); }
+    if(car==null||Time.time-t0>90) return;
+    car.Hold(0.5f);
+    float front=car.S+car.Length/2, gap=float.MaxValue; foreach(var n in tr.Npcs) if(n!=car&&n.Path==tr.QueuePath&&n.Role==NpcRole.Queue&&n.S>car.S) gap=Mathf.Min(gap,n.S-n.Length/2-front);
+    if(Time.time-t0>5 && Time.time>next && gap>9 && gap<1e6){ next=Time.time+4; NpcCar behind=null; foreach(var n in tr.Npcs) if(n!=car&&n.Path==tr.QueuePath&&n.Role==NpcRole.Queue&&n.S<car.S&&n.S>car.S-14&&(behind==null||n.S>behind.S)) behind=n;
+      if(behind!=null){ float ms=tr.MiddlePath.Project(behind.Position,out _); if(tr.LaneClearNear(tr.MiddlePath,ms,14f,behind)){ behind.BypassStalled(car.S+car.Length/2+2); Bypasses++; GameManager.Log($"BYPASS {behind.gameObject.name} gap={gap:F0}"); } } }
+    if(Mathf.Repeat(Time.time,10f)<Time.deltaTime) GameManager.Log($"  stalled gap={gap:F0}");
+  } }
 public static class Sim { public static bool Verbose; public static int HonkedAt;
  static void Main(string[] args){
   if(args.Length>0 && args[0]=="tlt-track"){ // трасса по Тольятти: ось, полосы, профиль скорости, перекрытия
@@ -30,6 +40,8 @@ public static class Sim { public static bool Verbose; public static int HonkedAt
   for(Time.time=0; Time.time<dur && !player.done; Time.time+=dt){
     if(race && !traffic.RaceStarted && Time.time>4f){ traffic.StartRace(); GameManager.Log("GREEN"); }
     if(race) foreach(var r in traffic.Racers){ if(r.destroyed) continue; string st=r.Role+"/"+r.Path?.name; if(!racerLog.TryGetValue(r,out var was) || was!=st){ racerLog[r]=st; if(Verbose || r.Role!=NpcRole.Racing) GameManager.Log($"  {r.RacerName}: {st} z={r.Position.z:F0} v={r.Speed:F1}"); } }
+    // Сценарий «водитель ушёл за шашлыком»: машина впереди игрока стоит минуту, соседи сзади объезжают её
+    if(System.Environment.GetEnvironmentVariable("SIM_STALL")!=null && !race){ Stall.Tick(traffic); }
     var list=GameObject.All.Where(c=>!c.destroyed && c is MonoBehaviour && c.gameObject.activeSelf).OrderBy(c=>c.GetType().GetCustomAttribute<DefaultExecutionOrder>()?.order??0).ToList();
     foreach(var c in list){ if(c.destroyed) continue; var ty=c.GetType(); if(!cache.TryGetValue(ty,out var m)){ m=ty.GetMethod("Update",BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public); cache[ty]=m; } m?.Invoke(c,null); }
     foreach(var n in traffic.Npcs){ if(n.IsGas){ if(n.Role==NpcRole.ToGas) gasIn.Add(n); if(n.Role==NpcRole.GasFueling) gasFuel.Add(n); if(n.Role==NpcRole.Exiting) gasOut.Add(n);} if(n.Role==NpcRole.Exiting) exiting.Add(n); if(n.Role==NpcRole.Cutter) wasCutter.Add(n); else if(wasCutter.Remove(n) && n.Role==NpcRole.Queue) cutIns++; }

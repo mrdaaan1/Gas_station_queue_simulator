@@ -213,8 +213,8 @@ namespace GasQueue
         {
             customers.RemoveAll(c => c == null);
             spawnTimer -= dt;
-            // По одному: пока один ходит за шашлыком, другие ждут — иначе очередь рвётся
-            if (spawnTimer > 0f || customers.Count >= 1) return;
+            // Не больше двух сразу (водители, бросившие машину, — редкость: их объезжают)
+            if (spawnTimer > 0f || customers.Count >= 2) return;
             spawnTimer = Random.Range(35f, 60f) / Mathf.Max(1f, traffic.Settings.Speedup * 0.6f);
             NpcCar best = null;
             float bestD = float.MaxValue;
@@ -231,7 +231,9 @@ namespace GasQueue
                 if (d < bestD) { bestD = d; best = npc; }
             }
             if (best == null) return;
-            customers.Add(ShashlikCustomer.Spawn(best, traffic, this, customers.Count));
+            // Обычно сходить за шашлыком отправляют пассажира — машина остаётся в очереди и едет дальше
+            bool passenger = best.visual.passengerHead != null && best.visual.passengerHead.gameObject.activeSelf && Random.value < 0.75f;
+            customers.Add(ShashlikCustomer.Spawn(best, traffic, this, customers.Count, passenger));
         }
 
         /// <summary>Шашлык для водителя готов через CookTime после заказа.</summary>
@@ -253,6 +255,9 @@ namespace GasQueue
         bool hurrying;
 
         public NpcCar Car { get; private set; }
+        /// <summary>Сходил пассажир: машина едет дальше в очереди, он догоняет. Иначе — водитель, машина стоит.</summary>
+        public bool Passenger { get; private set; }
+        float heldTime, bypassTimer;
         TrafficManager traffic;
         ShashlikStand stand;
         HumanRig rig;
@@ -262,7 +267,7 @@ namespace GasQueue
         Vector3 slot, door, rearLeft, rearRight;
         ShashlikSkewer skewer;
 
-        public static ShashlikCustomer Spawn(NpcCar car, TrafficManager traffic, ShashlikStand stand, int index)
+        public static ShashlikCustomer Spawn(NpcCar car, TrafficManager traffic, ShashlikStand stand, int index, bool passenger)
         {
             var rig = HumanRig.Build("Shashlik customer", traffic.WorldRoot, HumanRig.RandomLook());
             var c = rig.gameObject.AddComponent<ShashlikCustomer>();
@@ -277,12 +282,38 @@ namespace GasQueue
             c.rearRight = new Vector3(12.6f, 0f, c.rearLeft.z);
             c.rearLeft.y = 0f;
             c.slot = CityLayout.ShashlikOrder + new Vector3(0f, 0f, -1.2f - index * 1.1f);
-            rig.transform.position = c.door;
-            SetDriverVisible(car, false);
-            c.Go(Step.ToStand, c.rearLeft, c.rearRight, c.slot);
+            c.Passenger = passenger;
+            if (passenger)
+            {
+                // Пассажир сидит справа — выходит прямо к тротуару
+                c.door = c.PassengerDoor();
+                rig.transform.position = c.door;
+                SetPassengerVisible(car, false);
+                c.Go(Step.ToStand, new Vector3(12.6f, 0f, c.door.z), c.slot);
+            }
+            else
+            {
+                rig.transform.position = c.door;
+                SetDriverVisible(car, false);
+                c.Go(Step.ToStand, c.rearLeft, c.rearRight, c.slot);
+            }
             traffic.Pedestrians.Add(rig.transform);
             SpeechBubble.Show(rig.transform, GoLines[Random.Range(0, GoLines.Length)], 1.5f);
             return c;
+        }
+
+        Vector3 PassengerDoor()
+        {
+            var p = Car.transform.TransformPoint(new Vector3(Car.Width / 2f + 0.45f, 0f, 0.1f));
+            p.y = 0f;
+            return p;
+        }
+
+        static void SetPassengerVisible(NpcCar car, bool visible)
+        {
+            if (car == null) return;
+            if (car.visual.passengerHead != null) car.visual.passengerHead.gameObject.SetActive(visible);
+            if (car.visual.passengerTorso != null) car.visual.passengerTorso.gameObject.SetActive(visible);
         }
 
         static void SetDriverVisible(NpcCar car, bool visible)
@@ -305,14 +336,32 @@ namespace GasQueue
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
             timer += dt;
-            // Машина без водителя никуда не едет
-            if (Car != null) Car.Hold(0.5f);
-            if (rig.Knocked) { rig.Animate(0f, dt); return; } // сбила машина — лежит
-            // Очередь впереди уехала — бегом обратно, шашлык с собой (иначе в очереди дыра)
-            if (!hurrying && Car != null && GapAhead() > 6f)
+            if (Car == null) { Destroy(gameObject); return; }
+            if (rig.Knocked) { rig.Animate(0f, dt); if (!Passenger) Car.Hold(0.5f); return; } // сбила машина — лежит
+            if (Passenger)
             {
-                if (step == Step.ToCar) hurrying = true; // уже идёт к машине — просто прибавляет шагу
-                else Hurry();
+                // Машина едет дальше в очереди. Уехала далеко от мангала — пассажир спешит её догнать
+                if (!hurrying && step != Step.ToStand && (Car.Role != NpcRole.Queue || Mathf.Abs(Car.Position.z - CityLayout.ShashlikZ) > 28f))
+                {
+                    hurrying = true;
+                    if (step != Step.ToCar) GoToCar();
+                    SpeechBubble.Show(transform, HurryLines[Random.Range(0, HurryLines.Length)], 1.5f);
+                }
+            }
+            else
+            {
+                // Машина без водителя никуда не едет — а соседи сзади объезжают её по левой полосе
+                Car.Hold(0.5f);
+                heldTime += dt;
+                bypassTimer -= dt;
+                float gap = GapAhead();
+                if (heldTime > 5f && bypassTimer <= 0f && gap > 9f) TryBypass();
+                // Совсем огромная дыра — всё-таки бегом обратно с шашлыком «на вынос»
+                if (!hurrying && gap > 25f)
+                {
+                    if (step == Step.ToCar) hurrying = true;
+                    else Hurry();
+                }
             }
             float speed = 0f;
             switch (step)
@@ -347,14 +396,17 @@ namespace GasQueue
                     if (skewer == null || skewer.Finished)
                     {
                         if (skewer != null) skewer.Throw();
-                        Go(Step.ToCar, rearRight, rearLeft, door);
+                        GoToCar();
                     }
                     break;
                 case Step.ToCar:
+                    // Пассажир идёт к правой двери машины, которая могла проехать вперёд
+                    if (Passenger && route.Count > 0 && (route[route.Count - 1] - PassengerDoor()).sqrMagnitude > 1f) GoToCar();
                     speed = Walk(dt);
                     if (speed == 0f)
                     {
-                        SetDriverVisible(Car, true);
+                        if (Passenger) SetPassengerVisible(Car, true);
+                        else SetDriverVisible(Car, true);
                         Destroy(gameObject);
                         return;
                     }
@@ -367,6 +419,40 @@ namespace GasQueue
         {
             if (traffic != null) traffic.Pedestrians.Remove(transform);
             if (skewer != null) skewer.Throw();
+        }
+
+        /// <summary>Маршрут к своей машине: пассажир — по тротуару к правой двери, водитель — вокруг машины к левой.</summary>
+        void GoToCar()
+        {
+            if (Passenger)
+            {
+                var d = PassengerDoor();
+                var here = transform.position;
+                if (here.x > 11.6f) Go(Step.ToCar, new Vector3(12.6f, 0f, d.z), d);
+                else Go(Step.ToCar, d);
+                return;
+            }
+            Go(Step.ToCar, rearRight, rearLeft, door);
+        }
+
+        /// <summary>Сосед сзади объезжает брошенную машину и встаёт в очередь перед ней.</summary>
+        void TryBypass()
+        {
+            bypassTimer = 4f;
+            NpcCar behind = null;
+            float bestS = float.MinValue;
+            foreach (var n in traffic.Npcs)
+                if (n != Car && n.Path == traffic.QueuePath && n.Role == NpcRole.Queue && n.S < Car.S && n.S > Car.S - 14f && n.S > bestS)
+                {
+                    bestS = n.S;
+                    behind = n;
+                }
+            if (behind == null) return;
+            // Во втором ряду рядом никого, иначе подождём
+            var mid = traffic.MiddlePath;
+            float ms = mid.Project(behind.Position, out _);
+            if (!traffic.LaneClearNear(mid, ms, 14f, behind)) return;
+            behind.BypassStalled(Car.S + Car.Length / 2f + 2f);
         }
 
         /// <summary>Свободное место перед его машиной в очереди.</summary>

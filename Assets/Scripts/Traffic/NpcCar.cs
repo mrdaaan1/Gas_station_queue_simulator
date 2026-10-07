@@ -562,6 +562,7 @@ namespace GasQueue
 
             if (Role == NpcRole.Cutter)
             {
+                bypassMinS = -1f;
                 // Влез!
                 Role = NpcRole.Queue;
                 StopAtEnd = true;
@@ -779,6 +780,30 @@ namespace GasQueue
         /// <summary>Едет к съезду на заправку и встаёт «вторым рядом» (иначе — ищет дырку прямо в середине очереди).</summary>
         public bool AimsAtEntrance { get; private set; }
 
+        static readonly string[] BypassLines = { "Ну и стой тут со своим шашлыком!", "Водитель ушёл есть, а мы стоим?! Объезжаю.", "Кто за рулём?! Никого? Ну и ладно." };
+
+        /// <summary>
+        /// Машина впереди стоит без водителя (ушёл за шашлыком), а очередь перед ней уехала:
+        /// уходим влево во второй ряд и встаём обратно в очередь перед ней (обычная логика наглеца).
+        /// </summary>
+        /// <summary>Объезжающий встаёт в очередь только впереди этой точки (перед брошенной машиной).</summary>
+        float bypassMinS = -1f;
+
+        public void BypassStalled(float aheadOfS)
+        {
+            bypassMinS = aheadOfS;
+            Role = NpcRole.Cutter;
+            StopAtEnd = false;
+            Cut = CutState.Looking;
+            AimsAtEntrance = false;
+            cutTimer = 0f;
+            cutCooldown = 0f;
+            SlideOnto(traffic.MiddlePath);
+            visual.blinker = -1;
+            Say(BypassLines[Random.Range(0, BypassLines.Length)]);
+            Honk();
+        }
+
         public void SetupCutter(LanePath lane, float s, bool aimEntrance)
         {
             Setup(NpcRole.Cutter, lane, s, false);
@@ -798,6 +823,7 @@ namespace GasQueue
                 case CutState.Looking:
                 {
                     float minCenter = AimsAtEntrance ? traffic.SecondRowWaitS - 30f : 0f;
+                    if (bypassMinS > 0f) minCenter = Mathf.Max(minCenter, bypassMinS);
                     if (cutCooldown <= 0f && traffic.FindQueueGap(this, GapNeeded, minCenter, out var follower, out float gapCenterS))
                     {
                         CutFollower = follower;
