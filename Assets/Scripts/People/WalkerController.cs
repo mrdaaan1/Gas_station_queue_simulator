@@ -82,6 +82,26 @@ namespace GasQueue
             cigarette.Init(Rig, traffic.WorldRoot);
         }
 
+        ShashlikSkewer shashlik;
+        public bool EatingShashlik => shashlik != null;
+
+        public void GiveShashlik()
+        {
+            if (shashlik != null) return;
+            DropCigarette(); // одна рука — сигарета-бревно, другая — шампур? Нет уж, выбирай
+            shashlik = gameObject.AddComponent<ShashlikSkewer>();
+            shashlik.Init(Rig);
+        }
+
+        /// <summary>Убрать шампур (доел или сел в машину). Возвращает true, если он был.</summary>
+        public bool DropShashlik()
+        {
+            if (shashlik == null) return false;
+            shashlik.Throw();
+            shashlik = null;
+            return true;
+        }
+
         /// <summary>Выбросить сигарету. Возвращает true, если она была.</summary>
         public bool DropCigarette()
         {
@@ -103,6 +123,11 @@ namespace GasQueue
             {
                 DropCigarette();
                 gm?.OnCigaretteFinished();
+            }
+            if (shashlik != null && shashlik.Finished)
+            {
+                DropShashlik();
+                gm?.OnShashlikFinished(false);
             }
             if (Fighter.Down)
             {

@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace GasQueue
 {
-    public enum VendorKind { Canister, Pies }
+    public enum VendorKind { Canister, Pies, Seeds }
 
     /// <summary>
     /// Ходит между рядами вдоль очереди и торгует: мужик с канистрами (бензин втридорога)
@@ -17,6 +17,11 @@ namespace GasQueue
         {
             "Бензинчик! 95-й, свежий, как с завода!", "Канистра — и вы уже не в очереди!", "Дешевле только даром! Ну почти.",
             "Без очереди, без кассы, без чека!",
+        };
+        static readonly string[] SeedLines =
+        {
+            "Семечки! Жареные, свежие!", "Стаканчик — пятьдесят рублей, сынок!", "Возьми семечек — время быстрее пойдёт!",
+            "Подсолнечные, тыквенные! Сама жарила!", "Внучок, купи у бабушки семечек!",
         };
         static readonly string[] PieLines =
         {
@@ -39,12 +44,13 @@ namespace GasQueue
             get
             {
                 var gm = GameManager.Instance;
-                return Kind == VendorKind.Canister ? Mathf.RoundToInt(gm.PriceBoard.price95 * 3f * 10f / 10f) * 10 : 150;
+                return Kind == VendorKind.Canister ? Mathf.RoundToInt(gm.PriceBoard.price95 * 3f * 10f / 10f) * 10 : Kind == VendorKind.Seeds ? 50 : 150;
             }
         }
 
         public string Offer => Kind == VendorKind.Canister
             ? $"E — купить канистру 10 л за {Price} руб. (втрое дороже, чем на заправке)"
+            : Kind == VendorKind.Seeds ? $"E — купить стаканчик семечек за {Price} руб. (наличными)"
             : $"E — купить пирожок и чай за {Price} руб. (восстанавливает силы)";
 
         public static Vendor Spawn(VendorKind kind, TrafficManager traffic, float startZ, float direction)
@@ -55,7 +61,13 @@ namespace GasQueue
                 look.shirt = Shapes.Hex("#b5485d");
                 look.hair = Shapes.Hex("#9a9a9a");
             }
-            var rig = HumanRig.Build(kind == VendorKind.Canister ? "Canister seller" : "Pie seller", traffic.WorldRoot, look);
+            if (kind == VendorKind.Seeds)
+            {
+                look.shirt = Shapes.Hex("#5a4a6a"); // старое пальто
+                look.pants = Shapes.Hex("#3a2f2a");
+                look.hair = Shapes.Hex("#c8c8c8");
+            }
+            var rig = HumanRig.Build(kind == VendorKind.Canister ? "Canister seller" : kind == VendorKind.Seeds ? "Seeds granny" : "Pie seller", traffic.WorldRoot, look);
             rig.transform.position = new Vector3(LaneX, 0f, startZ);
             rig.transform.rotation = Quaternion.LookRotation(Vector3.forward * direction);
 
@@ -65,6 +77,16 @@ namespace GasQueue
                 var can = Shapes.Group("Canister", rig.armR, new Vector3(0f, -0.62f, 0f));
                 Shapes.Box(can, new Vector3(0, -0.2f, 0), new Vector3(0.14f, 0.4f, 0.32f), Shapes.Hex("#b3241b"));
                 Shapes.Box(can, new Vector3(0, 0.02f, 0), new Vector3(0.05f, 0.05f, 0.18f), Shapes.Hex("#1b1b1b"), name: "Handle");
+            }
+            else if (kind == VendorKind.Seeds)
+            {
+                // Платок в цветочек, ведро семечек и гранёный стаканчик
+                Shapes.Box(rig.head, new Vector3(0f, 0.08f, -0.01f), new Vector3(0.3f, 0.22f, 0.3f), Shapes.Hex("#c83a5a"), name: "Headscarf");
+                Shapes.Box(rig.head, new Vector3(0f, -0.08f, -0.13f), new Vector3(0.12f, 0.1f, 0.06f), Shapes.Hex("#c83a5a"), name: "Knot");
+                var bucket = Shapes.Group("Bucket", rig.armL, new Vector3(0f, -0.66f, 0.04f));
+                Shapes.Make(PrimitiveType.Cylinder, bucket, new Vector3(0f, -0.12f, 0f), new Vector3(0.26f, 0.13f, 0.26f), Shapes.Hex("#8a8f96"));
+                Shapes.Make(PrimitiveType.Cylinder, bucket, new Vector3(0f, 0.01f, 0f), new Vector3(0.24f, 0.01f, 0.24f), Shapes.Hex("#2a2420"), name: "Seeds");
+                Shapes.Make(PrimitiveType.Cylinder, rig.armR, new Vector3(0f, -0.66f, 0.05f), new Vector3(0.07f, 0.06f, 0.07f), Shapes.Hex("#dfe8ea"), name: "Glass");
             }
             else
             {
@@ -115,7 +137,7 @@ namespace GasQueue
                 if (lineTimer <= 0f)
                 {
                     lineTimer = 4.5f;
-                    var lines = Kind == VendorKind.Canister ? CanisterLines : PieLines;
+                    var lines = Kind == VendorKind.Canister ? CanisterLines : Kind == VendorKind.Seeds ? SeedLines : PieLines;
                     SpeechBubble.Show(transform, lines[Random.Range(0, lines.Length)], 1.5f);
                 }
                 rig.Animate(0f, dt);
@@ -148,7 +170,7 @@ namespace GasQueue
         public void Sold()
         {
             Offering = false;
-            SpeechBubble.Show(transform, Kind == VendorKind.Canister ? "Приятно иметь дело!" : "Кушайте на здоровье!", 1.5f);
+            SpeechBubble.Show(transform, Kind == VendorKind.Canister ? "Приятно иметь дело!" : Kind == VendorKind.Seeds ? "Шелуху в пакетик, сынок!" : "Кушайте на здоровье!", 1.5f);
         }
     }
 }

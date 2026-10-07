@@ -74,6 +74,8 @@ namespace GasQueue
         public bool Limping;        // после драки хромает
         public bool Airborne;       // в прыжке: ноги поджаты, руки вверх
         public bool HoldingBig;     // держит двумя руками у рта огромную сигарету
+        public bool HoldingSkewer;  // держит шампур перед собой правой рукой
+        public float Bite;          // 0…1 — подносит шампур ко рту (откусывает)
         float punchTimer, kickTimer, flinchTimer;
         bool punchRight;
         float fall;                 // 0 — стоит, 1 — лежит
@@ -203,6 +205,14 @@ namespace GasQueue
             {
                 armL.localRotation = Quaternion.Euler(-118f, 0f, 24f);
                 armR.localRotation = Quaternion.Euler(-118f, 0f, -24f);
+            }
+
+            // Шампур: рука перед собой, при укусе — ко рту
+            if (HoldingSkewer && !HoldingBig && punchTimer <= 0f && fall <= 0.001f)
+            {
+                var hold = Quaternion.Euler(-60f, 0f, -8f);
+                var mouth = Quaternion.Euler(-135f, 0f, -38f);
+                armR.localRotation = Quaternion.Slerp(hold, mouth, Mathf.Clamp01(Bite));
             }
 
             // Прыжок: одна нога вперёд, другая назад, руки вверх и в стороны

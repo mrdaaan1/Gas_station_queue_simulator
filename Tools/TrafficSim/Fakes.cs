@@ -6,7 +6,7 @@ public enum BrawlReason { Crash, CutIn, Roof }
 // Водитель, который ходит платить на кассу: в симуляторе — просто задержка на дорогу и очередь
 public class PumpCustomer { NpcCar car; float t0, walk; bool paid; public bool Paid=>paid||Time.time-t0>walk; public bool Done=>Paid&&car.FuelProgress>=1f;
  public static PumpCustomer Spawn(NpcCar c,TrafficManager t,bool alreadyPaid)=>new PumpCustomer{car=c,t0=Time.time,paid=alreadyPaid,walk=UnityEngine.Random.Range(14f,22f)}; }
-public enum VendorKind { Canister, Pies }
+public enum VendorKind { Canister, Pies, Seeds }
 public static class CarModels { public static CarModel Random(out bool taxi){ taxi=UnityEngine.Random.value<0.2f; return (CarModel)UnityEngine.Random.Range(0,4);} public static Color RandomPaint(CarModel m,bool t)=>Color.white; public static void GasSticker(CarVisual v){} }
 public class Brawler : MonoBehaviour { public static Brawler Active; public static Brawler Spawn(NpcCar c,TrafficManager t,BrawlReason r){ GameManager.Log($"brawler out ({r})"); return null; } }
 public class Vendor : MonoBehaviour { public VendorKind Kind; float life; void Update(){ life+=Time.deltaTime; transform.position+=Vector3.forward*1.1f*Time.deltaTime; if(life>60){ UnityEngine.Object.Destroy(gameObject);} } public static Vendor Spawn(VendorKind k,TrafficManager t,float z,float d){ var go=new GameObject("Vendor"); var v=go.AddComponent<Vendor>(); v.Kind=k; go.transform.position=new Vector3(7.25f,0,z); t.Pedestrians.Add(go.transform); return v; } }

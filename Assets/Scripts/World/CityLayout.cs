@@ -52,6 +52,15 @@ namespace GasQueue
         public const float ShopDoorZ = 2f;
         public static readonly Vector3 CashierSpot = new Vector3(41.2f, 0f, 4.5f);
         public static readonly Vector3 CounterFront = new Vector3(38.8f, 0f, 4.5f);
+        /// <summary>
+        /// Шашлычная у дороги справа, за тротуаром (до въезда на заправку ~190 м): мангал под тентом,
+        /// место для заказа на краю тротуара, пластиковый столик. Дома в этом месте не ставим.
+        /// </summary>
+        public const float ShashlikZ = -188f;
+        public static readonly Vector3 MangalSpot = new Vector3(15.9f, 0f, ShashlikZ);
+        public static readonly Vector3 ShashlikOrder = new Vector3(14.75f, 0f, ShashlikZ);
+        public static readonly Vector3 ShashlikTable = new Vector3(21.5f, 0f, ShashlikZ + 5.5f);
+
         /// <summary>Зелёный банкомат «СБЕРКАССА» у фасада внутри магазина (слева от входа, подальше от очереди в кассу) и место перед ним.</summary>
         public static readonly Vector3 AtmSpot = new Vector3(36.95f, 0f, -1.9f);
         public static readonly Vector3 AtmFront = new Vector3(37.75f, 0f, -1.9f);

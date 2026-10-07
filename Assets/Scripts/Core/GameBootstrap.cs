@@ -103,6 +103,8 @@ namespace GasQueue
             player.traffic = traffic;
             TrafficManager.RacerVisual = race ? RacerVisual : null;
             traffic.Init(settings, player, city.barrier, debris, raceTrack);
+            // Шашлык у дороги вдоль очереди (в Тольятти очереди нет)
+            if (Mode != GameMode.Tolyatti) ShashlikStand.Build(root, traffic);
 
             var rig = new GameObject("Camera").AddComponent<CameraRig>();
             rig.transform.SetParent(root, false);

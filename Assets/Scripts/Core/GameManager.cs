@@ -428,6 +428,30 @@ namespace GasQueue
             {
                 Prompt = "Ваша очередь в кассу! Подойдите к прилавку";
             }
+            else if (ShashlikStand.Instance != null && Vector3.Distance(me, CityLayout.ShashlikOrder) < 1.7f)
+            {
+                var stand = ShashlikStand.Instance;
+                if (stand.PlayerOrder == 2) stand.HandToPlayer(this);
+                else if (stand.PlayerOrder == 1) Prompt = $"Шашлык жарится... ещё ~{Mathf.CeilToInt(stand.PlayerWaitLeft)} с";
+                else if (Walker.EatingShashlik) Prompt = "Сначала доешьте этот";
+                else
+                {
+                    Prompt = $"E — заказать шашлык ({ShashlikStand.Price} руб., только наличными; у вас {Cash:0})";
+                    if (GameInput.InteractPressed)
+                    {
+                        if (Cash < ShashlikStand.Price)
+                            ShowMessage(Money >= ShashlikStand.Price
+                                ? "Ашот: «Карту? Брат, у меня мангал, а не терминал. Наличкой!» Банкомат — в магазине на заправке."
+                                : "Ашот: «Брат, денег не хватает. Приходи, когда заправишься... ой, то есть до того».", 7f);
+                        else
+                        {
+                            Cash -= ShashlikStand.Price;
+                            MoneySpent += ShashlikStand.Price;
+                            stand.OrderForPlayer();
+                        }
+                    }
+                }
+            }
             else if (Vector3.Distance(me, CityLayout.AtmFront) < 1.3f)
             {
                 Prompt = AtmBusy > 0f ? "Банкомат думает... шуршит..." : $"E — банкомат «СБЕРКАССА» (на карте {Card:0} руб., наличными {Cash:0} руб.)";
@@ -473,6 +497,14 @@ namespace GasQueue
             }
             Cash -= price;
             vendor.Sold();
+            if (vendor.Kind == VendorKind.Seeds)
+            {
+                SeedsBought++;
+                ShowMessage(SeedsBought == 1
+                    ? "Стаканчик семечек. Лузгаете, шелуху — в окно. Время пошло быстрее (нет)."
+                    : "Ещё стаканчик. Под сиденьем уже гора шелухи.", 7f);
+                return;
+            }
             if (vendor.Kind == VendorKind.Canister)
             {
                 CanistersBought++;
@@ -506,6 +538,7 @@ namespace GasQueue
             OnFoot = false;
             CloseDialog();
             if (Walker.DropCigarette()) ShowMessage("Сигарету пришлось выбросить: в салоне не курим.");
+            if (Walker.DropShashlik()) OnShashlikFinished(true);
             Walker.Hide();
             Player.controlsEnabled = true;
             CameraRig.SetOnFoot(false);
@@ -756,6 +789,28 @@ namespace GasQueue
                 ? $"Терминал завис... А, прошло. Колонка №{pump.Number}, {liters:0} л. Вставляйте пистолет."
                 : $"Колонка №{pump.Number}, {liters:0} литров, {cost:0} руб. Вставляйте пистолет.");
             ShowMessage($"Оплачено: {liters:0} л на колонке №{pump.Number}. Подойдите к лючку бака (справа сзади) и нажмите E.", 8f);
+        }
+
+        // ---------- Шашлык у дороги ----------
+
+        public int ShashlikEaten { get; private set; }
+        public int SeedsBought { get; private set; }
+
+        public void OnShashlikServed()
+        {
+            Walker.GiveShashlik();
+            ShowMessage(ShashlikEaten == 0
+                ? "Шашлык в руке! Ешьте на ходу (кусок сам откусывается). Машина ждёт в очереди... надеемся."
+                : "Ещё шампур! Очередь подождёт.", 7f);
+        }
+
+        public void OnShashlikFinished(bool inCar)
+        {
+            ShashlikEaten++;
+            if (Walker.Fighter != null) Walker.Fighter.Heal(100f);
+            ShowMessage(inCar
+                ? "Шашлык доели в машине. Салон теперь пахнет дымком на всю очередь."
+                : "Вкуснотища! Шампур — в урну. Теперь бегом в машину, пока место не заняли.", 7f);
         }
 
         // ---------- Банкомат «СБЕРКАССА» ----------
@@ -1308,6 +1363,9 @@ namespace GasQueue
             if (HitLiterLimit) list.Add("20 литров в одни руки");
             if (WaitedCashierBreak) list.Add("Перерыв 15 минут");
             if (TerminalRefusals >= 1) list.Add("Терминал не работает, только наличные");
+            if (ShashlikEaten >= 1) list.Add("Шашлык в очереди");
+            if (ShashlikEaten >= 3) list.Add("Шашлычный марафон: очередь подождёт");
+            if (SeedsBought >= 1) list.Add("Шелуха до самой колонки");
             if (AtmWithdrawals >= 2) list.Add("Постоянный клиент СБЕРКАССЫ");
             if (LinePlacesTaken >= 1) list.Add("Очередь по понятиям");
             if (LineCutAttempts >= 3) list.Add("Я только чек спросить");

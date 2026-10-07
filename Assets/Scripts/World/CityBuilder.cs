@@ -142,6 +142,7 @@ namespace GasQueue
                 foreach (float side in new[] { -1f, 1f })
                 {
                     if (side > 0 && (InStationGap(z, 5f) || (z > CityLayout.LotMinZ - 15f && z < CityLayout.LotMaxZ + 5f))) continue;
+                    if (side > 0 && Mathf.Abs(z - CityLayout.ShashlikZ) < 12f) continue; // там мангал
                     if (rnd.NextDouble() < 0.2) continue;
                     var pos = new Vector3(13.2f * side, 0, z + (float)rnd.NextDouble() * 4f);
                     float h = 4f + (float)rnd.NextDouble() * 3f;
@@ -184,7 +185,9 @@ namespace GasQueue
             // Слева — сплошной ряд домов
             Row(g, rnd, facades, roof, -32f, -18f, CityLayout.RoadStartZ, CityLayout.RoadEndZ);
             // Справа — дома до и после заправки, чтобы её было видно издалека
-            Row(g, rnd, facades, roof, 18f, 32f, CityLayout.RoadStartZ, -70f);
+            // Справа до заправки — с разрывом под шашлычную у дороги
+            Row(g, rnd, facades, roof, 18f, 32f, CityLayout.RoadStartZ, CityLayout.ShashlikZ - 24f);
+            Row(g, rnd, facades, roof, 18f, 32f, CityLayout.ShashlikZ + 24f, -70f);
             Row(g, rnd, facades, roof, 18f, 32f, 70f, CityLayout.RoadEndZ);
             // За служебным проездом
             Row(g, rnd, facades, roof, 52f, 66f, -150f, 160f);
