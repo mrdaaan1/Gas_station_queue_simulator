@@ -323,9 +323,12 @@ namespace GasQueue
             GUI.Label(new Rect(x + inner * 0.62f, y, inner * 0.38f, 26 * k), $"нал. {gm.Cash:0} руб.", smallStyle);
             if (radio != null && radio.CurrentLine != null)
             {
-                var lineRect = new Rect(r.x, r.y - (hp < 0.999f ? 116 : 70) * k, pw, 62 * k);
+                // Озвученные выпуски «Очередь FM» длинные — табличка растёт вверх под текст
+                float textH = Mathf.Max(56 * k, smallStyle.CalcHeight(new GUIContent(radio.CurrentLine), pw - 24 * k));
+                float bottom = r.y - (hp < 0.999f ? 116 : 70) * k + 62 * k;
+                var lineRect = new Rect(r.x, bottom - textH - 6 * k, pw, textH + 6 * k);
                 Panel(lineRect, new Color(0, 0, 0, 0.35f));
-                GUI.Label(new Rect(lineRect.x + 12 * k, lineRect.y + 6 * k, pw - 24 * k, 56 * k), radio.CurrentLine, smallStyle);
+                GUI.Label(new Rect(lineRect.x + 12 * k, lineRect.y + 6 * k, pw - 24 * k, textH), radio.CurrentLine, smallStyle);
             }
         }
 

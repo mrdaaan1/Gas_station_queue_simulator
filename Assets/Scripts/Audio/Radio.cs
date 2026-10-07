@@ -6,6 +6,8 @@ namespace GasQueue
     /// Тупое радио в машине. R — следующая станция.
     /// Свои треки (mp3/ogg/wav) кладутся в Assets/Resources/RaceMusic — появляется станция «Гонка FM»:
     /// треки по кругу в случайном порядке. В гонке она включается сама на зелёный.
+    /// Озвученные новости и реклама (Tools/make_radio_news.sh, голоса macOS) лежат в Assets/Resources/RadioNews —
+    /// появляется станция «Очередь FM»: тихая музыка, между ней дикторы читают выпуски, заставка каждые несколько выпусков.
     /// </summary>
     public class Radio : MonoBehaviour
     {
@@ -17,9 +19,33 @@ namespace GasQueue
             public AudioClip music;
             public AudioClip[] playlist; // своя музыка: треки по очереди
             public int track;
+            public AudioClip[] voices;  // «Очередь FM»: озвученные выпуски
+            public AudioClip[] jingles; // и заставки станции
         }
 
         const string MusicFolder = "RaceMusic";
+        const string NewsFolder = "RadioNews";
+
+        /// <summary>Субтитры к озвученным выпускам: имя файла без номера → текст (тот же, что в make_radio_news.sh).</summary>
+        static readonly System.Collections.Generic.Dictionary<string, string> NewsText = new System.Collections.Generic.Dictionary<string, string>
+        {
+            { "news_stable", "«Новости. Ситуация с топливом в регионе стабильная. Дефицита бензина нет. Есть повышенный спрос, который будет удовлетворён в порядке живой очереди.»" },
+            { "news_price", "«Экономика. Цена на девяносто второй выросла на сорок копеек. Эксперты подчёркивают: это не рост цен, а плановая корректировка вверх.»" },
+            { "news_queue", "«Дорожная обстановка. На заправках города наблюдается небольшое скопление автомобилей. Средняя длина небольшого скопления — четыре километра.»" },
+            { "news_deliver", "«Срочно. Бензовоз выехал. Куда — не уточняется. Когда приедет — тоже. Оставайтесь на нашей волне и в своей очереди.»" },
+            { "news_minister", "«Профильное министерство призвало граждан не создавать ажиотаж и заправляться только по необходимости. Например, когда кончился бензин.»" },
+            { "news_record", "«Хорошие новости. Очередь на заправке ЛУКАВОЙЛ установила новый рекорд города. Поздравляем всех участников.»" },
+            { "news_tip", "«Совет водителям. Чтобы сэкономить топливо, глушите двигатель в очереди. А чтобы сэкономить нервы — не смотрите на табло с ценами.»" },
+            { "news_weather", "«Погода. Ночью ожидается похолодание. Водителям в очереди рекомендуем взять плед, термос и запасное терпение.»" },
+            { "news_neighbor", "«По непроверенным данным, на соседней заправке бензин есть. По проверенным — там тоже очередь.»" },
+            { "news_survey", "«Опрос показал: девяносто процентов водителей довольны ситуацией с топливом. Остальные десять процентов стояли в очереди и опрос не прошли.»" },
+            { "ad_lukavoil", "«ЛУКАВОЙЛ. Бензин есть всегда. Кроме сегодня. И вчера. Звёздочка — условия акции уточняйте у заправщика.»" },
+            { "ad_vip", "«Надоели очереди? Талон без очереди — всего за пять тысяч рублей! Звоните прямо сейчас. Номер не скажем, вы его и так знаете.»" },
+            { "ad_pies", "«Пирожки от тёти Вали. С картошкой, с капустой, с ожиданием. Ищите тётю Валю вдоль очереди.»" },
+            { "ad_canister", "«Канистра по блату. Двадцать литров по цене шестидесяти. Без чека, без вопросов, без гарантий.»" },
+            { "jingle_1", "«Вы слушаете радио «Очередь эф эм». Мы стоим вместе с вами.»" },
+            { "jingle_2", "«Радио «Очередь эф эм». Музыка, пока вы ждёте. А ждать вы будете долго.»" },
+        };
 
         /// <summary>Гонка: на радио только свои треки, R — следующий трек (задаётся до создания радио).</summary>
         public static bool RaceOnly;
@@ -31,6 +57,9 @@ namespace GasQueue
         float lineTimer;
         AudioSource music;
         AudioSource fx;
+        AudioSource voice;
+        float voiceGap;      // пауза до следующего выпуска
+        int voiceIndex, sinceJingle;
 
         /// <summary>Экран магнитолы на торпеде машины игрока.</summary>
         public TextMesh display;
@@ -47,6 +76,9 @@ namespace GasQueue
             fx = gameObject.AddComponent<AudioSource>();
             fx.volume = 0.5f;
             fx.spatialBlend = 0f;
+            voice = gameObject.AddComponent<AudioSource>();
+            voice.volume = 0.9f;
+            voice.spatialBlend = 0f;
 
             var list = new System.Collections.Generic.List<Station>();
             var tracks = Resources.LoadAll<AudioClip>(MusicFolder);
@@ -72,6 +104,19 @@ namespace GasQueue
             {
                 stations = list.ToArray();
                 return;
+            }
+            var news = LoadNews(out var jingles);
+            if (news.Length + jingles.Length > 0)
+            {
+                list.Add(new Station
+                {
+                    name = "Радио «Очередь FM»",
+                    shortName = "88.8 ОЧЕРЕДЬ",
+                    music = SoundFactory.Melody("QueueFM", new[] { 0, 4, 7, 12, 7, 4, 2, 5, 9, 5, 2, -1, 0, -100, 0, -100 }, 0.5f, 0.5f),
+                    voices = news.Length > 0 ? news : jingles,
+                    jingles = jingles,
+                    lines = new[] { "«Очередь FM» — мы стоим вместе с вами" },
+                });
             }
             list.AddRange(new[]
             {
@@ -117,6 +162,50 @@ namespace GasQueue
 
         int raceStation; // номер станции с треками (0 — треков нет)
 
+        /// <summary>Выпуски из Resources/RadioNews (перемешаны) и отдельно заставки (jingle_*).</summary>
+        static AudioClip[] LoadNews(out AudioClip[] jingles)
+        {
+            var all = Resources.LoadAll<AudioClip>(NewsFolder);
+            var news = new System.Collections.Generic.List<AudioClip>();
+            var jl = new System.Collections.Generic.List<AudioClip>();
+            foreach (var c in all) (Key(c).StartsWith("jingle") ? jl : news).Add(c);
+            for (int i = news.Count - 1; i > 0; i--)
+            {
+                int j = Random.Range(0, i + 1);
+                (news[i], news[j]) = (news[j], news[i]);
+            }
+            jingles = jl.ToArray();
+            return news.ToArray();
+        }
+
+        /// <summary>«03_news_queue» → «news_queue».</summary>
+        static string Key(AudioClip c)
+        {
+            var n = c.name;
+            int u = n.IndexOf('_');
+            return u >= 0 && u < 4 && char.IsDigit(n[0]) ? n.Substring(u + 1) : n;
+        }
+
+        /// <summary>«Очередь FM»: следующий выпуск (каждый четвёртый — заставка станции), музыка на это время тише.</summary>
+        void PlayVoice(Station st)
+        {
+            AudioClip clip;
+            if (st.jingles.Length > 0 && (sinceJingle >= 3 || voiceIndex == 0))
+            {
+                clip = st.jingles[Random.Range(0, st.jingles.Length)];
+                sinceJingle = 0;
+            }
+            else
+            {
+                clip = st.voices[voiceIndex % st.voices.Length];
+                sinceJingle++;
+            }
+            voiceIndex++;
+            voice.clip = clip;
+            voice.Play();
+            CurrentLine = NewsText.TryGetValue(Key(clip), out var text) ? text : st.lines[0];
+        }
+
         /// <summary>Включить «Гонка FM» (если треки положены в папку). Вызывается на старте гонки.</summary>
         public void TuneRace()
         {
@@ -152,6 +241,22 @@ namespace GasQueue
                 }
                 return;
             }
+            if (station.voices != null)
+            {
+                // Дикторы: пока говорят — музыка тише; замолчали — пауза 4–8 с и следующий выпуск
+                bool talking = voice.isPlaying;
+                music.volume = Mathf.MoveTowards(music.volume, talking ? 0.035f : 0.12f, Time.deltaTime * 0.3f);
+                if (!talking && Time.timeScale > 0f && !AudioListener.pause)
+                {
+                    voiceGap -= Time.deltaTime;
+                    if (voiceGap <= 0f)
+                    {
+                        voiceGap = Random.Range(4f, 8f);
+                        PlayVoice(station);
+                    }
+                }
+                return;
+            }
             lineTimer += Time.deltaTime;
             if (lineTimer > 10f)
             {
@@ -183,6 +288,7 @@ namespace GasQueue
                 GameManager.Instance.OnRadioSwitched();
             }
             music.Stop();
+            voice.Stop();
             CurrentLine = null;
             if (current == 0) return;
 
@@ -197,6 +303,7 @@ namespace GasQueue
             lineIndex = Random.Range(0, st.lines.Length);
             CurrentLine = st.lines[lineIndex];
             lineTimer = 0f;
+            voiceGap = 1.2f; // включили «Очередь FM» — диктор заговорит почти сразу
             if (st.music != null)
             {
                 music.clip = st.music;
