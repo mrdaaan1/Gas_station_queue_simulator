@@ -75,6 +75,7 @@ namespace GasQueue
         public bool Airborne;       // в прыжке: ноги поджаты, руки вверх
         public bool HoldingBig;     // держит двумя руками у рта огромную сигарету
         public bool HoldingSkewer;  // держит шампур перед собой правой рукой
+        public bool HoldingGiant;   // держит двумя руками поперёк груди гигантский шампур (Bite — подносит ко рту)
         public float Bite;          // 0…1 — подносит шампур ко рту (откусывает)
         float punchTimer, kickTimer, flinchTimer;
         bool punchRight;
@@ -231,8 +232,17 @@ namespace GasQueue
                 armR.localRotation = Quaternion.Euler(-118f, 0f, -24f);
             }
 
+            // Гигантский шампур: обе руки перед грудью, при укусе — к лицу
+            if (HoldingGiant && !HoldingBig && punchTimer <= 0f && fall <= 0.001f)
+            {
+                float b = Mathf.Clamp01(Bite);
+                armL.localRotation = Quaternion.Slerp(Quaternion.Euler(-58f, 0f, 14f), Quaternion.Euler(-112f, 0f, 22f), b);
+                armR.localRotation = Quaternion.Slerp(Quaternion.Euler(-58f, 0f, -14f), Quaternion.Euler(-112f, 0f, -22f), b);
+                head.localRotation = Quaternion.Euler(-8f * b, 0f, 0f);
+            }
+
             // Шампур: рука перед собой, при укусе — ко рту
-            if (HoldingSkewer && !HoldingBig && punchTimer <= 0f && fall <= 0.001f)
+            if (HoldingSkewer && !HoldingBig && !HoldingGiant && punchTimer <= 0f && fall <= 0.001f)
             {
                 var hold = Quaternion.Euler(-60f, 0f, -8f);
                 var mouth = Quaternion.Euler(-135f, 0f, -38f);
@@ -245,7 +255,7 @@ namespace GasQueue
             {
                 legL.localRotation = Quaternion.Slerp(legL.localRotation, Quaternion.Euler(-45f, 0, 0), air);
                 legR.localRotation = Quaternion.Slerp(legR.localRotation, Quaternion.Euler(25f, 0, 0), air);
-                if (punchTimer <= 0f && !HoldingBig)
+                if (punchTimer <= 0f && !HoldingBig && !HoldingGiant)
                 {
                     armL.localRotation = Quaternion.Slerp(armL.localRotation, Quaternion.Euler(-150f, 0, -35f), air);
                     armR.localRotation = Quaternion.Slerp(armR.localRotation, Quaternion.Euler(-150f, 0, 35f), air);

@@ -190,9 +190,13 @@ namespace GasQueue
 
         // ---------- Игрок ----------
 
-        public void OrderForPlayer()
+        /// <summary>Игрок заказал люля-кебаб, а не шашлык.</summary>
+        public bool PlayerLula { get; private set; }
+
+        public void OrderForPlayer(bool lula)
         {
             PlayerOrder = 1;
+            PlayerLula = lula;
             playerReadyAt = Time.time + CookTime;
             Speak(turner, CookingLines[Random.Range(0, CookingLines.Length)], true);
         }
@@ -408,7 +412,7 @@ namespace GasQueue
                     {
                         stand.Serve(rig);
                         skewer = gameObject.AddComponent<ShashlikSkewer>();
-                        skewer.Init(rig);
+                        skewer.Init(rig, lula: Random.value < 0.3f);
                         skewer.BiteInterval = 1.6f;
                         Go(Step.ToTable, CityLayout.ShashlikTable + new Vector3(-0.9f, 0f, Random.Range(-0.6f, 0.6f)));
                     }
@@ -505,7 +509,7 @@ namespace GasQueue
                 // Не дождался у мангала — забирает «на вынос» недожаренный
                 stand.Serve(rig);
                 skewer = gameObject.AddComponent<ShashlikSkewer>();
-                skewer.Init(rig);
+                skewer.Init(rig, lula: Random.value < 0.3f);
                 skewer.BiteInterval = 1.6f;
             }
             var here = transform.position;

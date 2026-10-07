@@ -148,7 +148,7 @@ namespace GasQueue
         const int BribePrice = 1000;
         const float LiterLimit = 20f;
 
-        enum DialogWith { Cashier, Attendant, Driver, Atm }
+        enum DialogWith { Cashier, Attendant, Driver, Atm, Shashlik }
         NpcCar talkNpc;
         static readonly string[] CigaretteGive =
         {
@@ -405,19 +405,14 @@ namespace GasQueue
                 else if (Walker.EatingShashlik) Prompt = "Сначала доешьте этот";
                 else
                 {
-                    Prompt = $"E — заказать шашлык ({ShashlikStand.Price} руб., только наличными; у вас {Cash:0})";
+                    Prompt = $"E — шашлык или люля ({ShashlikStand.Price} руб., только наличными; у вас {Cash:0})";
                     if (GameInput.InteractPressed)
                     {
                         if (Cash < ShashlikStand.Price)
                             ShowMessage(Money >= ShashlikStand.Price
                                 ? "Ашот: «Ара, какая карта, джан? У меня мангал, а не терминал! Наличкой, ахпер!» Банкомат — в магазине на заправке."
                                 : "Ашот: «Вай, брат-джан, денег не хватает... Приходи, мясо подождёт, клянусь мамой».", 7f);
-                        else
-                        {
-                            Cash -= ShashlikStand.Price;
-                            MoneySpent += ShashlikStand.Price;
-                            stand.OrderForPlayer();
-                        }
+                        else OpenShashlikDialog();
                     }
                 }
             }
@@ -558,6 +553,7 @@ namespace GasQueue
 
         Vector3 DialogAnchor => dialogWith == DialogWith.Cashier ? CityLayout.CounterFront
             : dialogWith == DialogWith.Atm ? CityLayout.AtmFront
+            : dialogWith == DialogWith.Shashlik ? CityLayout.ShashlikOrder
             : dialogWith == DialogWith.Driver && talkNpc != null ? talkNpc.DriverDoor : CityLayout.AttendantSpot;
 
         // ---------- Водители в очереди ----------
@@ -738,6 +734,11 @@ namespace GasQueue
                 ChooseAtm(choice);
                 return;
             }
+            if (dialogWith == DialogWith.Shashlik)
+            {
+                ChooseShashlik(choice);
+                return;
+            }
             switch (choice)
             {
                 case 1: TryPay(); break;
@@ -845,12 +846,35 @@ namespace GasQueue
         public int MoneyRecovered { get; private set; }
         public int SeedsBought { get; private set; }
 
+        void OpenShashlikDialog()
+        {
+            dialogWith = DialogWith.Shashlik;
+            DialogOpen = true;
+            DialogTitle = "Ашот: «Что кушать будешь, ахпер-джан?»";
+            DialogOptions.Clear();
+            DialogOptions.Add($"Шашлык из свинины ({ShashlikStand.Price} руб. наличными)");
+            DialogOptions.Add($"Люля-кебаб ({ShashlikStand.Price} руб. наличными)");
+            DialogOptions.Add("Уйти");
+        }
+
+        void ChooseShashlik(int choice)
+        {
+            var stand = ShashlikStand.Instance;
+            CloseDialog();
+            if (stand == null || choice < 1 || choice > 2 || Cash < ShashlikStand.Price) return;
+            Cash -= ShashlikStand.Price;
+            MoneySpent += ShashlikStand.Price;
+            stand.OrderForPlayer(choice == 2);
+        }
+
         public void OnShashlikServed()
         {
-            Walker.GiveShashlik();
+            bool lula = ShashlikStand.Instance != null && ShashlikStand.Instance.PlayerLula;
+            Walker.GiveShashlik(lula);
             ShowMessage(ShashlikEaten == 0
-                ? "Шашлык в руке! Ешьте на ходу (кусок сам откусывается). Машина ждёт в очереди... надеемся."
-                : "Ещё шампур! Очередь подождёт.", 7f);
+                ? (lula ? "Ашот: «Тебе — самый лучший, джан!» Люля... размером с весло. Держите двумя руками и ешьте на ходу."
+                        : "Ашот: «Тебе — самый лучший шампур, джан!» Он в четыре раза больше, чем у всех. Держите двумя руками и ешьте на ходу.")
+                : "Ещё один «самый лучший»! Очередь подождёт.", 8f);
         }
 
         public void OnShashlikFinished(bool inCar)

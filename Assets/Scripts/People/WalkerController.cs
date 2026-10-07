@@ -85,12 +85,13 @@ namespace GasQueue
         ShashlikSkewer shashlik;
         public bool EatingShashlik => shashlik != null;
 
-        public void GiveShashlik()
+        /// <summary>Игроку — гигантский шампур (в 4 раза больше, чем у всех), двумя руками.</summary>
+        public void GiveShashlik(bool lula = false)
         {
             if (shashlik != null) return;
             DropCigarette(); // одна рука — сигарета-бревно, другая — шампур? Нет уж, выбирай
             shashlik = gameObject.AddComponent<ShashlikSkewer>();
-            shashlik.Init(Rig);
+            shashlik.Init(Rig, giant: true, lula: lula);
         }
 
         /// <summary>Убрать шампур (доел или сел в машину). Возвращает true, если он был.</summary>
