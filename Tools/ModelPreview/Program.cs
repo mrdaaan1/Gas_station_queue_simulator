@@ -22,6 +22,7 @@ static class Program
         var sw = System.Diagnostics.Stopwatch.StartNew();
         Model model = which switch
         {
+            "x5" => X5Model.Get(),
             "gelik" => GelikModel.Get(),
             "skyline" => SkylineModel.Get(),
             "rx7" => Rx7Model.Get(),
@@ -56,6 +57,12 @@ static class Program
                     if (i > 0) sb.Append(',');
                     sb.Append(F(q.x)).Append(',').Append(F(q.y)).Append(',').Append(F(-q.z));
                 }
+                sb.Append("],\"uv\":[");
+                for (int i = 0; i < m.uv.Count; i++)
+                {
+                    if (i > 0) sb.Append(',');
+                    sb.Append(F(m.uv[i].x)).Append(',').Append(F(m.uv[i].y));
+                }
                 sb.Append("],\"i\":[");
                 for (int i = 0; i < m.t.Count; i += 3)
                 {
@@ -77,7 +84,8 @@ static class Program
 
     static Model ByName(string which) => which switch
     {
-        "gelik" => GelikModel.Get(),
+        "x5" => X5Model.Get(),
+            "gelik" => GelikModel.Get(),
         "skyline" => SkylineModel.Get(),
         "rx7" => Rx7Model.Get(),
         "s2000" => S2000Model.Get(),
@@ -221,8 +229,8 @@ static class Program
     // Ищем детали салона, торчащие сквозь кузов: вершина внутреннего материала снаружи формы
     static void Poke(string name)
     {
-        CarBody shape = name == "gelik" ? GelikModel.Shape() : name == "skyline" ? (CarBody)SkylineModel.Shape() : name == "rx7" ? Rx7Model.Shape() : name == "s2000" ? S2000Model.Shape() : SupraModel.Shape();
-        var model = name == "gelik" ? GelikModel.Get() : name == "skyline" ? SkylineModel.Get() : name == "rx7" ? Rx7Model.Get() : name == "s2000" ? S2000Model.Get() : SupraModel.Get();
+        CarBody shape = name == "x5" ? X5Model.Shape() : name == "gelik" ? GelikModel.Shape() : name == "skyline" ? (CarBody)SkylineModel.Shape() : name == "rx7" ? Rx7Model.Shape() : name == "s2000" ? S2000Model.Shape() : SupraModel.Shape();
+        var model = name == "x5" ? X5Model.Get() : name == "gelik" ? GelikModel.Get() : name == "skyline" ? SkylineModel.Get() : name == "rx7" ? Rx7Model.Get() : name == "s2000" ? S2000Model.Get() : SupraModel.Get();
         var inner = new HashSet<string> { "carpet", "int_black", "int_grey", "int_door", "int_roof", "leather_red", "leather_black", "gauge_face", "gauge_glow", "jacket", "skin", "hair", "screen", "white", "needle", "lamp_off", "screen_blue", "ambient", "cloth_dark", "leather_blue", "gauge_light", "screen_amber", "leather_tan", "carbon", "fur_pink" };
         var stats = new Dictionary<string, (int n, float worst, Vector3 at)>();
         void Walk(ModelNode n)

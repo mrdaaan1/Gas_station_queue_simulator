@@ -48,6 +48,24 @@ const mats = {
   wing_blue: new THREE.MeshPhysicalMaterial({ color: '#2347c4', roughness: 0.3, metalness: 0.1, clearcoat: 1 }), cloth_dark: std('#1e1f22', 0.95), leather_blue: std('#2456c8', 0.5), gauge_light: std('#d8d8d4', 0.5), screen_amber: std('#2a1a05', 0.3, 0, { emissive: '#c88a20', emissiveIntensity: 0.7 }), glass_dark: std('#0e1216', 0.08, 0.3), chassis: std('#1b1b1c', 0.8), rim_black: std('#151517', 0.35, 0.4), black_satin: std('#1c1d20', 0.55, 0.2),
   screen_blue: std('#0a1838', 0.3, 0, { emissive: '#1a3a8a', emissiveIntensity: 0.9 }), ambient: std('#2a5cff', 0.4, 0, { emissive: '#2a5cff', emissiveIntensity: 1.5 }), hair: std('#3a2717', 0.8), lamp_off: std('#3a2a10', 0.5), screen: std('#0c1a12', 0.3, 0, { emissive: '#103020' }), liner: std('#0c0c0c', 0.95), mirror: std('#dfe6ee', 0.05, 1), skin: std('#e2b08a', 0.7), jacket: std('#2a2c33', 0.8),
 };
+// camo=1 — золотой хромированный камуфляж (как TextureFactory.GoldCamo): угловатые пятна, сильное отражение
+if (params.get('camo') === '1') {
+  const S = 256, N = 16, cv = document.createElement('canvas'); cv.width = cv.height = S;
+  const cx = cv.getContext('2d'), img = cx.createImageData(S, S);
+  let seed = 70; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const pts = [], tone = [];
+  for (let i = 0; i < N; i++) { pts.push([rnd() * S, rnd() * S]); const r = rnd(); tone.push(r < 0.38 ? 0 : r < 0.70 ? 1 : r < 0.90 ? 2 : 3); }
+  const pal = [[255, 212, 64], [238, 168, 16], [184, 112, 8], [104, 60, 6]];
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    let best = 1e9, bi = 0;
+    for (let i = 0; i < N; i++) { let dx = Math.abs(x - pts[i][0]), dy = Math.abs(y - pts[i][1]); if (dx > S / 2) dx = S - dx; if (dy > S / 2) dy = S - dy; const d = dx * dx + dy * dy + 0.6 * dx * dy; if (d < best) { best = d; bi = i; } }
+    const c = pal[tone[bi]], k = (y * S + x) * 4; img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+  }
+  cx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(cv); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.colorSpace = THREE.SRGBColorSpace;
+  mats.paint = new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.14, metalness: 0.6, clearcoat: 1, clearcoatRoughness: 0.04 });
+}
+try { const dt = await new THREE.TextureLoader().loadAsync('pitbull.png'); dt.colorSpace = THREE.SRGBColorSpace; mats.decal_pit = std('#ffffff', 0.5); mats.decal_pit.map = dt; } catch (e) {}
 const missing = new Set();
 const data = await (await fetch(params.get('model') || 'model.json')).json();
 const car = new THREE.Group();
@@ -59,6 +77,7 @@ for (const m of data.meshes) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(m.p, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(m.n, 3));
+  if (m.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(m.uv, 2));
   g.setIndex(m.i);
   let mat = mats[m.mat];
   if (!mat) { missing.add(m.mat); mat = std('#ff00ff', 0.5); }
@@ -78,10 +97,22 @@ for (const m of data.meshes) {
   car.add(mesh);
 }
 scene.add(car);
-const cam = new THREE.PerspectiveCamera(+(params.get('fov') || 32), W / H, 0.02, 100);
-const [px, py, pz] = (params.get('pos') || '5.5,1.8,5').split(',').map(Number);
-const [tx, ty, tz] = (params.get('at') || '0,0.55,0').split(',').map(Number);
-cam.position.set(px, py, -pz); cam.lookAt(tx, ty, -tz);
-renderer.render(scene, cam);
+function shot(pos, at, fov, x, y, w, h) {
+  const cam = new THREE.PerspectiveCamera(fov, w / h, 0.02, 100);
+  const [px, py, pz] = pos.split(',').map(Number), [tx, ty, tz] = at.split(',').map(Number);
+  cam.position.set(px, py, -pz); cam.lookAt(tx, ty, -tz);
+  renderer.setViewport(x, y, w, h); renderer.setScissor(x, y, w, h); renderer.setScissorTest(true);
+  renderer.render(scene, cam);
+}
+if (params.get('grid') === '1') {
+  // Шесть ракурсов сеткой 2×3 (координаты Unity): перед-3/4, зад-3/4, бок, сверху над салоном, спереди, из салона
+  const views = [
+    ['5.2,1.6,5.0', '0,0.6,0', 32], ['-5.0,1.7,-5.2', '0,0.6,-0.2', 32],
+    ['8.5,0.9,0', '0,0.7,0', 30], ['2.6,3.6,-1.6', '0,0.9,0.2', 45],
+    ['0,1.0,8', '0,0.75,0', 24], [params.get('cab') || '-0.38,1.40,-0.20', params.get('cabat') || '-0.3,1.2,1.5', 72],
+  ];
+  const w = W / 2, h = H / 3;
+  views.forEach((v, i) => shot(v[0], v[1], v[2], (i % 2) * w, H - (Math.floor(i / 2) + 1) * h, w, h));
+} else shot(params.get('pos') || '5.5,1.8,5', params.get('at') || '0,0.55,0', +(params.get('fov') || 32), 0, 0, W, H);
 document.title = 'done ' + [...missing].join(',');
 </script></body></html>

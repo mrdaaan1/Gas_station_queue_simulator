@@ -101,6 +101,55 @@ namespace GasQueue
             }
         }
 
+        static Texture2D goldCamo;
+
+        /// <summary>
+        /// Золотой хромированный камуфляж: крупные угловатые пятна четырёх оттенков (от светлого золота до тёмно-коричневого),
+        /// бесшовная (ячейки Вороного с заворотом по краям), чуть «блестит» полосками отражений.
+        /// </summary>
+        public static Texture2D GoldCamo
+        {
+            get
+            {
+                if (goldCamo != null) return goldCamo;
+                const int S = 256, N = 16;
+                goldCamo = New(S, S, "GoldCamo");
+                var rnd = new System.Random(70);
+                var pts = new Vector2[N];
+                var tone = new int[N];
+                for (int i = 0; i < N; i++)
+                {
+                    pts[i] = new Vector2((float)rnd.NextDouble() * S, (float)rnd.NextDouble() * S);
+                    double r = rnd.NextDouble();
+                    tone[i] = r < 0.38 ? 0 : r < 0.70 ? 1 : r < 0.90 ? 2 : 3;
+                }
+                var palette = new[] { Shapes.Hex("#ffd440"), Shapes.Hex("#eea810"), Shapes.Hex("#b87008"), Shapes.Hex("#683c06") };
+                var px = new Color32[S * S];
+                for (int y = 0; y < S; y++)
+                for (int x = 0; x < S; x++)
+                {
+                    float best = float.MaxValue;
+                    int bi = 0;
+                    for (int i = 0; i < N; i++)
+                    {
+                        float dx = Mathf.Abs(x - pts[i].x), dy = Mathf.Abs(y - pts[i].y);
+                        if (dx > S / 2f) dx = S - dx;
+                        if (dy > S / 2f) dy = S - dy;
+                        // Немного растянутые по диагонали ячейки — пятна «рваные», как у армейского камуфляжа
+                        float d = dx * dx + dy * dy + 0.6f * dx * dy;
+                        if (d < best) { best = d; bi = i; }
+                    }
+                    var c = palette[tone[bi]];
+                    // Блик хрома: пологие диагональные полосы света и тени поверх пятен
+                    float sheen = Mathf.Sin((x + y * 0.5f) / S * Mathf.PI * 4f) * 0.04f;
+                    px[y * S + x] = new Color(Mathf.Clamp01(c.r + sheen), Mathf.Clamp01(c.g + sheen), Mathf.Clamp01(c.b + sheen * 0.8f), 1f);
+                }
+                goldCamo.SetPixels32(px);
+                goldCamo.Apply(true);
+                return goldCamo;
+            }
+        }
+
         /// <summary>Фасад панельки: одна «ячейка» 3×3 м — стена и окно с рамой. Иногда окно светится или с балконом.</summary>
         public static Texture2D Facade(Color wall, Color glass, int seed)
         {

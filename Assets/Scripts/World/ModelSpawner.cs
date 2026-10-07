@@ -109,6 +109,8 @@ namespace GasQueue
             switch (key)
             {
                 case "paint": return Surface(paint, paintSmoothness, paintSmoothness < 0.7f ? 0.45f : 0.25f);
+                case "gold_camo": return GoldCamo();
+                case "decal_pit": return Decal("Decals/pitbull");
                 case "stripe": return Surface(Hex("#2f7fe0"), 0.85f, 0.15f);
                 case "stripe_dark": return Surface(Hex("#1d3fae"), 0.85f, 0.15f);
                 case "wing_blue": return Surface(Hex("#2347c4"), 0.85f, 0.2f);
@@ -176,6 +178,25 @@ namespace GasQueue
         }
 
         static Color Hex(string h) => Shapes.Hex(h);
+
+        /// <summary>Золотой хромированный камуфляж: текстура-«пятна» с высоким блеском. UV кузова — (z в метрах, доля контура), поэтому тайлинг растянут.</summary>
+        static Material GoldCamo()
+        {
+            var m = Surface(Color.white, 0.88f, 0.55f); // хром: блеск высокий, металлик не до конца — иначе без отражений будет чёрным
+            m.mainTexture = TextureFactory.GoldCamo;
+            m.mainTextureScale = Vector2.one; // UV деталей кузова X5 считает X5Model.Triplanar (плитка 2 м)
+            return m;
+        }
+
+        /// <summary>Наклейка из Resources (полностью непрозрачная, форма круга задаётся сеткой).</summary>
+        static Material Decal(string path)
+        {
+            var m = Surface(Color.white, 0.5f, 0f);
+            var tex = Resources.Load<Texture2D>(path);
+            if (tex != null) m.mainTexture = tex;
+            else m.color = Hex("#202020");
+            return m;
+        }
 
         /// <summary>
         /// Стекло кузова: обычная прозрачность (отражение тоже ослабляется прозрачностью) и без зеркального

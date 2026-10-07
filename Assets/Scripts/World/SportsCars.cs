@@ -4,7 +4,7 @@ using UnityEngine;
 namespace GasQueue
 {
     /// <summary>Машины, которые может выбрать игрок.</summary>
-    public enum PlayerCarKind { Vaz2107, Supra, Gelik, Skyline, Rx7, S2000 }
+    public enum PlayerCarKind { Vaz2107, Supra, Gelik, Skyline, Rx7, S2000, X5 }
 
     /// <summary>
     /// Спорткары из гладких сеток (<see cref="SupraModel"/> и следующие): собирает объекты Unity
@@ -14,7 +14,7 @@ namespace GasQueue
     {
         public static string Title(PlayerCarKind kind) =>
             kind == PlayerCarKind.Supra ? "Тоёта Супра (1997)" : kind == PlayerCarKind.Gelik ? "Гелик (2025)" :
-            kind == PlayerCarKind.Skyline ? "Скайлайн GT-R (1999)" : kind == PlayerCarKind.Rx7 ? "Мазда RX-7 (1993)" : kind == PlayerCarKind.S2000 ? "Хонда S2000 (2001)" : "ВАЗ-2107";
+            kind == PlayerCarKind.Skyline ? "Скайлайн GT-R (1999)" : kind == PlayerCarKind.Rx7 ? "Мазда RX-7 (1993)" : kind == PlayerCarKind.S2000 ? "Хонда S2000 (2001)" : kind == PlayerCarKind.X5 ? "БМВ Х5 М — тачка Давидыча" : "ВАЗ-2107";
 
         /// <summary>Розовая, как у Суки.</summary>
         public static readonly Color S2000Pink = Shapes.Hex("#f24fa0");
@@ -27,6 +27,9 @@ namespace GasQueue
 
         /// <summary>Синий матовый «Гелик» как на фото.</summary>
         public static readonly Color GelikBlue = Shapes.Hex("#2b44b0");
+
+        /// <summary>Золотистый — для подкраски деталей X5 (сам кузов — камуфляжная текстура).</summary>
+        public static readonly Color X5Gold = Shapes.Hex("#d8a53f");
 
         /// <summary>Цвет по умолчанию — как у красной «Супры» с фото.</summary>
         public static readonly Color SupraRed = Shapes.Hex("#b80f18");
@@ -157,6 +160,72 @@ namespace GasQueue
 
             PlateText(map["PlateFront"], "М 777 ММ");
             PlateText(map["PlateRear"], "М 777 ММ");
+            return visual;
+        }
+
+        /// <summary>
+        /// BMW X5 M (E70) в золотом хромированном камуфляже («тачка Давидыча»): руль слева, цифровой щиток,
+        /// наклейки-питбули на капоте и дверях. Кузов — материал «paint», подменённый на камуфляжную текстуру.
+        /// </summary>
+        public static CarVisual BuildX5(string name, Color paint)
+        {
+            var root = new GameObject(name).transform;
+            var visual = root.gameObject.AddComponent<CarVisual>();
+            var map = ModelSpawner.Spawn(X5Model.Get().root, root, key => CarMaterials.Get(key == "paint" ? "gold_camo" : key == "glass" ? "glass_dark" : key, paint));
+
+            visual.body = map["Body"];
+            visual.length = 4.88f;
+            visual.width = 1.96f;
+            visual.height = 1.76f;
+            visual.hoodTop = 1.12f;
+            visual.rightHandDrive = false;
+            visual.maxSpeed = 66f;        // ~240 км/ч — 555 л.с.
+            visual.accel = 7.0f;
+            visual.speedoMaxKmh = 280f;
+            visual.wheelRadius = X5Model.WheelR;
+            visual.sporty = true;
+
+            foreach (var tag in new[] { "FL", "FR", "RL", "RR" })
+                visual.wheels.Add(map["Wheel" + tag]);
+            visual.frontSteer.Add(map["SteerFL"]);
+            visual.frontSteer.Add(map["SteerFR"]);
+
+            visual.steeringWheel = map["SteeringWheel"];
+            visual.steeringTilt = X5Model.SteeringTilt;
+            var white = Color.white;
+            visual.digitalSpeed = Fonts.WorldText(map["ClusterScreen"], new Vector3(-0.11f, 0f, -0.003f), "", white, 0.0032f);
+            visual.digitalFuel = Fonts.WorldText(map["ClusterScreen"], new Vector3(0.11f, 0f, -0.003f), "", white, 0.0025f);
+            visual.radioDisplay = Fonts.WorldText(map["RadioScreen"], new Vector3(0f, 0f, -0.003f), "", Shapes.Hex("#9fd0ff"), 0.0032f);
+
+            visual.mirrorLeft = map["MirrorGlassL"];
+            visual.mirrorRight = map["MirrorGlassR"];
+            visual.mirrorRear = map["RearMirrorGlass"];
+
+            visual.driverHead = map["DriverHead"];
+            visual.driverTorso = map["DriverTorso"];
+            AddArms(visual, X5Model.DriverEyes, 1.27f, -0.40f, 0.172f);
+            visual.driverEyes = Shapes.Group("DriverEyes", root, X5Model.DriverEyes);
+            visual.driverDoorLocal = new Vector3(-1.5f, 0f, 0.2f);
+            visual.fuelCapLocal = new Vector3(0.98f, 0.98f, -1.70f);
+
+            visual.headlights.Add(map["HeadlightL"]);
+            visual.headlights.Add(map["HeadlightR"]);
+            visual.taillights.Add(map["TaillightL"]);
+            visual.taillights.Add(map["TaillightR"]);
+            visual.bumperFront = map["BumperF"];
+            visual.bumperRear = map["BumperR"];
+            visual.frontPanel = map["Hood"];
+            visual.rearPanel = map["Tailgate"];
+            foreach (var d in new[] { "DoorFL", "DoorFR", "DoorRL", "DoorRR" }) visual.doors.Add(map[d]);
+            visual.roof = map["Roof"];
+            visual.leftBlinkers.Add(map["BlinkFL"].GetComponent<Renderer>());
+            visual.leftBlinkers.Add(map["BlinkRL"].GetComponent<Renderer>());
+            visual.rightBlinkers.Add(map["BlinkFR"].GetComponent<Renderer>());
+            visual.rightBlinkers.Add(map["BlinkRR"].GetComponent<Renderer>());
+            visual.blinkOffMat = CarMaterials.Get("amber", paint);
+
+            PlateText(map["PlateFront"], "Д 777 ДД");
+            PlateText(map["PlateRear"], "Д 777 ДД");
             return visual;
         }
 
