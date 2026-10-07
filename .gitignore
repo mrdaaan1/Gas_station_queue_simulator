@@ -53,3 +53,7 @@ Tools/**/node_modules/
 /Assets/Resources/RaceMusic/*
 !/Assets/Resources/RaceMusic/README.txt
 !/Assets/Resources/RaceMusic/README.txt.meta
+# Озвучка радио голосами macOS (Tools/make_radio_news.sh) — только для себя
+/Assets/Resources/RadioNews/*
+!/Assets/Resources/RadioNews/README.txt
+!/Assets/Resources/RadioNews/README.txt.meta
