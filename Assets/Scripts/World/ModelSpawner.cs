@@ -133,6 +133,18 @@ namespace GasQueue
                 case "wood_dark": return Surface(Hex("#4a3a30"), 0.55f, 0f);
                 case "alloy_machined": return Surface(Hex("#d2d5d9"), 0.85f, 0.8f);
                 case "rim_gunmetal": return Surface(Hex("#3a3d42"), 0.6f, 0.6f);
+                case "mater_rust": return Textured("Textures/mater_rust", 0.12f);
+                case "mater_blue": return Textured("Textures/mater_blue", 0.3f);
+                case "mater_green": return Textured("Textures/mater_green", 0.35f);
+                case "mater_stripes": return Textured("Textures/mater_stripes", 0.3f);
+                case "mater_eye": return Textured("Textures/mater_eye", 0.85f);
+                case "eye_white": return Surface(Hex("#f4f1e6"), 0.85f, 0f);
+                case "teeth": return Surface(Hex("#eee2bf"), 0.5f, 0f);
+                case "mouth": return Surface(Hex("#1e0b07"), 0.1f, 0f);
+                case "tongue": return Surface(Hex("#8a2c2a"), 0.5f, 0f);
+                case "rust_dark": return Surface(Hex("#3d2416"), 0.1f, 0f);
+                case "seat_brown": return Surface(Hex("#6b3e26"), 0.3f, 0f);
+                case "steel_dark": return Surface(Hex("#3b3f39"), 0.3f, 0.3f);
                 case "carbon": return Surface(Hex("#2b2d31"), 0.45f, 0.2f);
                 case "stripe_white": return Surface(Hex("#f7f7f7"), 0.7f, 0f);
                 case "stripe_magenta": return Surface(Hex("#c2188a"), 0.75f, 0f);
@@ -205,6 +217,16 @@ namespace GasQueue
             var m = Surface(Color.white, 0.88f, 0.55f); // хром: блеск высокий, металлик не до конца — иначе без отражений будет чёрным
             m.mainTexture = TextureFactory.GoldCamo;
             m.mainTextureScale = Vector2.one; // UV деталей кузова X5 считает X5Model.Triplanar (плитка 2 м)
+            return m;
+        }
+
+        /// <summary>Материал с текстурой из Resources (ржавчина, краска Мэтра); UV уже в метрах — плитка задаётся моделью.</summary>
+        static Material Textured(string path, float smoothness)
+        {
+            var m = Surface(Color.white, smoothness, 0f);
+            var tex = Resources.Load<Texture2D>(path);
+            if (tex != null) m.mainTexture = tex;
+            else m.color = Hex("#7a4a2a");
             return m;
         }
 

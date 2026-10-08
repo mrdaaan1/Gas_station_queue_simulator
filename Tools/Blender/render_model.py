@@ -19,6 +19,7 @@ scene = bpy.context.scene
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gq_materials
 gq_materials.camo_path, gq_materials.decal_path = camo_path, decal_path
+gq_materials.tex_dir = os.environ.get("TEXDIR")   # текстуры Мэтра
 get_mat, principled = gq_materials.get_mat, gq_materials.principled
 
 # ---------- Геометрия ----------

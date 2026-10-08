@@ -4,7 +4,7 @@ using UnityEngine;
 namespace GasQueue
 {
     /// <summary>Машины, которые может выбрать игрок.</summary>
-    public enum PlayerCarKind { Vaz2107, Supra, Gelik, Skyline, Rx7, S2000, X5, A7 }
+    public enum PlayerCarKind { Vaz2107, Supra, Gelik, Skyline, Rx7, S2000, X5, A7, Mater }
 
     /// <summary>
     /// Спорткары из гладких сеток (<see cref="SupraModel"/> и следующие): собирает объекты Unity
@@ -14,7 +14,7 @@ namespace GasQueue
     {
         public static string Title(PlayerCarKind kind) =>
             kind == PlayerCarKind.Supra ? "Тоёта Супра (1997)" : kind == PlayerCarKind.Gelik ? "Гелик (2025)" :
-            kind == PlayerCarKind.Skyline ? "Скайлайн GT-R (1999)" : kind == PlayerCarKind.Rx7 ? "Мазда RX-7 (1993)" : kind == PlayerCarKind.S2000 ? "Хонда S2000 (2001)" : kind == PlayerCarKind.X5 ? "БМВ Х5 М — тачка Давидыча" : kind == PlayerCarKind.A7 ? "Ауди A7 Sportback (2019)" : "ВАЗ-2107";
+            kind == PlayerCarKind.Skyline ? "Скайлайн GT-R (1999)" : kind == PlayerCarKind.Rx7 ? "Мазда RX-7 (1993)" : kind == PlayerCarKind.S2000 ? "Хонда S2000 (2001)" : kind == PlayerCarKind.X5 ? "БМВ Х5 М — тачка Давидыча" : kind == PlayerCarKind.A7 ? "Ауди A7 Sportback (2019)" : kind == PlayerCarKind.Mater ? "Мэтр — эвакуатор из «Тачек»" : "ВАЗ-2107";
 
         /// <summary>Розовая, как у Суки.</summary>
         public static readonly Color S2000Pink = Shapes.Hex("#f24fa0");
@@ -255,6 +255,85 @@ namespace GasQueue
         }
 
         static Model X5Source() => FileOr("X5", X5Model.Get);
+
+        /// <summary>
+        /// Мэтр — ржавый эвакуатор из «Тачек» (ВНИМАНИЕ: персонаж Disney/Pixar — перед выпуском в Steam убрать или заменить
+        /// своим). Модель целиком из Blender (Tools/Blender/mater_build.py → Models/Mater.bytes): глаза на лобовом стекле,
+        /// зубы и бампер-улыбка, одна фара, кран с крюком, сдвоенные задние колёса. Если файла нет — обычная «семёрка».
+        /// </summary>
+        public static CarVisual BuildMater(string name)
+        {
+            var model = FileOr("Mater", () => null);
+            if (model == null) return CarFactory.Build(name, Shapes.Hex("#8a5a3a"), CarModel.Vaz2107, true);
+            var root = new GameObject(name).transform;
+            var visual = root.gameObject.AddComponent<CarVisual>();
+            var map = ModelSpawner.Spawn(model.root, root, key => CarMaterials.Get(key == "glass" ? "glass_tint" : key, Color.white));
+
+            visual.body = map["Body"];
+            visual.length = 4.8f;
+            visual.width = 2.12f;
+            visual.height = 2.45f;
+            visual.hoodTop = 1.40f;
+            visual.rightHandDrive = false;
+            visual.maxSpeed = 34f;        // ~120 км/ч — старый эвакуатор, зато задом умеет
+            visual.accel = 4.2f;
+            visual.speedoMaxKmh = 120f;
+            visual.wheelRadius = 0.42f;
+            visual.sporty = false;
+
+            foreach (var tag in new[] { "FL", "FR", "RL", "RR" })
+                visual.wheels.Add(map["Wheel" + tag]);
+            visual.frontSteer.Add(map["SteerFL"]);
+            visual.frontSteer.Add(map["SteerFR"]);
+
+            visual.steeringWheel = map["SteeringWheel"];
+            visual.steeringTilt = -45f;
+            visual.speedNeedle = map["SpeedNeedle"];
+            visual.fuelNeedle = map["FuelNeedle"];
+            visual.fuelLamp = map["FuelLamp"].GetComponent<Renderer>();
+            visual.engineLamp = map["EngineLamp"].GetComponent<Renderer>();
+            visual.radioDisplay = Fonts.WorldText(map["RadioScreen"], new Vector3(0f, 0f, -0.003f), "", Shapes.Hex("#ffb84a"), 0.0026f);
+
+            visual.mirrorLeft = map["MirrorGlassL"];
+            visual.mirrorRight = map["MirrorGlassR"];
+            visual.mirrorRear = map["RearMirrorGlass"];
+
+            var eyes = new Vector3(-0.40f, 1.62f, -0.15f);
+            visual.driverHead = map["DriverHead"];
+            visual.driverTorso = map["DriverTorso"];
+            AddArms(visual, eyes, 1.48f, -0.32f, 0.205f);
+            visual.driverEyes = Shapes.Group("DriverEyes", root, eyes);
+            visual.driverDoorLocal = new Vector3(-1.5f, 0f, 0.0f);
+            visual.fuelCapLocal = new Vector3(0.98f, 1.0f, -0.62f);
+
+            visual.headlights.Add(map["HeadlightL"]);
+            visual.headlights.Add(map["HeadlightR"]);
+            visual.taillights.Add(map["TaillightL"]);
+            visual.taillights.Add(map["TaillightR"]);
+            visual.bumperFront = map["BumperF"];
+            visual.bumperRear = map["BumperR"];
+            visual.frontPanel = map["Hood"];
+            visual.rearPanel = map["Tailgate"];
+            visual.doors.Add(map["DoorFL"]);
+            visual.doors.Add(map["DoorFR"]);
+            visual.roof = map["Roof"];
+            visual.leftBlinkers.Add(map["BlinkFL"].GetComponent<Renderer>());
+            visual.leftBlinkers.Add(map["BlinkRL"].GetComponent<Renderer>());
+            visual.rightBlinkers.Add(map["BlinkFR"].GetComponent<Renderer>());
+            visual.rightBlinkers.Add(map["BlinkRR"].GetComponent<Renderer>());
+            visual.blinkOffMat = CarMaterials.Get("amber", Color.white);
+
+            // Надписи на дверях и номер
+            var cream = Shapes.Hex("#f3ead2");
+            foreach (var t in new[] { map["DoorTextL"], map["DoorTextR"] })
+            {
+                Fonts.WorldText(t, new Vector3(0f, 0.09f, -0.004f), "Tow Mater", cream, 0.0105f);
+                Fonts.WorldText(t, new Vector3(0f, -0.02f, -0.004f), "TOWING & SALVAGE", cream, 0.0042f);
+                Fonts.WorldText(t, new Vector3(0f, -0.09f, -0.004f), "Radiator Springs", cream, 0.0055f);
+            }
+            Fonts.WorldText(map["PlateRear"], new Vector3(0f, 0f, -0.0075f), "A113", Shapes.Hex("#1a1a1a"), 0.0105f);
+            return visual;
+        }
 
         /// <summary>
         /// Audi A7 Sportback (C8): серебристый фастбэк, руль слева, бежевый салон, цифровой щиток и экраны MMI.

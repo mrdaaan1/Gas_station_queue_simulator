@@ -47,29 +47,9 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
 
 # ---------- Unity ↔ Blender ----------
-P = Matrix(((1, 0, 0, 0), (0, 0, 1, 0), (0, 1, 0, 0), (0, 0, 0, 1)))  # меняет местами Y и Z, сам себе обратный
-
-def ub(v):  # точка/направление Unity → Blender
-    return (v[0], v[2], v[1])
-
-def unity_rot(e):
-    """Поворот как Frame.Rot в игре: сначала Z, потом X, потом Y (градусы)."""
-    d = math.pi / 180
-    def rot(v):
-        x, y, z = v
-        cz, sz = math.cos(e[2] * d), math.sin(e[2] * d)
-        x, y = x * cz - y * sz, x * sz + y * cz
-        cx, sx = math.cos(e[0] * d), math.sin(e[0] * d)
-        y, z = y * cx - z * sx, y * sx + z * cx
-        cy, sy = math.cos(e[1] * d), math.sin(e[1] * d)
-        return (x * cy + z * sy, y, -x * sy + z * cy)
-    cols = [rot((1, 0, 0)), rot((0, 1, 0)), rot((0, 0, 1))]
-    return Matrix(((cols[0][0], cols[1][0], cols[2][0]), (cols[0][1], cols[1][1], cols[2][1]), (cols[0][2], cols[1][2], cols[2][2])))
-
-def unity_local(pos, euler):
-    m = unity_rot(euler).to_4x4()
-    m.translation = Vector(pos)
-    return P @ m @ P
+import gq_export
+from gq_export import P, ub, unity_rot, unity_local
+from gq_geom import mat_index, subd_into, cage, torus, remove_faces
 
 # ---------- Импорт ----------
 tree = json.load(open(tree_path))
@@ -185,13 +165,6 @@ for name in ["HeadlightL", "HeadlightR", "TaillightL", "TaillightR"]:
         so.use_quality_normals = True
 
 # ---------- Диски: 20" Y-образные двойные спицы ----------
-def mat_index(me, key):
-    for i, m in enumerate(me.materials):
-        if m and m.name == key:
-            return i
-    me.materials.append(gq_materials.get_mat(key))
-    return len(me.materials) - 1
-
 def build_rim(me):
     """Новый диск в локальных координатах узла Rim (ось колеса — Z Blender, лицо диска — +Z)."""
     bm = bmesh.new()
@@ -385,86 +358,6 @@ for tag in ("FL", "FR", "RL", "RR"):
 # ---------- Салон: спортивные кресла, задний диван, руль М ----------
 # Детали строятся «клетками» (коробки с разрезами), которые сглаживает Subdivision — получаются мягкие формы кожи.
 # Координаты задаются как в Unity (x вправо, y вверх, z вперёд) в системе узла; в Blender — (x, z, y).
-
-def subd_into(target_me, build, level=2):
-    """Построить клетку build(bm), сгладить Subdivision и добавить в сетку target_me (индексы материалов — её)."""
-    bm = bmesh.new()
-    build(bm)
-    tmp = bpy.data.meshes.new("tmp")
-    for m in target_me.materials:   # материалы — до to_mesh, иначе номера материалов обнуляются
-        tmp.materials.append(m)
-    bm.to_mesh(tmp)
-    bm.free()
-    ob = bpy.data.objects.new("tmp", tmp)
-    scene.collection.objects.link(ob)
-    md = ob.modifiers.new("S", 'SUBSURF')
-    md.levels = level
-    md.render_levels = level
-    ev = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
-    out = bpy.data.meshes.new_from_object(ev)
-    bpy.data.objects.remove(ob)
-    bpy.data.meshes.remove(tmp)
-    tb = bmesh.new()
-    tb.from_mesh(target_me)
-    tb.from_mesh(out)
-    for f in tb.faces:
-        f.smooth = True
-    tb.to_mesh(target_me)
-    tb.free()
-    bpy.data.meshes.remove(out)
-
-def cage(bm, c, size, mat, yaw=0.0, pitch=0.0, cuts=2, shape=None):
-    """Коробка-клетка: центр c и размеры size в координатах Unity узла; yaw — поворот вокруг вертикали (градусы),
-    pitch — наклон вокруг поперечной оси; shape(u, v, w, p) может сдвинуть вершину (u, v, w — от −1 до 1 по осям)."""
-    res = bmesh.ops.create_cube(bm, size=1.0)
-    verts = res["verts"]
-    edges = list({e for v in verts for e in v.link_edges})
-    if cuts:
-        bmesh.ops.subdivide_edges(bm, edges=edges, cuts=cuts, use_grid_fill=True)
-    new_verts = list({v for f in bm.faces if not f.tag for v in f.verts})
-    for f in bm.faces:
-        if not f.tag:
-            f.tag = True
-            f.material_index = mat
-    yr, pr = math.radians(yaw), math.radians(pitch)
-    for v in new_verts:
-        u, w_, h = v.co.x * 2, v.co.y * 2, v.co.z * 2       # create_cube: −0.5…0.5 → −1…1 (Blender: x, y=вперёд, z=вверх)
-        p = Vector((u * size[0] / 2, h * size[1] / 2, w_ * size[2] / 2))  # Unity: x, y (вверх), z (вперёд)
-        if shape:
-            p = shape(u, h, w_, p)
-        # наклон вокруг X (Unity), потом поворот вокруг вертикали
-        y, z = p.y * math.cos(pr) - p.z * math.sin(pr), p.y * math.sin(pr) + p.z * math.cos(pr)
-        x, z = p.x * math.cos(yr) + z * math.sin(yr), -p.x * math.sin(yr) + z * math.cos(yr)
-        v.co = Vector(ub((x + c[0], y + c[1], z + c[2])))
-    bmesh.ops.recalc_face_normals(bm, faces=[f for f in bm.faces])
-
-def torus(bm, c, R, r, mat, seg=24, sides=6):
-    """Тор в плоскости XZ Unity (ось — вверх по Y узла), центр c в координатах Unity."""
-    rings = []
-    for i in range(seg):
-        a = 2 * math.pi * i / seg
-        col = []
-        for j in range(sides):
-            b = 2 * math.pi * j / sides
-            rr = R + r * math.cos(b)
-            col.append(bm.verts.new(ub((c[0] + rr * math.cos(a), c[1] + r * math.sin(b), c[2] + rr * math.sin(a)))))
-        rings.append(col)
-    faces = []
-    for i in range(seg):
-        for j in range(sides):
-            f = bm.faces.new((rings[i][j], rings[(i + 1) % seg][j], rings[(i + 1) % seg][(j + 1) % sides], rings[i][(j + 1) % sides]))
-            f.material_index = mat
-            f.tag = True
-            faces.append(f)
-    bmesh.ops.recalc_face_normals(bm, faces=faces)
-
-def remove_faces(me, keep_fn):
-    bm = bmesh.new()
-    bm.from_mesh(me)
-    kill = [f for f in bm.faces if not keep_fn(f)]
-    bmesh.ops.delete(bm, geom=kill, context='FACES')
-    bm.to_mesh(me)
-    bm.free()
 
 def unity_centroid(f):
     c = f.calc_center_median()
@@ -752,81 +645,7 @@ if WITH_AO:
     bake_ao()
 
 # ---------- Выгрузка в игру ----------
-def write_string(f, s):
-    b = s.encode("utf-8")
-    n = len(b)
-    while True:  # длина как в BinaryWriter (7-битная)
-        if n < 0x80:
-            f.write(bytes([n]))
-            break
-        f.write(bytes([(n & 0x7F) | 0x80]))
-        n >>= 7
-    f.write(b)
-
-deps = bpy.context.evaluated_depsgraph_get()
-buf = io.BytesIO()
-buf.write(b"GQM2" if WITH_AO else b"GQM1")
-order = sorted(objs, key=lambda o: o["gq_index"])
-buf.write(struct.pack("<i", len(order)))
-tris_total = 0
-for ob in order:
-    write_string(buf, ob["gq_name"])
-    parent = ob.parent["gq_index"] if ob.parent else -1
-    buf.write(struct.pack("<i", parent))
-    buf.write(struct.pack("<3f", *ob["gq_pos"]))
-    buf.write(struct.pack("<3f", *ob["gq_euler"]))
-    if ob.type != 'MESH':
-        buf.write(struct.pack("<i", 0))
-        continue
-    ev = ob.evaluated_get(deps)
-    me = ev.to_mesh()
-    me.calc_loop_triangles()
-    normals = [cn.vector.copy() for cn in me.corner_normals]
-    uvl = me.uv_layers.get("UV") or (me.uv_layers[0] if me.uv_layers else None)
-    aol = me.color_attributes.get("AO")
-    groups = {}
-    for lt in me.loop_triangles:
-        groups.setdefault(lt.material_index, []).append(lt)
-    meshes = []
-    for mi, lts in sorted(groups.items()):
-        key = me.materials[mi].name if mi < len(me.materials) and me.materials[mi] else "black"
-        vmap, vdata, idx = {}, [], []
-        for lt in lts:
-            tri = []
-            for li in lt.loops:
-                vi = me.loops[li].vertex_index
-                n = normals[li]
-                uv = tuple(uvl.data[li].uv) if uvl else (0.0, 0.0)
-                ao = aol.data[li].color[0] if aol is not None and aol.domain == 'CORNER' else (aol.data[vi].color[0] if aol is not None else 1.0)
-                aob = max(0, min(255, int(round(ao * 255))))
-                k = (vi, round(n.x, 3), round(n.y, 3), round(n.z, 3), round(uv[0], 4), round(uv[1], 4), aob)
-                j = vmap.get(k)
-                if j is None:
-                    j = len(vdata)
-                    vmap[k] = j
-                    co = me.vertices[vi].co
-                    vdata.append((co.x, co.z, co.y, n.x, n.z, n.y, uv[0], uv[1], aob))  # Blender → Unity
-                tri.append(j)
-            idx.extend((tri[0], tri[2], tri[1]))  # обратно к обходу Unity
-        meshes.append((key, vdata, idx))
-        tris_total += len(idx) // 3
-    buf.write(struct.pack("<i", len(meshes)))
-    for key, vdata, idx in meshes:
-        write_string(buf, key)
-        buf.write(struct.pack("<i", len(vdata)))
-        for v in vdata:
-            if WITH_AO:
-                buf.write(struct.pack("<8fB", *v))
-            else:
-                buf.write(struct.pack("<8f", *v[:8]))
-        buf.write(struct.pack("<i", len(idx)))
-        buf.write(struct.pack("<%di" % len(idx), *idx))
-    ev.to_mesh_clear()
-
-os.makedirs(os.path.dirname(os.path.abspath(out_bytes)), exist_ok=True)
-with open(out_bytes, "wb") as f:
-    f.write(gzip.compress(buf.getvalue(), 9))
-print("EXPORTED", out_bytes, "triangles", tris_total, "bytes", os.path.getsize(out_bytes))
+order = gq_export.write_gqm(objs, out_bytes, WITH_AO)
 
 # ---------- Сцена для просмотра ----------
 root = order[0]
