@@ -16,7 +16,7 @@ namespace GasQueue
         const float Gravity = 22f;
 
         TrafficManager traffic;
-        Transform bin, body, head;
+        Transform bin, body;
         readonly Transform[] wheels = new Transform[4];
         AudioSource engine;
         bool flying;
@@ -27,9 +27,6 @@ namespace GasQueue
         bool announced, saidHi;
 
         static readonly Color Green = Shapes.Hex("#2d5a2a");
-        static readonly Color GreenDark = Shapes.Hex("#234821");
-        static readonly Color Black = Shapes.Hex("#151515");
-        static readonly Color Hub = Shapes.Hex("#c9ccd0");
 
         static readonly string[] PassLines =
         {
@@ -48,38 +45,10 @@ namespace GasQueue
         void Build()
         {
             bin = Shapes.Group("Akademik", traffic.WorldRoot);
-            body = Shapes.Group("Body", bin, new Vector3(0f, 0.2f, 0f));
-            // Бак: снизу уже, кверху шире; толстый верхний обод, рёбра и ручки
-            Shapes.Box(body, new Vector3(0f, 0.55f, 0f), new Vector3(1.12f, 0.75f, 1.36f), Green, name: "Lower");
-            Shapes.Box(body, new Vector3(0f, 0.98f, 0f), new Vector3(1.2f, 0.18f, 1.44f), Green, name: "Upper");
-            Shapes.Box(body, new Vector3(0f, 1.1f, 0f), new Vector3(1.28f, 0.08f, 1.52f), GreenDark, name: "Rim");
-            Shapes.Box(body, new Vector3(0f, 1.09f, 0f), new Vector3(1.1f, 0.06f, 1.34f), Shapes.Hex("#0f1a0e"), name: "Inside");
-            foreach (float side in new[] { -1f, 1f })
-            {
-                Shapes.Box(body, new Vector3(0.57f * side, 0.6f, 0f), new Vector3(0.04f, 0.6f, 0.08f), GreenDark, name: "Rib");
-                Shapes.Box(body, new Vector3(0f, 0.6f, 0.69f * side), new Vector3(0.08f, 0.6f, 0.04f), GreenDark, name: "Rib");
-                Shapes.Box(body, new Vector3(0.35f * side, 0.85f, 0.73f), new Vector3(0.22f, 0.12f, 0.04f), Shapes.Hex("#1b3519"), name: "Handle");
-            }
-            // Петли крышки сзади (крышки нет — улетела давно)
-            foreach (float x in new[] { -0.4f, 0.4f })
-                Shapes.Box(body, new Vector3(x, 1.12f, -0.78f), new Vector3(0.24f, 0.08f, 0.12f), Black, name: "Hinge");
-            // Голова в шлеме торчит над краем
-            head = Shapes.Group("Rider", body, new Vector3(0f, 1.3f, 0.12f));
-            Shapes.Make(PrimitiveType.Sphere, head, Vector3.zero, new Vector3(0.3f, 0.3f, 0.32f), Shapes.Hex("#9fd14a"), name: "Helmet");
-            Shapes.Make(PrimitiveType.Sphere, head, new Vector3(0f, 0.04f, 0f), new Vector3(0.24f, 0.2f, 0.33f), Shapes.Hex("#f2f2f0"), name: "Stripe");
-            Shapes.Box(head, new Vector3(0f, -0.02f, 0.13f), new Vector3(0.22f, 0.1f, 0.06f), Shapes.Hex("#1a1f2a"), name: "Visor");
-            Shapes.Box(head, new Vector3(0f, -0.1f, 0.14f), new Vector3(0.12f, 0.04f, 0.03f), Shapes.Hex("#e2b08a"), name: "Chin");
-            // Картинговые колёса по углам
-            int i = 0;
-            foreach (float z in new[] { 0.62f, -0.62f })
-                foreach (float x in new[] { -0.66f, 0.66f })
-                {
-                    var w = Shapes.Group("Wheel", bin, new Vector3(x, 0.19f, z));
-                    Shapes.Make(PrimitiveType.Cylinder, w, Vector3.zero, new Vector3(0.38f, 0.11f, 0.38f), Black, new Vector3(0f, 0f, 90f), "Tyre");
-                    Shapes.Make(PrimitiveType.Cylinder, w, new Vector3(0.115f * Mathf.Sign(x), 0f, 0f), new Vector3(0.2f, 0.01f, 0.2f), Hub, new Vector3(0f, 0f, 90f), "Hub");
-                    wheels[i++] = w;
-                }
-            Shapes.Box(bin, new Vector3(0f, 0.2f, 0f), new Vector3(1.2f, 0.06f, 1.2f), Black, name: "Frame");
+            // Гладкая модель, как у спорткаров (World/Models/AkademikModel): бак, рама, колёса, шлем
+            var map = ModelSpawner.Spawn(AkademikModel.Get().root, bin, key => CarMaterials.Get(key, Green));
+            body = map["Bin"];
+            wheels[0] = map["WheelFL"]; wheels[1] = map["WheelFR"]; wheels[2] = map["WheelRL"]; wheels[3] = map["WheelRR"];
 
             engine = bin.gameObject.AddComponent<AudioSource>();
             engine.clip = SoundFactory.Engine;
@@ -131,8 +100,8 @@ namespace GasQueue
             bin.position = pos;
             // Бак потряхивает на неровностях, в прыжке задирает нос
             body.localRotation = Quaternion.Euler(-Mathf.Clamp(vy * 2.5f, -20f, 20f) + Mathf.Sin(wobble) * 1.5f, 0f, Mathf.Sin(wobble * 0.8f) * 2.5f);
-            wheelAngle += Speed / 0.19f * Mathf.Rad2Deg * dt;
-            foreach (var w in wheels) w.localRotation = Quaternion.Euler(wheelAngle, 0f, 0f);
+            wheelAngle = Mathf.Repeat(wheelAngle + Speed / AkademikModel.WheelR * Mathf.Rad2Deg * dt, 360f);
+            foreach (var w in wheels) if (w != null) w.localRotation = Quaternion.Euler(0f, 0f, 90f) * Quaternion.Euler(0f, -wheelAngle, 0f);
 
             // Поравнялся с игроком — крик и одно сообщение в ленту за всю игру
             var me = gm.OnFoot && gm.Walker != null ? gm.Walker.transform.position : traffic.Player.Position;

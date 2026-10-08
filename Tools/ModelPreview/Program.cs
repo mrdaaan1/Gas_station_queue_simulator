@@ -24,6 +24,7 @@ static class Program
         Model model = which.EndsWith(".bytes") ? ModelFile.Read(File.ReadAllBytes(which)) : which switch
         {
             "x5" => X5Model.Get(),
+            "akademik" => AkademikModel.Get(),
             "gelik" => GelikModel.Get(),
             "skyline" => SkylineModel.Get(),
             "rx7" => Rx7Model.Get(),

@@ -135,6 +135,12 @@ namespace GasQueue
                 case "chassis": return Surface(Hex("#1b1b1c"), 0.15f, 0f);
                 case "rim_black": return Surface(Hex("#151517"), 0.6f, 0.4f);
                 case "black_satin": return Surface(Hex("#1c1d20"), 0.45f, 0.2f);
+                case "bin_inner": return Surface(Hex("#16291a"), 0.1f, 0f);
+                case "paint_dark": return Surface(Hex("#1f3d1e"), 0.35f, 0f);
+                case "helmet_lime": return Surface(Hex("#b7dc3c"), 0.8f, 0.05f);
+                case "helmet_white": return Surface(Hex("#f3f3ef"), 0.8f, 0.05f);
+                case "visor": return Surface(Hex("#1a2230"), 0.95f, 0.6f);
+                case "jacket_dark": return Surface(Hex("#24262b"), 0.1f, 0f);
                 case "screen_blue": return Glow(Hex("#0a1838"), Hex("#1a3a8a"));
                 case "ambient": return Glow(Hex("#2a5cff"), Hex("#2a5cff") * 1.4f);
                 case "glass": return CarGlass(new Color(0.12f, 0.16f, 0.2f, 0.45f));
