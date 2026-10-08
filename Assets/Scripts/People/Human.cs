@@ -77,6 +77,9 @@ namespace GasQueue
         public bool HoldingSkewer;  // держит шампур перед собой правой рукой
         public bool HoldingGiant;   // держит двумя руками поперёк груди гигантский шампур (Bite — подносит ко рту)
         public float Bite;          // 0…1 — подносит шампур ко рту (откусывает)
+        public bool Selfie;         // делает селфи: правая рука с телефоном вытянута вперёд-вверх
+        public float SelfieAmount;  // 0…1 — насколько поднята рука
+        Transform phone;
         float punchTimer, kickTimer, flinchTimer;
         bool punchRight;
         float fall;                 // 0 — стоит, 1 — лежит
@@ -247,6 +250,21 @@ namespace GasQueue
                 var hold = Quaternion.Euler(-60f, 0f, -8f);
                 var mouth = Quaternion.Euler(-135f, 0f, -38f);
                 armR.localRotation = Quaternion.Slerp(hold, mouth, Mathf.Clamp01(Bite));
+            }
+
+            // Селфи: правая рука с телефоном вперёд-вверх и чуть к соседу справа, голова наклонена к нему
+            if (phone == null && Selfie)
+            {
+                phone = Shapes.Group("Phone", armR, new Vector3(0f, -0.66f, 0.02f));
+                Shapes.Box(phone, Vector3.zero, new Vector3(0.08f, 0.16f, 0.012f), Shapes.Hex("#15161a"), name: "PhoneBody");
+                Shapes.Box(phone, new Vector3(0f, 0f, -0.007f), new Vector3(0.07f, 0.145f, 0.002f), Shapes.Hex("#3d5c8a"), name: "Screen");
+            }
+            if (phone != null && phone.gameObject.activeSelf != Selfie) phone.gameObject.SetActive(Selfie);
+            if (Selfie && punchTimer <= 0f && fall <= 0.001f)
+            {
+                float k = Mathf.Clamp01(SelfieAmount);
+                armR.localRotation = Quaternion.Slerp(armR.localRotation, Quaternion.Euler(-135f, -10f, -28f), k);
+                head.localRotation = Quaternion.Euler(-6f * k, 6f * k, -9f * k);
             }
 
             // Прыжок: одна нога вперёд, другая назад, руки вверх и в стороны

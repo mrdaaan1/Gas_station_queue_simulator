@@ -14,6 +14,10 @@ namespace GasQueue
         const float HipH = Thigh + Shin + FootH; // 0,96 — высота таза стоя
 
         Transform pelvis, torso, head, thighL, thighR, shinL, shinR, footL, footR, armL, armR, foreL, foreR;
+        Transform glasses;
+
+        /// <summary>Голова (для камеры селфи).</summary>
+        public Transform Head => head;
 
         static readonly Color Skin = Shapes.Hex("#e6b08c");
         static readonly Color HairC = Shapes.Hex("#2a1c13");
@@ -93,6 +97,14 @@ namespace GasQueue
                 Shapes.Make(PrimitiveType.Sphere, head, new Vector3(0.132f * side, 0.0f, 0f), new Vector3(0.04f, 0.07f, 0.05f), Skin, name: "Ear");
             }
             Shapes.Box(head, new Vector3(0f, -0.005f, 0.135f), new Vector3(0.045f, 0.06f, 0.045f), Skin, name: "Nose");
+            // Тёмные очки — надевает для фото (как на селфи с подписчиками)
+            glasses = Shapes.Group("Sunglasses", head, new Vector3(0f, 0.028f, 0.135f));
+            foreach (float side in new[] { -1f, 1f })
+                Shapes.Box(glasses, new Vector3(0.055f * side, 0f, 0.004f), new Vector3(0.085f, 0.055f, 0.012f), Shapes.Hex("#2a0f12"), name: "Lens");
+            Shapes.Box(glasses, new Vector3(0f, 0.022f, 0.006f), new Vector3(0.21f, 0.014f, 0.014f), Shapes.Hex("#121212"), name: "Frame");
+            foreach (float side in new[] { -1f, 1f })
+                Shapes.Box(glasses, new Vector3(0.122f * side, 0.02f, -0.07f), new Vector3(0.012f, 0.012f, 0.15f), Shapes.Hex("#121212"), name: "Temple");
+            glasses.gameObject.SetActive(false);
 
             foreach (float side in new[] { -1f, 1f })
             {
@@ -158,6 +170,18 @@ namespace GasQueue
             foreR.localRotation = X(-15f);
         }
 
+        public void SetGlasses(bool on) => glasses.gameObject.SetActive(on);
+
+        /// <summary>Позирует для селфи: стоит, чуть наклонился к соседу слева и закинул левую руку ему на плечи.</summary>
+        public void SelfiePose(float t)
+        {
+            Stand();
+            torso.localRotation = Quaternion.Euler(0f, 0f, 7f * t);
+            head.localRotation = Quaternion.Euler(-4f * t, -8f * t, 8f * t);
+            armL.localRotation = Quaternion.Slerp(Quaternion.Euler(0f, 0f, -6f), Quaternion.Euler(-10f, 0f, -84f), t);
+            foreL.localRotation = Quaternion.Slerp(X(-10f), Quaternion.Euler(0f, 0f, -30f), t);
+        }
+
         /// <summary>Сидит за рулём: бёдра вперёд, голени вниз, руки на руле.</summary>
         public void Seated()
         {
@@ -184,7 +208,9 @@ namespace GasQueue
         const float RepTime = 1.25f;
         const float ParkZ = 10f;
 
-        enum Step { Waiting, Driving, Parked, ToSpot, Squatting, ToCar, Leaving }
+        enum Step { Waiting, Driving, Parked, ToSpot, Squatting, Selfie, ToCar, Leaving }
+
+        public static Davidych Instance { get; private set; }
 
         TrafficManager traffic;
         Step step = Step.Waiting;
@@ -217,6 +243,98 @@ namespace GasQueue
         public void Init(TrafficManager t)
         {
             traffic = t;
+            Instance = this;
+        }
+
+        void OnDestroy()
+        {
+            if (Instance == this) Instance = null;
+        }
+
+        // ---------- Фото с Давидычем ----------
+
+        static readonly string[] Refuse =
+        {
+            "Не сбивай, у меня подход!", "Досижу — тогда сфоткаемся.", "Брат, я считаю! Сбил меня — заново начну!",
+        };
+        static readonly string[] Agree =
+        {
+            "Давай, только быстро!", "Для подписчиков — всегда!", "Ну давай, щас очки надену.",
+        };
+        static readonly string[] AfterPhoto =
+        {
+            "Отметь меня, не забудь!", "Всё, подход продолжаю!", "Нормально вышли! Так, на чём я остановился...",
+        };
+        float askCooldown;
+        int asks;
+        float selfieT;
+        bool photoTaken;
+
+        /// <summary>Можно попросить фото: стоим пешком рядом, пока он приседает.</summary>
+        public bool CanPhoto(Vector3 me) =>
+            step == Step.Squatting && walker != null && askCooldown <= 0f &&
+            Vector3.Distance(new Vector3(me.x, 0f, me.z), walker.transform.position) < 2.4f;
+
+        public void AskPhoto()
+        {
+            if (!CanPhoto(GameManager.Instance.Walker.transform.position)) return;
+            asks++;
+            // Обычно соглашается; если отказал — со второй-третьей просьбы точно согласится
+            bool yes = asks >= 3 || Random.value < 0.7f;
+            if (!yes)
+            {
+                askCooldown = 4f;
+                SpeechBubble.Show(walker.transform, Refuse[Random.Range(0, Refuse.Length)], 1.95f);
+                return;
+            }
+            asks = 0;
+            SpeechBubble.Show(walker.transform, Agree[Random.Range(0, Agree.Length)], 1.95f);
+            step = Step.Selfie;
+            selfieT = 0f;
+            photoTaken = false;
+            walker.Stand();
+            walker.SetGlasses(true);
+            var gm = GameManager.Instance;
+            gm.Walker.DropCigarette();
+            gm.Walker.Posing = true;
+        }
+
+        void UpdateSelfie(float dt)
+        {
+            var gm = GameManager.Instance;
+            var me = gm.Walker;
+            if (walker == null || me == null) { Reset(); return; }
+            selfieT += dt;
+            // Встаём рядом: игрок — слева от Давидыча, оба смотрят в одну сторону
+            var dav = walker.transform;
+            var target = dav.position - dav.right * 0.62f;
+            me.transform.position = Vector3.Lerp(me.transform.position, target, Mathf.Clamp01(dt * 6f));
+            me.transform.rotation = Quaternion.Slerp(me.transform.rotation, dav.rotation, Mathf.Clamp01(dt * 6f));
+            float pose = Mathf.Clamp01((selfieT - 0.3f) / 0.6f);
+            walker.SelfiePose(pose);
+            me.Rig.Selfie = pose > 0.05f;
+            me.Rig.SelfieAmount = pose;
+
+            if (!photoTaken && selfieT > 1.7f)
+            {
+                photoTaken = true;
+                var photo = SelfieCamera.Take(me, walker);
+                SelfieCard.Show(photo, "С Давидычем на заправке");
+                gm.OnDavidychSelfie();
+            }
+            if (selfieT > 2.6f)
+            {
+                me.Posing = false;
+                me.Rig.Selfie = false;
+                me.Rig.SelfieAmount = 0f;
+                walker.SetGlasses(false);
+                walker.Stand();
+                SpeechBubble.Show(walker.transform, AfterPhoto[Random.Range(0, AfterPhoto.Length)], 1.95f);
+                Face(spotFacing);
+                askCooldown = 25f; // одно фото за подход
+                step = Step.Squatting;
+                repTimer = 0f;
+            }
         }
 
         // Маршруты: A — по левому ряду мимо очереди, через пустую правую полосу (между въездом и выездом) на тротуар;
@@ -245,6 +363,7 @@ namespace GasQueue
         {
             float dt = Time.deltaTime;
             if (dt <= 0f || traffic == null) return;
+            askCooldown -= dt;
             var gm = GameManager.Instance;
             if (gm == null || gm.State == GameState.Finished) return;
 
@@ -283,6 +402,9 @@ namespace GasQueue
                     break;
                 case Step.Squatting:
                     UpdateSquats(dt);
+                    break;
+                case Step.Selfie:
+                    UpdateSelfie(dt);
                     break;
                 case Step.ToCar:
                     if (car == null) { Reset(); break; }
@@ -412,6 +534,12 @@ namespace GasQueue
 
         void Reset()
         {
+            var gm = GameManager.Instance;
+            if (gm != null && gm.Walker != null && gm.Walker.Posing)
+            {
+                gm.Walker.Posing = false;
+                gm.Walker.Rig.Selfie = false;
+            }
             if (walker != null)
             {
                 traffic.Pedestrians.Remove(walker.transform);

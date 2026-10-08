@@ -72,6 +72,9 @@ namespace GasQueue
 
         public void Hide() => gameObject.SetActive(false);
 
+        /// <summary>Стоит на месте и позирует (ходьба и прыжки отключены).</summary>
+        public bool Posing;
+
         GiantCigarette cigarette;
         public bool Smoking => cigarette != null;
 
@@ -135,6 +138,14 @@ namespace GasQueue
             {
                 DropShashlik();
                 gm?.OnShashlikFinished(false);
+            }
+            // Позирует для фото (селфи с Давидычем): стоит на месте, позу задаёт сценарий
+            if (Posing)
+            {
+                Speed = 0f;
+                Rig.Airborne = false;
+                Rig.Animate(0f, dt);
+                return;
             }
             if (Fighter.Down)
             {

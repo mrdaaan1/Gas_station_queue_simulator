@@ -397,6 +397,11 @@ namespace GasQueue
             {
                 // подсказка уже показана выше
             }
+            else if (Davidych.Instance != null && Davidych.Instance.CanPhoto(me))
+            {
+                Prompt = "E — попросить фото с Давидычем";
+                if (GameInput.InteractPressed) Davidych.Instance.AskPhoto();
+            }
             else if (ShashlikStand.Instance != null && Vector3.Distance(me, CityLayout.ShashlikOrder) < 1.7f)
             {
                 var stand = ShashlikStand.Instance;
@@ -865,6 +870,14 @@ namespace GasQueue
             Cash -= ShashlikStand.Price;
             MoneySpent += ShashlikStand.Price;
             stand.OrderForPlayer(choice == 2);
+        }
+
+        public int DavidychSelfies { get; private set; }
+
+        public void OnDavidychSelfie()
+        {
+            DavidychSelfies++;
+            if (DavidychSelfies == 1) ShowMessage("Фото с Давидычем! Теперь есть что показать в очереди.", 6f);
         }
 
         public void OnShashlikServed()
@@ -1454,6 +1467,7 @@ namespace GasQueue
             if (WaitedCashierBreak) list.Add("Перерыв 15 минут");
             if (TerminalRefusals >= 1) list.Add("Терминал не работает, только наличные");
             if (ShashlikEaten >= 1) list.Add("Шашлык в очереди");
+            if (DavidychSelfies >= 1) list.Add("Фото с Давидычем");
             if (PedestriansHit >= 1) list.Add("Кегельбан: сбил пешехода");
             if (PedestriansHit >= 5) list.Add("Гроза тротуаров");
             if (FixerScams >= 1) list.Add($"Место в первой пятёрке (минус {Vendor.FixerPrice} руб.)");
