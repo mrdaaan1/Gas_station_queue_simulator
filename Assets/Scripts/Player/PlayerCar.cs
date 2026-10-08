@@ -356,7 +356,11 @@ namespace GasQueue
             // В гонке машина крепче, как в аркадных гонках: удар мнёт бампер, но с одного раза не разваливается
             float severity = raceFuel ? Mathf.Min(impact / 3f * 0.25f, 0.55f) : impact / 3f;
             var velocity = fwd * (ourFront ? impact : -impact);
-            string report = damage.Hit(ourFront, severity, velocity);
+            // Прочность за удар: раньше ~4,7 % на каждый м/с (в 25 км/ч — треть машины) — слишком хрупко.
+            // Теперь ~1,9 % на м/с и не больше 22 % за один удар: в 25 км/ч ≈ 13 %, в 50 км/ч ≈ 22 %
+            float wear = raceFuel ? 1f : 0.4f;
+            if (!raceFuel && severity * 14f * wear > 22f) wear = 22f / (severity * 14f);
+            string report = damage.Hit(ourFront, severity, velocity, wear);
             if (damage.Wrecked) ForceEngineOff();
 
             crash.pitch = Random.Range(0.85f, 1.1f);

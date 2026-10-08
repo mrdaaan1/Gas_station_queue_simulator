@@ -9,6 +9,18 @@ public static class Stall { static NpcCar car; static float t0=-1, next; public 
       if(behind!=null){ float ms=tr.MiddlePath.Project(behind.Position,out _); if(tr.LaneClearNear(tr.MiddlePath,ms,14f,behind)){ behind.BypassStalled(car.S+car.Length/2+2); Bypasses++; GameManager.Log($"BYPASS {behind.gameObject.name} gap={gap:F0}"); } } }
     if(Mathf.Repeat(Time.time,10f)<Time.deltaTime) GameManager.Log($"  stalled gap={gap:F0}");
   } }
+public static class Dav { static NpcCar car; static int phase; static float t0=-1, parkedAt; static bool sideA=true; public static int Visits;
+  static Vector3 P(float x,float z)=>CityLayout.P(x,z);
+  static LanePath InA()=>new LanePath("DavInA",17f,new[]{P(1.75f,CityLayout.RoadStartZ),P(1.75f,-30f),P(5.25f,-16f),P(8.75f,-4f),P(11.4f,4.5f),P(12.2f,10f)});
+  static LanePath OutA()=>new LanePath("DavOutA",15f,new[]{P(12.2f,10f),P(11.2f,17f),P(8f,24f),P(5.25f,33f),P(1.75f,46f),P(1.75f,CityLayout.RoadEndZ)});
+  static LanePath InB()=>new LanePath("DavInB",17f,new[]{P(-1.75f,CityLayout.RoadEndZ),P(-1.75f,40f),P(-5.25f,30f),P(-8.75f,21f),P(-11.4f,15.5f),P(-12.2f,10f)});
+  static LanePath OutB()=>new LanePath("DavOutB",15f,new[]{P(-12.2f,10f),P(-11.2f,3f),P(-8.75f,-5f),P(-8.75f,CityLayout.RoadStartZ)});
+  public static void Tick(TrafficManager tr){
+    if(phase==0 && Time.time>t0+20){ var path=sideA?InA():InB(); float s=sideA?path.Project(P(1.75f,Mathf.Clamp(tr.Player.Position.z-70f,CityLayout.RoadStartZ+20f,-80f)),out _):path.Project(P(-1.75f,300f),out _); var at=path.PointAt(s); if(!tr.AreaClear(at,sideA?3.2f:10f)) return; if(sideA && !tr.LaneClearNear(tr.LeftPath,tr.LeftPath.Project(at,out _),25f)) return; var v=CarFactory.Build("DAVIDYCH",Color.white,CarModel.Vaz2107,false); v.length=4.88f; v.width=1.96f; car=tr.SpawnScripted(v,path,s,true); phase=1; t0=Time.time; GameManager.Log($"DAV spawn side={(sideA?"A":"B")} z={car.Position.z:F0}"); }
+    else if(phase==1){ if(car==null||car.destroyed){GameManager.Log("DAV lost");phase=0;return;} if(car.Parked){ phase=2; parkedAt=Time.time; GameManager.Log($"DAV parked after {Time.time-t0:F0}s at ({car.Position.x:F1},{car.Position.z:F1})"); } else if(Time.time-t0>90 && Mathf.Repeat(Time.time,10f)<Time.deltaTime) GameManager.Log($"DAV slow: pos=({car.Position.x:F1},{car.Position.z:F1}) v={car.Speed:F1} by={(car.BlockedBy==null?"-":car.BlockedBy.gameObject.name)}"); }
+    else if(phase==2 && Time.time-parkedAt>40){ car.Continue(sideA?OutA():OutB(),false); phase=3; t0=Time.time; }
+    else if(phase==3){ if(car==null||car.destroyed){ Visits++; GameManager.Log($"DAV left after {Time.time-t0:F0}s"); sideA=!sideA; phase=0; t0=Time.time; } else if(Time.time-t0>90 && Mathf.Repeat(Time.time,10f)<Time.deltaTime) GameManager.Log($"DAV out slow: pos=({car.Position.x:F1},{car.Position.z:F1}) v={car.Speed:F1} by={(car.BlockedBy==null?"-":car.BlockedBy.gameObject.name)}"); }
+  } }
 public static class Sim { public static bool Verbose; public static int HonkedAt;
  static void Main(string[] args){
   if(args.Length>0 && args[0]=="tlt-track"){ // трасса по Тольятти: ось, полосы, профиль скорости, перекрытия
@@ -42,6 +54,7 @@ public static class Sim { public static bool Verbose; public static int HonkedAt
     if(race) foreach(var r in traffic.Racers){ if(r.destroyed) continue; string st=r.Role+"/"+r.Path?.name; if(!racerLog.TryGetValue(r,out var was) || was!=st){ racerLog[r]=st; if(Verbose || r.Role!=NpcRole.Racing) GameManager.Log($"  {r.RacerName}: {st} z={r.Position.z:F0} v={r.Speed:F1}"); } }
     // Сценарий «водитель ушёл за шашлыком»: машина впереди игрока стоит минуту, соседи сзади объезжают её
     if(System.Environment.GetEnvironmentVariable("SIM_STALL")!=null && !race){ Stall.Tick(traffic); }
+    if(System.Environment.GetEnvironmentVariable("SIM_DAV")!=null && !race){ Dav.Tick(traffic); }
     var list=GameObject.All.Where(c=>!c.destroyed && c is MonoBehaviour && c.gameObject.activeSelf).OrderBy(c=>c.GetType().GetCustomAttribute<DefaultExecutionOrder>()?.order??0).ToList();
     foreach(var c in list){ if(c.destroyed) continue; var ty=c.GetType(); if(!cache.TryGetValue(ty,out var m)){ m=ty.GetMethod("Update",BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public); cache[ty]=m; } m?.Invoke(c,null); }
     foreach(var n in traffic.Npcs){ if(n.IsGas){ if(n.Role==NpcRole.ToGas) gasIn.Add(n); if(n.Role==NpcRole.GasFueling) gasFuel.Add(n); if(n.Role==NpcRole.Exiting) gasOut.Add(n);} if(n.Role==NpcRole.Exiting) exiting.Add(n); if(n.Role==NpcRole.Cutter) wasCutter.Add(n); else if(wasCutter.Remove(n) && n.Role==NpcRole.Queue) cutIns++; }

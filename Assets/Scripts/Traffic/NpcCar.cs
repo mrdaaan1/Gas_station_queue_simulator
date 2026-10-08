@@ -682,6 +682,21 @@ namespace GasQueue
             StartFueling(progress);
         }
 
+        /// <summary>Доехала до конца маршрута и стоит (для машин со StopAtEnd).</summary>
+        public bool Parked => StopAtEnd && !moving && S >= Path.Length - 0.3f;
+
+        /// <summary>Стояла в конце маршрута — трогается по новому (в конце которого исчезнет, если не stopAtEnd).</summary>
+        public void Continue(LanePath path, bool stopAtEnd)
+        {
+            traffic.AddPath(path);
+            Path = path;
+            S = 0f;
+            Offset = targetOffset = 0f;
+            StopAtEnd = stopAtEnd;
+            moving = false;
+            Speed = 0f;
+        }
+
         /// <summary>Новая машина подъезжает к хвосту очереди уже на ходу.</summary>
         public void StartRolling(float speed)
         {

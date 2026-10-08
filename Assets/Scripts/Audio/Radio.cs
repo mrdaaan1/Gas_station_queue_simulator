@@ -82,7 +82,8 @@ namespace GasQueue
             voice.spatialBlend = 0f;
 
             var list = new System.Collections.Generic.List<Station>();
-            var tracks = Resources.LoadAll<AudioClip>(MusicFolder);
+            // Свои треки — только в гонках; в очереди играют обычные станции
+            var tracks = RaceOnly ? Resources.LoadAll<AudioClip>(MusicFolder) : new AudioClip[0];
             if (tracks.Length > 0)
             {
                 // Перемешиваем, чтобы каждый заезд начинался с другого трека

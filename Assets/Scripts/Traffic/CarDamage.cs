@@ -35,7 +35,8 @@ namespace GasQueue
         /// Удар. severity ≈ скорость удара / 3 м/с. velocity — скорость машины, чтобы обломки летели по инерции.
         /// Возвращает описание того, что отвалилось (или null).
         /// </summary>
-        public string Hit(bool front, float severity, Vector3 velocity)
+        /// <param name="wearScale">Доля прочности за удар (по умолчанию severity × 14 %).</param>
+        public string Hit(bool front, float severity, Vector3 velocity, float wearScale = 1f)
         {
             float value = (front ? Front : Rear) + severity;
             if (front) Front = value; else Rear = value;
@@ -45,7 +46,7 @@ namespace GasQueue
             var lights = front ? v.headlights : v.taillights;
             var panel = front ? v.frontPanel : v.rearPanel;
             float sign = front ? 1f : -1f;
-            string report = Wear(severity * 14f, velocity);
+            string report = Wear(severity * 14f * wearScale, velocity);
 
             if (value >= 0.35f && Once("dent" + end))
             {

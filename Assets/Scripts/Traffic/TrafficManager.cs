@@ -487,6 +487,26 @@ namespace GasQueue
             RacerFinished?.Invoke(racer);
         }
 
+        /// <summary>Добавить свой маршрут после Init (машины на нём держат дистанцию, как на остальных).</summary>
+        public void AddPath(LanePath path)
+        {
+            if (lanes.ContainsKey(path)) return;
+            allPaths.Add(path);
+            lanes[path] = new List<PathEntry>();
+        }
+
+        /// <summary>
+        /// Машина по сценарию (например, BMW Давидыча): едет по своему маршруту как обычная «мимо проезжающая»,
+        /// держит дистанцию и тормозит перед препятствиями. stopAtEnd — встать в конце маршрута.
+        /// </summary>
+        public NpcCar SpawnScripted(CarVisual visual, LanePath path, float s, bool stopAtEnd)
+        {
+            AddPath(path);
+            var npc = Wrap(visual, ServiceKind.None);
+            npc.Setup(NpcRole.Through, path, s, stopAtEnd);
+            return npc;
+        }
+
         public void Despawn(NpcCar npc)
         {
             if (!despawnList.Contains(npc)) despawnList.Add(npc);
