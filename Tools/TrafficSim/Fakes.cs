@@ -4,7 +4,7 @@ public enum CarModel { Vaz2107, Rio, Niva, Gazelle, Maybach }
 public class VipLights : MonoBehaviour { public void Whoop(){} }
 public enum BrawlReason { Crash, CutIn, Roof }
 // Водитель, который ходит платить на кассу: в симуляторе — просто задержка на дорогу и очередь
-public class PumpCustomer { NpcCar car; float t0, walk; bool paid; public bool Paid=>paid||Time.time-t0>walk; public bool Done=>Paid&&car.FuelProgress>=1f;
+public class PumpCustomer { NpcCar car; float t0, walk; bool paid; public bool Stolen=>false; public bool Paid=>paid||Time.time-t0>walk; public bool Done=>Paid&&car.FuelProgress>=1f;
  public static PumpCustomer Spawn(NpcCar c,TrafficManager t,bool alreadyPaid)=>new PumpCustomer{car=c,t0=Time.time,paid=alreadyPaid,walk=UnityEngine.Random.Range(14f,22f)}; }
 public enum VendorKind { Canister, Pies, Seeds, Fixer }
 public static class CarModels { public static CarModel Random(out bool taxi){ taxi=UnityEngine.Random.value<0.2f; return (CarModel)UnityEngine.Random.Range(0,4);} public static Color RandomPaint(CarModel m,bool t)=>Color.white; public static void GasSticker(CarVisual v){} }

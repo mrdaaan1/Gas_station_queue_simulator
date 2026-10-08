@@ -397,6 +397,16 @@ namespace GasQueue
             {
                 // подсказка уже показана выше
             }
+            else if (!NozzleIn && !PlayerFueled && !RaceMode && NozzleToSteal(me, out var victim, out bool carClose))
+            {
+                if (!carClose)
+                    Prompt = "Чтобы отжать пистолет, подгоните свою машину вплотную к этой колонке";
+                else
+                {
+                    Prompt = $"E — отжать пистолет (≈{victim.RemainingLiters:0} л, водитель будет недоволен)";
+                    if (GameInput.InteractPressed) StealNozzle(victim);
+                }
+            }
             else if (Davidych.Instance != null && Davidych.Instance.CanPhoto(me))
             {
                 Prompt = "E — попросить фото с Давидычем";
@@ -1108,6 +1118,53 @@ namespace GasQueue
                 : "Заправляемся... Счётчик ползёт мучительно медленно.", 7f);
         }
 
+        // ---------- Отжать пистолет ----------
+
+        public int NozzlesStolen { get; private set; }
+        public int NozzleOwnersCalmed { get; private set; }
+
+        /// <summary>Рядом с лючком чужой машины, в которую льётся бензин. carClose — наша машина у той же колонки (шланг дотянется).</summary>
+        bool NozzleToSteal(Vector3 me, out PumpCustomer victim, out bool carClose)
+        {
+            victim = null;
+            carClose = false;
+            foreach (var c in PumpCustomer.All)
+            {
+                if (c == null || !c.CanSteal) continue;
+                var cap = c.Car.transform.TransformPoint(c.Car.visual.fuelCapLocal);
+                cap.y = 0f;
+                var at = new Vector3(me.x, 0f, me.z);
+                if (Vector3.Distance(at, cap) > 1.9f && Vector3.Distance(at, c.Car.Pump.dispenser) > 1.6f) continue;
+                victim = c;
+                carClose = Vector3.Distance(Player.Position, c.Car.Pump.dispenser) < 6.5f;
+                return true;
+            }
+            return false;
+        }
+
+        void StealNozzle(PumpCustomer victim)
+        {
+            if (Player.Engine != EngineState.Off)
+            {
+                ShowMessage("Мотор работает! Сядьте (F), заглушите (I) — потом отжимайте.");
+                return;
+            }
+            float liters = victim.RemainingLiters;
+            var pump = victim.Car.Pump;
+            victim.StealNozzle();
+            NozzlesStolen++;
+            PaidLiters = Mathf.Max(PaidLiters, LitersFilled + liters);
+            StartFueling(pump);
+            ShowMessage($"Вы отжали пистолет! Его ≈{liters:0} л теперь ваши. Хозяин бензина идёт бить морду — уложите его, и он успокоится. " +
+                        "Заправились хоть сколько — можно уезжать.", 10f);
+        }
+
+        public void OnNozzleOwnerCalmed()
+        {
+            NozzleOwnersCalmed++;
+            ShowMessage("Хозяин пистолета успокоился и поплёлся к своей машине. Без бензина.", 6f);
+        }
+
         void UpdateFueling(float dt)
         {
             if (!NozzleIn) return;
@@ -1468,6 +1525,8 @@ namespace GasQueue
             if (TerminalRefusals >= 1) list.Add("Терминал не работает, только наличные");
             if (ShashlikEaten >= 1) list.Add("Шашлык в очереди");
             if (DavidychSelfies >= 1) list.Add("Фото с Давидычем");
+            if (NozzlesStolen >= 1) list.Add("Отжал пистолет");
+            if (NozzleOwnersCalmed >= 1) list.Add("Бензин по праву сильного");
             if (PedestriansHit >= 1) list.Add("Кегельбан: сбил пешехода");
             if (PedestriansHit >= 5) list.Add("Гроза тротуаров");
             if (FixerScams >= 1) list.Add($"Место в первой пятёрке (минус {Vendor.FixerPrice} руб.)");

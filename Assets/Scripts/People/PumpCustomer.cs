@@ -11,7 +11,7 @@ namespace GasQueue
     /// </summary>
     public class PumpCustomer : MonoBehaviour
     {
-        enum Step { ToNozzle, Nozzle, ToShop, InLine, Paying, ToPump, WaitFuel, HangUp, ToCar, ToAtm, AtAtm }
+        enum Step { ToNozzle, Nozzle, ToShop, InLine, Paying, ToPump, WaitFuel, HangUp, ToCar, ToAtm, AtAtm, Chase }
 
         static readonly string[] CardLines =
         {
@@ -36,7 +36,44 @@ namespace GasQueue
         static readonly string[] HitLines = { "Ты чё творишь?!", "Охрана!", "Мужик, ты больной?!", "Полиция!", "Ну всё, держись!" };
         static readonly string[] UpLines = { "Псих... Ладно, в конец так в конец.", "Я на тебя жалобу напишу!", "Ну и очередь у вас тут..." };
 
+        static readonly string[] StolenLines =
+        {
+            "Э! Это мой пистолет!", "Ты чё, офигел?! Я оплатил!", "Сюда иди, умник!", "Ну всё, тебе конец!", "Мой бензин! Положи на место!",
+        };
+        static readonly string[] ChaseLines = { "Стой, гад!", "Отдай бензин!", "Я тебе щас устрою!", "Выходи, поговорим!" };
+        static readonly string[] CalmLines =
+        {
+            "Всё-всё... Забирай, подавись своим бензином.", "Ладно, псих, твоя взяла.", "Пусть тебе этот бензин поперёк горла встанет...",
+        };
+        static readonly string[] GiveUpLines = { "Ну и вали! Номер я запомнил!", "Чтоб у тебя колесо отвалилось!" };
+
         public static readonly List<PumpCustomer> All = new List<PumpCustomer>();
+
+        /// <summary>Пистолет «отжал» игрок: бензин этой машине больше не льётся, водитель идёт драться.</summary>
+        public bool Stolen { get; private set; }
+        public NpcCar Car => car;
+        float tankLiters = 35f;
+        float chaseTalk, kickTimer;
+
+        /// <summary>Можно отжать: заплатил, пистолет вставлен, бензин ещё льётся.</summary>
+        public bool CanSteal => !Stolen && Paid && hose != null && hose.gameObject.activeSelf && car != null && car.Pump != null &&
+                                car.Role == NpcRole.Fueling && car.FuelProgress < 0.97f && !Fighter.Down;
+
+        /// <summary>Сколько ещё должно было налиться в его бак.</summary>
+        public float RemainingLiters => car == null ? 0f : Mathf.Max(5f, tankLiters * (1f - car.FuelProgress));
+
+        /// <summary>Игрок перекинул пистолет в свою машину.</summary>
+        public void StealNozzle()
+        {
+            Stolen = true;
+            hose.gameObject.SetActive(false);
+            CashierLine.Leave(this);
+            route.Clear();
+            step = Step.Chase;
+            timer = 0f;
+            chaseTalk = 3f;
+            Say(StolenLines);
+        }
 
         public bool Paid { get; private set; }
         public bool Done { get; private set; }
@@ -72,6 +109,7 @@ namespace GasQueue
             c.lastHealth = c.Fighter.Health;
             c.walkSpeed = Mathf.Min(2.6f, 1.5f * Mathf.Sqrt(traffic.Settings.Speedup));
             c.hasCash = Random.value < 0.6f; // у остальных — только карта
+            c.tankLiters = Random.Range(28f, 45f);
 
             var t = car.transform;
             float hw = car.Width / 2f, hl = car.Length / 2f;
@@ -145,8 +183,19 @@ namespace GasQueue
             }
             if (wasDown)
             {
-                // Встал, отряхнулся — в конец очереди (или дальше по своим делам)
                 wasDown = false;
+                if (Stolen)
+                {
+                    // Получил своё — успокоился, садится в машину и уезжает без бензина
+                    Say(CalmLines);
+                    angryTimer = 0f;
+                    var door0 = car.DriverDoor;
+                    door0.y = 0f;
+                    Go(Step.ToCar, door0);
+                    GameManager.Instance?.OnNozzleOwnerCalmed();
+                    return;
+                }
+                // Встал, отряхнулся — в конец очереди (или дальше по своим делам)
                 Say(UpLines);
                 if (step == Step.InLine || step == Step.Paying) Go(Step.InLine);
             }
@@ -157,10 +206,13 @@ namespace GasQueue
                 Say(HitLines);
             }
             lastHealth = Fighter.Health;
-            if (angryTimer > 0f && FightBack(dt)) return;
+            if (step != Step.Chase && angryTimer > 0f && FightBack(dt)) return;
 
             switch (step)
             {
+                case Step.Chase:
+                    speed = Chase(dt);
+                    break;
                 case Step.ToNozzle:
                     speed = Walk(dt);
                     if (speed == 0f) { step = Step.Nozzle; timer = 0f; }
@@ -290,6 +342,48 @@ namespace GasQueue
             UpdateHose();
             rig.Animate(0f, dt);
             return true;
+        }
+
+        /// <summary>Идёт бить морду тому, кто отжал пистолет: пешком — дерётся, в машине — колотит по машине.</summary>
+        float Chase(float dt)
+        {
+            var gm = GameManager.Instance;
+            if (gm == null) return 0f;
+            chaseTalk -= dt;
+            if (chaseTalk <= 0f) { chaseTalk = Random.Range(4f, 7f); Say(ChaseLines); }
+            Vector3 target;
+            bool onFoot = gm.OnFoot && gm.Walker != null && gm.Walker.Active;
+            if (onFoot) target = gm.Walker.transform.position;
+            else target = gm.Player.DriverDoor;
+            target.y = 0f;
+            // Уехал далеко — плюнул и пошёл к своей машине
+            if (!onFoot && Vector3.Distance(transform.position, target) > 35f)
+            {
+                Say(GiveUpLines);
+                var door = car.DriverDoor;
+                door.y = 0f;
+                Go(Step.ToCar, door);
+                return 0f;
+            }
+            float speed = MoveTo(target, walkSpeed * 1.5f, onFoot ? 1.0f : 0.9f, dt);
+            if (speed > 0f) return speed;
+            Face(onFoot ? gm.Walker.transform.position : gm.Player.Position, dt);
+            if (onFoot)
+            {
+                if (Fighter.CanPunch && Random.value < 0.7f)
+                    Fighter.Punch(gm.Walker.Fighter, 6f, 12f, Random.Range(0.9f, 1.4f));
+            }
+            else
+            {
+                kickTimer -= dt;
+                if (kickTimer <= 0f)
+                {
+                    kickTimer = Random.Range(1.2f, 2f);
+                    rig.Kick();
+                    gm.Player.OnKickedByNpc(transform.position);
+                }
+            }
+            return 0f;
         }
 
         void KnockedDown()

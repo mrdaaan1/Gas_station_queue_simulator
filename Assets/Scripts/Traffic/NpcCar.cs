@@ -300,7 +300,7 @@ namespace GasQueue
                 if (customer != null)
                 {
                     // Водитель ходит платить: бензин льётся только после оплаты, уезжаем, когда он сел обратно
-                    if (customer.Paid) serviceTimer = Mathf.Min(serviceDuration, serviceTimer + dt);
+                    if (customer.Paid && !customer.Stolen) serviceTimer = Mathf.Min(serviceDuration, serviceTimer + dt); // пистолет отжали — не льётся
                     if (customer.Done)
                     {
                         customer = null;
