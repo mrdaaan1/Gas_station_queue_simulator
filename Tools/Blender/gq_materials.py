@@ -63,7 +63,7 @@ SPEC = {
     'leather_tan': ('#c49a6c', 0.5, 0.0), 'leather_cream': ('#d9ccb4', 0.5, 0.0), 'int_beige': ('#cbbfa8', 0.7, 0.0),
     'carpet_beige': ('#8a7a63', 1.0, 0.0), 'int_roof_light': ('#cfc8bb', 0.9, 0.0), 'piano_black': ('#050506', 0.06, 0.0),
     'wood_dark': ('#4a3a30', 0.35, 0.0), 'eye_white': ('#f4f1e6', 0.12, 0.0), 'teeth': ('#eee2bf', 0.35, 0.0),
-    'mouth': ('#1e0b07', 0.8, 0.0), 'rust_dark': ('#3d2416', 0.85, 0.0), 'tongue': ('#8a2c2a', 0.4, 0.0), 'seat_brown': ('#6b3e26', 0.55, 0.0), 'steel_dark': ('#3b3f39', 0.6, 0.3), 'lamp_off': ('#3a2a10', 0.5, 0.0), 'alloy_machined': ('#d2d5d9', 0.18, 1.0), 'rim_gunmetal': ('#3a3d42', 0.35, 0.8), 'leather_red': ('#9e1219', 0.5, 0.0), 'stripe': ('#2f7fe0', 0.35, 0.0), 'stripe_dark': ('#1d3fae', 0.35, 0.0),
+    'mouth': ('#1e0b07', 0.8, 0.0), 'rust_dark': ('#3d2416', 0.85, 0.0), 'tongue': ('#8a2c2a', 0.4, 0.0), 'cloth_dark': ('#1e1f22', 0.9, 0.0), 'cloth_red': ('#a3141c', 0.85, 0.0), 'stitch_red': ('#c41620', 0.6, 0.0), 'caliper_yellow': ('#f2c414', 0.35, 0.0), 'tail_clear': ('#e2e8ee', 0.1, 0.3), 'seat_brown': ('#6b3e26', 0.55, 0.0), 'steel_dark': ('#3b3f39', 0.6, 0.3), 'lamp_off': ('#3a2a10', 0.5, 0.0), 'alloy_machined': ('#d2d5d9', 0.18, 1.0), 'rim_gunmetal': ('#3a3d42', 0.35, 0.8), 'leather_red': ('#9e1219', 0.5, 0.0), 'stripe': ('#2f7fe0', 0.35, 0.0), 'stripe_dark': ('#1d3fae', 0.35, 0.0),
 }
 EMIT = {
     'lamp_glow': ('#fff7e0', '#fff2c8', 3.0), 'amber': ('#ff8a1c', '#ff7a00', 0.6), 'tail_red': ('#c8121a', '#ff1010', 1.0),
@@ -78,7 +78,7 @@ def get_mat(key):
         import os as _os
         m = image_mat(key, _os.path.join(tex_dir, key + ".png"), TEXTURED[key], 0.0)
     elif key == 'paint' and paint_color:
-        m = principled(key, paint_color, 0.22, 0.85, coat=1.0)   # металлик под лаком
+        m = principled(key, paint_color, 0.22, float(os.environ.get("PAINT_METAL", "0.85")), coat=1.0)   # металлик под лаком
     elif key == 'paint' and camo_path:
         m = image_mat(key, camo_path, 0.08, 1.0, coat=0.6)    # хромированная плёнка: металл с зеркальным блеском
     elif key == 'decal_pit' and decal_path:

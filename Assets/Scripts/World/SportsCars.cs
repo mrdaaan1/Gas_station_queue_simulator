@@ -4,7 +4,7 @@ using UnityEngine;
 namespace GasQueue
 {
     /// <summary>Машины, которые может выбрать игрок.</summary>
-    public enum PlayerCarKind { Vaz2107, Supra, Gelik, Skyline, Rx7, S2000, X5, A7, Mater }
+    public enum PlayerCarKind { Vaz2107, Supra, Gelik, Skyline, Rx7, S2000, X5, A7, Mater, Granta }
 
     /// <summary>
     /// Спорткары из гладких сеток (<see cref="SupraModel"/> и следующие): собирает объекты Unity
@@ -14,7 +14,7 @@ namespace GasQueue
     {
         public static string Title(PlayerCarKind kind) =>
             kind == PlayerCarKind.Supra ? "Тоёта Супра (1997)" : kind == PlayerCarKind.Gelik ? "Гелик (2025)" :
-            kind == PlayerCarKind.Skyline ? "Скайлайн GT-R (1999)" : kind == PlayerCarKind.Rx7 ? "Мазда RX-7 (1993)" : kind == PlayerCarKind.S2000 ? "Хонда S2000 (2001)" : kind == PlayerCarKind.X5 ? "БМВ Х5 М — тачка Давидыча" : kind == PlayerCarKind.A7 ? "Ауди A7 Sportback (2019)" : kind == PlayerCarKind.Mater ? "Мэтр — эвакуатор из «Тачек»" : "ВАЗ-2107";
+            kind == PlayerCarKind.Skyline ? "Скайлайн GT-R (1999)" : kind == PlayerCarKind.Rx7 ? "Мазда RX-7 (1993)" : kind == PlayerCarKind.S2000 ? "Хонда S2000 (2001)" : kind == PlayerCarKind.X5 ? "БМВ Х5 М — тачка Давидыча" : kind == PlayerCarKind.A7 ? "Ауди A7 Sportback (2019)" : kind == PlayerCarKind.Mater ? "Мэтр — эвакуатор из «Тачек»" : kind == PlayerCarKind.Granta ? "Лада Гранта Sport — заниженная" : "ВАЗ-2107";
 
         /// <summary>Розовая, как у Суки.</summary>
         public static readonly Color S2000Pink = Shapes.Hex("#f24fa0");
@@ -33,6 +33,9 @@ namespace GasQueue
 
         /// <summary>Серебристый металлик «Флорет», как на фото A7.</summary>
         public static readonly Color A7Silver = Shapes.Hex("#b8bcc1");
+
+        /// <summary>Чёрный глянец Гранты.</summary>
+        public static readonly Color GrantaBlack = Shapes.Hex("#0b0c0e");
 
         /// <summary>Цвет по умолчанию — как у красной «Супры» с фото.</summary>
         public static readonly Color SupraRed = Shapes.Hex("#b80f18");
@@ -255,6 +258,75 @@ namespace GasQueue
         }
 
         static Model X5Source() => FileOr("X5", X5Model.Get);
+
+        /// <summary>
+        /// «Лада Гранта Sport»: чёрная, заниженная, обвес (сплиттер, юбки, спойлер, диффузор), 17" чёрные «турбины»
+        /// с жёлтыми суппортами; салон чёрный с красным, стрелочные приборы. Модель — Models/Granta.bytes (car_build.py granta).
+        /// </summary>
+        public static CarVisual BuildGranta(string name, Color paint)
+        {
+            var root = new GameObject(name).transform;
+            var visual = root.gameObject.AddComponent<CarVisual>();
+            var map = ModelSpawner.Spawn(FileOr("Granta", GrantaModel.Get).root, root, key => CarMaterials.Get(key == "glass" ? "glass_tint" : key, paint, 0.92f));
+
+            visual.body = map["Body"];
+            visual.length = 4.40f;
+            visual.width = 1.70f;
+            visual.height = 1.44f;
+            visual.hoodTop = 0.94f;
+            visual.rightHandDrive = false;
+            visual.maxSpeed = 53f;        // ~190 км/ч — «спорт» с прошитым мозгом
+            visual.accel = 6.0f;
+            visual.speedoMaxKmh = 220f;
+            visual.wheelRadius = GrantaModel.WheelR;
+            visual.sporty = true;
+
+            foreach (var tag in new[] { "FL", "FR", "RL", "RR" })
+                visual.wheels.Add(map["Wheel" + tag]);
+            visual.frontSteer.Add(map["SteerFL"]);
+            visual.frontSteer.Add(map["SteerFR"]);
+
+            visual.steeringWheel = map["SteeringWheel"];
+            visual.steeringTilt = GrantaModel.SteeringTilt;
+            visual.speedNeedle = map["SpeedNeedle"];
+            visual.fuelNeedle = map["FuelNeedle"];
+            visual.tachNeedle = map["TachNeedle"];
+            visual.fuelLamp = map["FuelLamp"].GetComponent<Renderer>();
+            visual.engineLamp = map["EngineLamp"].GetComponent<Renderer>();
+            visual.radioDisplay = Fonts.WorldText(map["RadioScreen"], new Vector3(0f, 0f, -0.002f), "", Shapes.Hex("#ff5a4a"), 0.0026f);
+
+            visual.mirrorLeft = map["MirrorGlassL"];
+            visual.mirrorRight = map["MirrorGlassR"];
+            visual.mirrorRear = map["RearMirrorGlass"];
+
+            visual.driverHead = map["DriverHead"];
+            visual.driverTorso = map["DriverTorso"];
+            AddArms(visual, GrantaModel.DriverEyes, 0.97f, -0.50f, 0.170f);
+            visual.driverEyes = Shapes.Group("DriverEyes", root, GrantaModel.DriverEyes);
+            visual.driverDoorLocal = new Vector3(-1.35f, 0f, -0.05f);
+            visual.fuelCapLocal = new Vector3(0.86f, 0.88f, -1.64f);
+
+            visual.headlights.Add(map["HeadlightL"]);
+            visual.headlights.Add(map["HeadlightR"]);
+            visual.taillights.Add(map["TaillightL"]);
+            visual.taillights.Add(map["TaillightR"]);
+            visual.bumperFront = map["BumperF"];
+            visual.bumperRear = map["BumperR"];
+            visual.frontPanel = map["Hood"];
+            visual.rearPanel = map["Tailgate"];
+            foreach (var d in new[] { "DoorFL", "DoorFR", "DoorRL", "DoorRR" }) visual.doors.Add(map[d]);
+            visual.roof = map["Roof"];
+            visual.leftBlinkers.Add(map["BlinkFL"].GetComponent<Renderer>());
+            visual.leftBlinkers.Add(map["BlinkRL"].GetComponent<Renderer>());
+            visual.rightBlinkers.Add(map["BlinkFR"].GetComponent<Renderer>());
+            visual.rightBlinkers.Add(map["BlinkRR"].GetComponent<Renderer>());
+            visual.blinkOffMat = CarMaterials.Get("amber", paint);
+
+            PlateText(map["PlateFront"], "О 163 ОО");
+            PlateText(map["PlateRear"], "О 163 ОО");
+            root.gameObject.AddComponent<ChromeProbe>(); // чёрный лак отражает улицу
+            return visual;
+        }
 
         /// <summary>
         /// Мэтр — ржавый эвакуатор из «Тачек» (ВНИМАНИЕ: персонаж Disney/Pixar — перед выпуском в Steam убрать или заменить

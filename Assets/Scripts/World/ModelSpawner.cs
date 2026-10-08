@@ -145,6 +145,9 @@ namespace GasQueue
                 case "rust_dark": return Surface(Hex("#3d2416"), 0.1f, 0f);
                 case "seat_brown": return Surface(Hex("#6b3e26"), 0.3f, 0f);
                 case "steel_dark": return Surface(Hex("#3b3f39"), 0.3f, 0.3f);
+                case "cloth_red": return Surface(Hex("#a3141c"), 0.08f, 0f);
+                case "stitch_red": return Surface(Hex("#c41620"), 0.3f, 0f);
+                case "caliper_yellow": return Surface(Hex("#f2c414"), 0.6f, 0.1f);
                 case "carbon": return Surface(Hex("#2b2d31"), 0.45f, 0.2f);
                 case "stripe_white": return Surface(Hex("#f7f7f7"), 0.7f, 0f);
                 case "stripe_magenta": return Surface(Hex("#c2188a"), 0.75f, 0f);

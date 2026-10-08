@@ -40,6 +40,15 @@ CARS = {
         insert="leather_cream", bolster="leather_cream", piping="int_beige", wheel="audi", idrive=False, dash=False,
         door_z=(0.30, -0.78), door_y=(0.80, 0.50, 0.60), door_x=0.855, door_mat="int_beige",
     ),
+    "granta": dict(
+        R=0.216, HW=0.1025, TR=0.308, disc=0.150, bell=0.090, spokes="t", face="rim_black", side="alloy_machined",
+        caliper="caliper_yellow", cal_r=(0.100, 0.160), cal_w=0.030,
+        seat_y=0.40, seat_z=-0.45, seat_x=0.36, seat_w=0.50, rear_z=-1.05, rear_xs=(-0.43, 0.0, 0.43), rear_w=0.42, rear_back_w=1.30,
+        back_h=0.90, rear_head=0.58,
+        seat_old="cloth_dark", front_cut=(-0.76, -0.15, 0.58), rear_cut=(-1.32, -0.78, 0.55),
+        insert="cloth_dark", bolster="cloth_red", piping="stitch_red", wheel="granta", idrive=False, dash=False,
+        door_z=(0.25, -0.65), door_y=(0.79, 0.45, 0.58), door_x=0.75, door_mat="int_black",
+    ),
 }
 C = CARS[car]
 
@@ -296,6 +305,10 @@ def build_rim(me):
             spoke(a, a, 0.050, 0.152, 0.066, 0.052, 0.034)              # ствол — литой, широкий
             for side in (-1, 1):                                          # две ветки к ободу
                 spoke(a, a + side * math.radians(12), 0.138, R - 0.014, 0.040, 0.034, 0.030)
+        elif C["spokes"] == "t":
+            for j in range(2):                                            # «турбина»: 10 закрученных спиц, широких к ободу
+                a2 = a + j * math.pi / 5
+                spoke(a2, a2 + math.radians(18), 0.052, R - 0.012, 0.024, 0.040, 0.030)
         else:
             for side in (-1, 1):                                          # «V»: две спицы расходятся от ступицы к ободу
                 spoke(a + side * math.radians(3.5), a + side * math.radians(11), 0.050, R - 0.014, 0.040, 0.036, 0.032)
@@ -466,7 +479,9 @@ def rebuild_wheel():
         # снизу (−z в Unity — к коленям) полоска М: голубой, синий, красный
         mat = lth
         d = (a - 270 + 540) % 360 - 180
-        if C["wheel"] == "m":
+        if C["wheel"] == "granta":
+            if abs((a - 90 + 540) % 360 - 180) < 3.5: mat = st3     # красная метка «12 часов»
+        elif C["wheel"] == "m":
             if abs(d) < 2.5: mat = st2
             elif -7.5 < d < -2.5: mat = st1
             elif 2.5 < d < 7.5: mat = st3

@@ -25,6 +25,7 @@ static class Program
         {
             "x5" => X5Model.Get(),
             "a7" => A7Model.Get(),
+            "granta" => GrantaModel.Get(),
             "akademik" => AkademikModel.Get(),
             "gelik" => GelikModel.Get(),
             "skyline" => SkylineModel.Get(),
@@ -94,6 +95,7 @@ static class Program
     {
         "x5" => X5Model.Get(),
         "a7" => A7Model.Get(),
+        "granta" => GrantaModel.Get(),
             "gelik" => GelikModel.Get(),
         "skyline" => SkylineModel.Get(),
         "rx7" => Rx7Model.Get(),
@@ -238,8 +240,8 @@ static class Program
     // Ищем детали салона, торчащие сквозь кузов: вершина внутреннего материала снаружи формы
     static void Poke(string name)
     {
-        CarBody shape = name == "x5" ? X5Model.Shape() : name == "a7" ? A7Model.Shape() : name == "gelik" ? GelikModel.Shape() : name == "skyline" ? (CarBody)SkylineModel.Shape() : name == "rx7" ? Rx7Model.Shape() : name == "s2000" ? S2000Model.Shape() : SupraModel.Shape();
-        var model = name == "x5" ? X5Model.Get() : name == "a7" ? A7Model.Get() : name == "gelik" ? GelikModel.Get() : name == "skyline" ? SkylineModel.Get() : name == "rx7" ? Rx7Model.Get() : name == "s2000" ? S2000Model.Get() : SupraModel.Get();
+        CarBody shape = name == "x5" ? X5Model.Shape() : name == "a7" ? A7Model.Shape() : name == "granta" ? GrantaModel.Shape() : name == "gelik" ? GelikModel.Shape() : name == "skyline" ? (CarBody)SkylineModel.Shape() : name == "rx7" ? Rx7Model.Shape() : name == "s2000" ? S2000Model.Shape() : SupraModel.Shape();
+        var model = name == "x5" ? X5Model.Get() : name == "a7" ? A7Model.Get() : name == "granta" ? GrantaModel.Get() : name == "gelik" ? GelikModel.Get() : name == "skyline" ? SkylineModel.Get() : name == "rx7" ? Rx7Model.Get() : name == "s2000" ? S2000Model.Get() : SupraModel.Get();
         var inner = new HashSet<string> { "carpet", "int_black", "int_grey", "int_door", "int_roof", "leather_red", "leather_black", "gauge_face", "gauge_glow", "jacket", "skin", "hair", "screen", "white", "needle", "lamp_off", "screen_blue", "ambient", "cloth_dark", "leather_blue", "gauge_light", "screen_amber", "leather_tan", "carbon", "fur_pink" };
         var stats = new Dictionary<string, (int n, float worst, Vector3 at)>();
         void Walk(ModelNode n)

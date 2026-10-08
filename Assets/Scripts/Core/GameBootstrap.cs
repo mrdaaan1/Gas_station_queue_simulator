@@ -95,6 +95,7 @@ namespace GasQueue
                 : CarChoice == PlayerCarKind.X5 ? SportsCars.BuildX5("PlayerCar", SportsCars.X5Gold)
                 : CarChoice == PlayerCarKind.A7 ? SportsCars.BuildA7("PlayerCar", SportsCars.A7Silver)
                 : CarChoice == PlayerCarKind.Mater ? SportsCars.BuildMater("PlayerCar")
+                : CarChoice == PlayerCarKind.Granta ? SportsCars.BuildGranta("PlayerCar", SportsCars.GrantaBlack)
                 : CarFactory.Build("PlayerCar", Shapes.Hex("#e3dccb"), CarModel.Vaz2107, true);
             playerVisual.transform.SetParent(root, false);
             var player = playerVisual.gameObject.AddComponent<PlayerCar>();
