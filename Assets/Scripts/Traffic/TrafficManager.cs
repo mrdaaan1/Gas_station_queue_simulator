@@ -898,12 +898,15 @@ namespace GasQueue
                 }
             }
 
-            if (Walker != null && Walker.Active && Obb.AheadDistance(box, Walker.Box, corridor + 0.3f, 20f, out float wd))
+            // Людей ждём, только если они правда на пути (коридор по ширине кузова): стоящего на разделительной
+            // или на краю соседней полосы объезжают, а не встают в пробку
+            float walkCorridor = me.Width / 2f + 0.05f;
+            if (Walker != null && Walker.Active && Obb.AheadDistance(box, Walker.Box, walkCorridor, 20f, out float wd))
                 free = Mathf.Min(free, wd - 1.5f);
             foreach (var p in Pedestrians)
             {
                 if (p == null || !p.gameObject.activeInHierarchy) continue;
-                if (Obb.AheadDistance(box, new Obb(p.position, Vector3.forward, 0.7f, 0.7f), corridor + 0.3f, 20f, out float pd))
+                if (Obb.AheadDistance(box, new Obb(p.position, Vector3.forward, 0.6f, 0.6f), walkCorridor, 20f, out float pd))
                     free = Mathf.Min(free, pd - 1.5f);
             }
 
@@ -1296,6 +1299,10 @@ namespace GasQueue
 
         LanePath vipPath;
         public LanePath VipOutPath { get; private set; }
+        /// <summary>Служебная колонка занята «вертолётным» депутатом (<c>Helicopter</c>) — по дороге никто не едет.</summary>
+        public bool VipSpotReserved;
+        /// <summary>Депутат на дороге к служебной колонке или у неё.</summary>
+        public bool VipOnSite { get { foreach (var n in Npcs) if (n.IsVip && n.Role != NpcRole.Exiting) return true; return false; } }
 
         public void OnVipFueling()
         {
@@ -1313,6 +1320,7 @@ namespace GasQueue
             // Место занято или прошлый депутат ещё тут — пробуем снова через пару секунд
             // (раньше неудачная попытка откладывала следующую на 6 минут, и депутата можно было не увидеть вовсе)
             vipTimer = 5f;
+            if (VipSpotReserved) return; // служебную колонку занял депутат с вертолёта
             foreach (var n in Npcs) if (n.IsVip && n.Role != NpcRole.Exiting) return; // один депутат за раз
             float s = Random.Range(60f, 140f);
             if (!AreaClear(vipPath.PointAt(s), 14f)) return;

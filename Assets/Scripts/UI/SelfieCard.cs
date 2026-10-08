@@ -16,15 +16,17 @@ namespace GasQueue
             var b = dav.Head.position;
             var mid = (a + b) / 2f;
             var facing = dav.transform.forward;
-            // Телефон в правой руке игрока: перед лицами, чуть выше и ближе к игроку
-            var pos = mid + facing * 0.78f + Vector3.up * 0.2f + (a - b).normalized * 0.06f;
+            // Телефон на вытянутой руке: перед лицами на уровне глаз того, кто ниже (иначе видно только макушку),
+            // в кадре — оба лица целиком
+            var pos = mid + facing * 1.05f;
+            pos.y = Mathf.Min(a.y, b.y) + 0.1f;
 
             var go = new GameObject("SelfieCamera");
             go.transform.position = pos;
-            go.transform.rotation = Quaternion.LookRotation(mid - Vector3.up * 0.06f - pos);
+            go.transform.rotation = Quaternion.LookRotation(mid - Vector3.up * 0.04f - pos);
             var cam = go.AddComponent<Camera>();
             cam.enabled = false;
-            cam.fieldOfView = 58f;
+            cam.fieldOfView = 46f;
             cam.nearClipPlane = 0.05f;
             cam.farClipPlane = 400f;
             var main = Camera.main;
@@ -45,6 +47,11 @@ namespace GasQueue
             foreach (var sb in Object.FindObjectsByType<SpeechBubble>(FindObjectsSortMode.None))
                 if (sb.gameObject.activeSelf) { sb.gameObject.SetActive(false); bubbles.Add(sb.gameObject); }
 
+            // Руку с телефоном в кадр не берём: снимает она сама
+            var hidden = new System.Collections.Generic.List<Renderer>();
+            foreach (var r in me.Rig.armR.GetComponentsInChildren<Renderer>())
+                if (r.enabled) { r.enabled = false; hidden.Add(r); }
+
             var rt = RenderTexture.GetTemporary(W, H, 24);
             cam.targetTexture = rt;
             cam.Render();
@@ -59,6 +66,7 @@ namespace GasQueue
             RenderTexture.ReleaseTemporary(rt);
             Object.Destroy(go);
             foreach (var g in bubbles) if (g != null) g.SetActive(true);
+            foreach (var r in hidden) if (r != null) r.enabled = true;
             return tex;
         }
 

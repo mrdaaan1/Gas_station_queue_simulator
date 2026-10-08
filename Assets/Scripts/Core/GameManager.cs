@@ -166,7 +166,8 @@ namespace GasQueue
         bool breakUsed;
         float breakTimer;      // > 0 — кассир на перерыве
         float breakLeaveTimer; // кассир договаривает и уходит
-        TextMesh breakSign;
+        Transform breakSign;
+        bool freeRideAnnounced;
 
         Barrier barrier;
         HumanRig cashier;
@@ -211,8 +212,7 @@ namespace GasQueue
             CashierLine.Cashier = cashier.transform;
             literLimitToday = Random.value < 0.35f;
             BuildAttendant();
-            breakSign = Fonts.WorldText(traffic.WorldRoot, CityLayout.CounterFront + new Vector3(1.05f, 1.35f, 0f), "ПЕРЕРЫВ\n15 МИН", Shapes.Hex("#d32f2f"), 0.035f);
-            breakSign.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
+            breakSign = BuildBreakSign(traffic.WorldRoot);
             breakSign.gameObject.SetActive(false);
 
             if (race)
@@ -325,8 +325,18 @@ namespace GasQueue
 
             if (!RaceMode && !OnFoot && carPos.z > CityLayout.FinishZ && carPos.x < CityLayout.LotMinX)
             {
-                if (PlayerFueled) Finish(false);
-                else if (carPos.z > CityLayout.FinishZ + 60f) Finish(true); // уехал, так и не заправившись
+                // Заправился — финал не сразу: можно покататься (до конца дороги или по Enter)
+                if (PlayerFueled && !freeRideAnnounced)
+                {
+                    freeRideAnnounced = true;
+                    ShowMessage("Заправлены! Катайтесь сколько хотите. Закончить — Enter или доехать до конца дороги.", 10f);
+                }
+                else if (!PlayerFueled && carPos.z > CityLayout.FinishZ + 60f) Finish(true); // уехал, так и не заправившись
+            }
+            if (!RaceMode && PlayerFueled && State == GameState.DrivingAway)
+            {
+                bool roadEnd = !OnFoot && (carPos.z > CityLayout.RoadEndZ - 40f || carPos.z < CityLayout.RoadStartZ + 40f);
+                if (roadEnd || (freeRideAnnounced && GameInput.RestartPressed)) Finish(false);
             }
         }
 
@@ -662,6 +672,28 @@ namespace GasQueue
                 : $"Оплатить наличными (у вас {Cash:0} руб., АИ-95 — {PriceBoard.CurrentPrice:0.00} руб/л)");
             DialogOptions.Add("Поругаться");
             DialogOptions.Add("Уйти");
+        }
+
+        /// <summary>
+        /// Табличка «ПЕРЕРЫВ» на прилавке: настольный домик из пластика в красной рамке, лицом к покупателям.
+        /// (Раньше надпись висела прямо в воздухе.)
+        /// </summary>
+        static Transform BuildBreakSign(Transform parent)
+        {
+            var g = Shapes.Group("BreakSign", parent, new Vector3(39.85f, 0.93f, CityLayout.CounterFront.z + 0.6f), new Vector3(0f, 90f, 0f));
+            var red = Shapes.Hex("#c62828");
+            // Подставка-«домик»: две наклонные пластины
+            Shapes.Box(g, new Vector3(0f, 0.17f, -0.03f), new Vector3(0.46f, 0.34f, 0.012f), red, new Vector3(-10f, 0f, 0f), "Front");
+            Shapes.Box(g, new Vector3(0f, 0.17f, 0.03f), new Vector3(0.46f, 0.34f, 0.012f), red, new Vector3(10f, 0f, 0f), "Back");
+            var face = Shapes.Group("Face", g, new Vector3(0f, 0.17f, -0.04f), new Vector3(-10f, 0f, 0f));
+            Shapes.Box(face, Vector3.zero, new Vector3(0.42f, 0.3f, 0.004f), Shapes.Hex("#fbfbf6"), name: "Card");
+            var t1 = Fonts.WorldText(face, new Vector3(0f, 0.05f, -0.004f), "ПЕРЕРЫВ", red, 0.012f);
+            t1.transform.localRotation = Quaternion.identity;
+            var t2 = Fonts.WorldText(face, new Vector3(0f, -0.045f, -0.004f), "15 минут", Shapes.Hex("#2a2a2e"), 0.008f);
+            t2.transform.localRotation = Quaternion.identity;
+            var t3 = Fonts.WorldText(face, new Vector3(0f, -0.105f, -0.004f), "касса не работает", Shapes.Hex("#6a6a70"), 0.005f);
+            t3.transform.localRotation = Quaternion.identity;
+            return g;
         }
 
         void CloseDialog()

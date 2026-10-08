@@ -408,7 +408,7 @@ namespace GasQueue
                 float sx = Mathf.Max(0.12f, Mathf.Abs(b.x - a.x)), sz = Mathf.Max(0.12f, Mathf.Abs(b.z - a.z));
                 if (sx < 0.2f && sz < 0.2f) return;
                 Shapes.Box(st, new Vector3(c.x, 0.5f, c.z), new Vector3(sx, 1f, sz), fence, name: "Fence");
-                Obstacles.AddBox(c, sx, sz, "забор");
+                Obstacles.AddBox(c, sx, sz, "забор", 1f); // метровый — перепрыгивается
             }
 
             // Вдоль тротуара — с проёмами въезда и выезда

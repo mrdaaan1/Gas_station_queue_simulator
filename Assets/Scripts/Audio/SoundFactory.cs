@@ -32,6 +32,34 @@ namespace GasQueue
             }
         }
 
+        static AudioClip rotor;
+
+        /// <summary>«Вуп-вуп-вуп» несущего винта вертолёта: глухие удары ~11 раз в секунду на шумном гуле. Цикл 1 с.</summary>
+        public static AudioClip Rotor
+        {
+            get
+            {
+                if (rotor != null) return rotor;
+                var data = new float[Rate];
+                var rnd = new System.Random(19);
+                float lp = 0f, lp2 = 0f;
+                for (int i = 0; i < Rate; i++)
+                {
+                    float t = (float)i / Rate;
+                    float white = (float)rnd.NextDouble() * 2f - 1f;
+                    lp = Mathf.Lerp(lp, white, 0.08f);
+                    lp2 = Mathf.Lerp(lp2, lp, 0.1f);
+                    float ph = t * 11f - Mathf.Floor(t * 11f);       // удар лопасти
+                    float thump = Mathf.Exp(-ph * 9f);
+                    float s = lp2 * (0.35f + 1.6f * thump) + Mathf.Sin(2 * Mathf.PI * 55f * t) * 0.12f * thump
+                              + Mathf.Sin(2 * Mathf.PI * 330f * t) * 0.03f; // свист турбины
+                    data[i] = s * 0.8f;
+                }
+                rotor = Create("Rotor", data);
+                return rotor;
+            }
+        }
+
         /// <summary>Гул мотора на холостых. Ровно 1 секунда — склеивается в цикл без щелчков.</summary>
         public static AudioClip Engine
         {

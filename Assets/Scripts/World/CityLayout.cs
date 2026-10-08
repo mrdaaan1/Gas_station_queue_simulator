@@ -165,15 +165,17 @@ namespace GasQueue
         {
             public Obb box;
             public string name;
+            /// <summary>Высота: пешеход в прыжке выше неё перелетает (стены и столбы — «бесконечные»).</summary>
+            public float height;
         }
 
         public static readonly List<Entry> All = new List<Entry>();
 
         public static void Clear() => All.Clear();
 
-        public static void Add(Obb box, string name) => All.Add(new Entry { box = box, name = name });
+        public static void Add(Obb box, string name, float height = 99f) => All.Add(new Entry { box = box, name = name, height = height });
 
-        public static void AddBox(Vector3 center, float sizeX, float sizeZ, string name) =>
-            Add(Obb.Axis(center, sizeX, sizeZ), name);
+        public static void AddBox(Vector3 center, float sizeX, float sizeZ, string name, float height = 99f) =>
+            Add(Obb.Axis(center, sizeX, sizeZ), name, height);
     }
 }

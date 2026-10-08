@@ -230,7 +230,7 @@ namespace GasQueue
                 place = t.PlayerQueueIndex == 0 ? "Очередь на заправку: вы первый!" : $"Очередь на заправку: впереди {t.PlayerQueueIndex}";
             else if (race != null && !t.PlayerInQueue && t.PlayerPump == null && gm.Player.Position.z < RaceLayout.JoinZ)
                 place = race.FuelSignal ? "Лампочка бензина горит!" : "Гонка!";
-            else if (gm.State == GameState.DrivingAway || gm.PlayerFueled) place = "Свобода!";
+            else if (gm.State == GameState.DrivingAway || gm.PlayerFueled) place = gm.State == GameState.DrivingAway ? "Свобода! Enter — закончить" : "Свобода!";
             else if (t.PlayerPump != null) place = $"Ваша колонка: №{t.PlayerPump.Number}";
             else if (t.PlayerInQueue) place = t.PlayerQueueIndex == 0 ? "Вы первый в очереди!" : $"Машин впереди: {t.PlayerQueueIndex}";
             else { place = "Вы вне очереди!"; bad = true; }

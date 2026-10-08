@@ -21,7 +21,7 @@ namespace GasQueue
         public bool Airborne => !grounded;
 
         const float Gravity = 20f;
-        const float JumpSpeed = 4.2f;   // обычный прыжок ~0.45 м
+        const float JumpSpeed = 6.6f;   // прыжок ~1,1 м — через метровый забор у заправки
         const float ClimbMax = 1.3f;    // выше этого не залезть (с асфальта — на капот, с капота — на крышу)
         const float ClimbTime = 0.55f;
 
@@ -425,6 +425,7 @@ namespace GasQueue
                     var d = o.box.center - p2;
                     float reach = o.box.half.magnitude + 1f;
                     if (d.sqrMagnitude > reach * reach) continue;
+                    if (height > o.height) continue; // перепрыгиваем (забор)
                     if (o.box.PushCircle(p2, Radius, out var push)) p2 += push;
                 }
                 if (traffic.Barrier.IsDown && traffic.Barrier.Box.PushCircle(p2, Radius, out var bp)) p2 += bp;

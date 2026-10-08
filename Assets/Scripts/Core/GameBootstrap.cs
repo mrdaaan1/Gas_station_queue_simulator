@@ -135,6 +135,8 @@ namespace GasQueue
             if (Mode == GameMode.Queue) systems.AddComponent<Davidych>().Init(traffic);
             // Академик на мусорном контейнере — 150 км/ч по разделительной, туда-обратно
             if (Mode == GameMode.Queue) systems.AddComponent<Akademik>().Init(traffic);
+            // Депутат на вертолёте: «Майбах» на тросе ставят прямо к служебной колонке
+            if (Mode == GameMode.Queue) systems.AddComponent<Helicopter>().Init(traffic);
             if (race) systems.AddComponent<RaceManager>().Init(traffic, player, gm, track, raceTrack);
 
             var menu = systems.AddComponent<MainMenu>();
