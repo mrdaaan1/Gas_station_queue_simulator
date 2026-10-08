@@ -24,6 +24,7 @@ static class Program
         Model model = which.EndsWith(".bytes") ? ModelFile.Read(File.ReadAllBytes(which)) : which switch
         {
             "x5" => X5Model.Get(),
+            "a7" => A7Model.Get(),
             "akademik" => AkademikModel.Get(),
             "gelik" => GelikModel.Get(),
             "skyline" => SkylineModel.Get(),
@@ -92,6 +93,7 @@ static class Program
     static Model ByName(string which) => which switch
     {
         "x5" => X5Model.Get(),
+        "a7" => A7Model.Get(),
             "gelik" => GelikModel.Get(),
         "skyline" => SkylineModel.Get(),
         "rx7" => Rx7Model.Get(),
@@ -236,8 +238,8 @@ static class Program
     // Ищем детали салона, торчащие сквозь кузов: вершина внутреннего материала снаружи формы
     static void Poke(string name)
     {
-        CarBody shape = name == "x5" ? X5Model.Shape() : name == "gelik" ? GelikModel.Shape() : name == "skyline" ? (CarBody)SkylineModel.Shape() : name == "rx7" ? Rx7Model.Shape() : name == "s2000" ? S2000Model.Shape() : SupraModel.Shape();
-        var model = name == "x5" ? X5Model.Get() : name == "gelik" ? GelikModel.Get() : name == "skyline" ? SkylineModel.Get() : name == "rx7" ? Rx7Model.Get() : name == "s2000" ? S2000Model.Get() : SupraModel.Get();
+        CarBody shape = name == "x5" ? X5Model.Shape() : name == "a7" ? A7Model.Shape() : name == "gelik" ? GelikModel.Shape() : name == "skyline" ? (CarBody)SkylineModel.Shape() : name == "rx7" ? Rx7Model.Shape() : name == "s2000" ? S2000Model.Shape() : SupraModel.Shape();
+        var model = name == "x5" ? X5Model.Get() : name == "a7" ? A7Model.Get() : name == "gelik" ? GelikModel.Get() : name == "skyline" ? SkylineModel.Get() : name == "rx7" ? Rx7Model.Get() : name == "s2000" ? S2000Model.Get() : SupraModel.Get();
         var inner = new HashSet<string> { "carpet", "int_black", "int_grey", "int_door", "int_roof", "leather_red", "leather_black", "gauge_face", "gauge_glow", "jacket", "skin", "hair", "screen", "white", "needle", "lamp_off", "screen_blue", "ambient", "cloth_dark", "leather_blue", "gauge_light", "screen_amber", "leather_tan", "carbon", "fur_pink" };
         var stats = new Dictionary<string, (int n, float worst, Vector3 at)>();
         void Walk(ModelNode n)
@@ -328,7 +330,7 @@ static class Program
         return t > 0;
     }
 
-    // Дерево узлов в координатах Unity (локальные положения, повороты, сетки) — для Blender (Tools/Blender/x5_build.py)
+    // Дерево узлов в координатах Unity (локальные положения, повороты, сетки) — для Blender (Tools/Blender/car_build.py)
     static void Tree(string which, string outPath)
     {
         var model = ByName(which);

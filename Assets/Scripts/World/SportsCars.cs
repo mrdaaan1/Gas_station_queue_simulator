@@ -4,7 +4,7 @@ using UnityEngine;
 namespace GasQueue
 {
     /// <summary>Машины, которые может выбрать игрок.</summary>
-    public enum PlayerCarKind { Vaz2107, Supra, Gelik, Skyline, Rx7, S2000, X5 }
+    public enum PlayerCarKind { Vaz2107, Supra, Gelik, Skyline, Rx7, S2000, X5, A7 }
 
     /// <summary>
     /// Спорткары из гладких сеток (<see cref="SupraModel"/> и следующие): собирает объекты Unity
@@ -14,7 +14,7 @@ namespace GasQueue
     {
         public static string Title(PlayerCarKind kind) =>
             kind == PlayerCarKind.Supra ? "Тоёта Супра (1997)" : kind == PlayerCarKind.Gelik ? "Гелик (2025)" :
-            kind == PlayerCarKind.Skyline ? "Скайлайн GT-R (1999)" : kind == PlayerCarKind.Rx7 ? "Мазда RX-7 (1993)" : kind == PlayerCarKind.S2000 ? "Хонда S2000 (2001)" : kind == PlayerCarKind.X5 ? "БМВ Х5 М — тачка Давидыча" : "ВАЗ-2107";
+            kind == PlayerCarKind.Skyline ? "Скайлайн GT-R (1999)" : kind == PlayerCarKind.Rx7 ? "Мазда RX-7 (1993)" : kind == PlayerCarKind.S2000 ? "Хонда S2000 (2001)" : kind == PlayerCarKind.X5 ? "БМВ Х5 М — тачка Давидыча" : kind == PlayerCarKind.A7 ? "Ауди A7 Sportback (2019)" : "ВАЗ-2107";
 
         /// <summary>Розовая, как у Суки.</summary>
         public static readonly Color S2000Pink = Shapes.Hex("#f24fa0");
@@ -30,6 +30,9 @@ namespace GasQueue
 
         /// <summary>Золотистый — для подкраски деталей X5 (сам кузов — камуфляжная текстура).</summary>
         public static readonly Color X5Gold = Shapes.Hex("#d8a53f");
+
+        /// <summary>Серебристый металлик «Флорет», как на фото A7.</summary>
+        public static readonly Color A7Silver = Shapes.Hex("#b8bcc1");
 
         /// <summary>Цвет по умолчанию — как у красной «Супры» с фото.</summary>
         public static readonly Color SupraRed = Shapes.Hex("#b80f18");
@@ -230,26 +233,93 @@ namespace GasQueue
             return visual;
         }
 
-        static Model x5File;
-        static bool x5Tried;
+        static readonly Dictionary<string, Model> modelFiles = new Dictionary<string, Model>();
 
         /// <summary>
-        /// Модель X5: доведённая в Blender (Assets/Resources/Models/X5.bytes, готовит Tools/Blender/x5_build.py) —
-        /// с толщиной панелей, скруглёнными кромками и детальными дисками; если файла нет — построенная кодом (<see cref="X5Model"/>).
+        /// Модель, доведённая в Blender (Assets/Resources/Models/&lt;name&gt;.bytes, готовит Tools/Blender/car_build.py) —
+        /// с толщиной панелей, скруглёнными кромками, детальными колёсами и салоном; если файла нет — построенная кодом.
         /// </summary>
-        static Model X5Source()
+        static Model FileOr(string name, System.Func<Model> fromCode)
         {
-            if (!x5Tried)
+            if (!modelFiles.TryGetValue(name, out var model))
             {
-                x5Tried = true;
-                var file = Resources.Load<TextAsset>("Models/X5");
+                var file = Resources.Load<TextAsset>("Models/" + name);
                 if (file != null)
                 {
-                    try { x5File = ModelFile.Read(file.bytes); }
-                    catch (System.Exception e) { Debug.LogWarning("X5.bytes не прочитан, беру модель из кода: " + e.Message); }
+                    try { model = ModelFile.Read(file.bytes); }
+                    catch (System.Exception e) { Debug.LogWarning(name + ".bytes не прочитан, беру модель из кода: " + e.Message); }
                 }
+                modelFiles[name] = model;
             }
-            return x5File ?? X5Model.Get();
+            return model ?? fromCode();
+        }
+
+        static Model X5Source() => FileOr("X5", X5Model.Get);
+
+        /// <summary>
+        /// Audi A7 Sportback (C8): серебристый фастбэк, руль слева, бежевый салон, цифровой щиток и экраны MMI.
+        /// </summary>
+        public static CarVisual BuildA7(string name, Color paint)
+        {
+            var root = new GameObject(name).transform;
+            var visual = root.gameObject.AddComponent<CarVisual>();
+            var map = ModelSpawner.Spawn(FileOr("A7", A7Model.Get).root, root, key => CarMaterials.Get(key == "glass" ? "glass_tint" : key, paint, 0.88f));
+
+            visual.body = map["Body"];
+            visual.length = 4.97f;
+            visual.width = 1.91f;
+            visual.height = 1.42f;
+            visual.hoodTop = 0.98f;
+            visual.rightHandDrive = false;
+            visual.maxSpeed = 69f;        // 250 км/ч — электронный ограничитель
+            visual.accel = 7.2f;
+            visual.speedoMaxKmh = 300f;
+            visual.wheelRadius = A7Model.WheelR;
+            visual.sporty = true;
+
+            foreach (var tag in new[] { "FL", "FR", "RL", "RR" })
+                visual.wheels.Add(map["Wheel" + tag]);
+            visual.frontSteer.Add(map["SteerFL"]);
+            visual.frontSteer.Add(map["SteerFR"]);
+
+            visual.steeringWheel = map["SteeringWheel"];
+            visual.steeringTilt = A7Model.SteeringTilt;
+            var white = Color.white;
+            visual.digitalSpeed = Fonts.WorldText(map["ClusterScreen"], new Vector3(-0.10f, 0f, -0.003f), "", white, 0.0030f);
+            visual.digitalFuel = Fonts.WorldText(map["ClusterScreen"], new Vector3(0.10f, 0f, -0.003f), "", white, 0.0024f);
+            visual.radioDisplay = Fonts.WorldText(map["RadioScreen"], new Vector3(0f, 0f, -0.003f), "", Shapes.Hex("#e8eef5"), 0.0030f);
+
+            visual.mirrorLeft = map["MirrorGlassL"];
+            visual.mirrorRight = map["MirrorGlassR"];
+            visual.mirrorRear = map["RearMirrorGlass"];
+
+            visual.driverHead = map["DriverHead"];
+            visual.driverTorso = map["DriverTorso"];
+            AddArms(visual, A7Model.DriverEyes, 1.00f, -0.50f, 0.176f);
+            visual.driverEyes = Shapes.Group("DriverEyes", root, A7Model.DriverEyes);
+            visual.driverDoorLocal = new Vector3(-1.45f, 0f, 0.1f);
+            visual.fuelCapLocal = new Vector3(0.97f, 0.90f, -1.66f);
+
+            visual.headlights.Add(map["HeadlightL"]);
+            visual.headlights.Add(map["HeadlightR"]);
+            visual.taillights.Add(map["TaillightL"]);
+            visual.taillights.Add(map["TaillightR"]);
+            visual.bumperFront = map["BumperF"];
+            visual.bumperRear = map["BumperR"];
+            visual.frontPanel = map["Hood"];
+            visual.rearPanel = map["Tailgate"];
+            foreach (var d in new[] { "DoorFL", "DoorFR", "DoorRL", "DoorRR" }) visual.doors.Add(map[d]);
+            visual.roof = map["Roof"];
+            visual.leftBlinkers.Add(map["BlinkFL"].GetComponent<Renderer>());
+            visual.leftBlinkers.Add(map["BlinkRL"].GetComponent<Renderer>());
+            visual.rightBlinkers.Add(map["BlinkFR"].GetComponent<Renderer>());
+            visual.rightBlinkers.Add(map["BlinkRR"].GetComponent<Renderer>());
+            visual.blinkOffMat = CarMaterials.Get("amber", paint);
+
+            PlateText(map["PlateFront"], "А 007 АА");
+            PlateText(map["PlateRear"], "А 007 АА");
+            root.gameObject.AddComponent<ChromeProbe>(); // серебристый металлик отражает улицу
+            return visual;
         }
 
         /// <summary>«Скайлайн» R34 из «Двойного форсажа»: правый руль, стрелочные приборы, раскраска полосами.</summary>

@@ -166,7 +166,13 @@ VIEWS = [
     ("front", (0, 1.0, 8), (0, 0.75, 0), 24), ("rear", (0, 1.1, -8), (0, 0.8, 0), 24),
     ("cab", (-0.38, 1.40, -0.30), (-0.25, 1.15, 1.5), 75), ("cab2", (0.55, 1.45, -1.3), (-0.3, 1.0, 0.6), 80), ("cabtop", (0.9, 3.2, -1.6), (0, 0.9, 0.1), 48),
     ("wheel", (2.2, 0.55, 2.4), (0.8, 0.37, 1.47), 26), ("wheel2", (1.9, 0.30, 0.1), (0.85, 0.37, 1.47), 30),
+    ("roofside", (3.2, 1.75, 0.6), (0.5, 1.25, -0.3), 30),
 ]
+# Своё место водителя (у седана глаза ниже, чем у X5): CAB="x,y,z" CABAT="x,y,z"
+if os.environ.get("CAB"):
+    cab = tuple(float(c) for c in os.environ["CAB"].split(","))
+    cab_at = tuple(float(c) for c in os.environ.get("CABAT", "%f,%f,1.5" % (cab[0] + 0.1, cab[1] - 0.25)).split(","))
+    VIEWS = [(n, cab, cab_at, f) if n == "cab" else (n, p, a, f) for n, p, a, f in VIEWS]
 only = os.environ.get("VIEWS")
 files = []
 for name, pos, at, fov in VIEWS:

@@ -1,21 +1,47 @@
-# Доводка X5 в Blender и выгрузка в игру.
+# Доводка машины из кода в Blender и выгрузка в игру (X5 Давидыча, Audi A7).
 #   1) Импорт дерева узлов модели из кода (ModelPreview.dll tree x5 x5_tree.json): каждый узел — объект Blender
 #      с тем же шарниром (капот, двери, бамперы, колёса…), координаты Unity → Blender: (x, y, z) → (x, z, y).
 #   2) Доводка: панели кузова получают толщину и скруглённые кромки (видны щели между панелями), стёкла и линзы —
-#      объём; диски заменяются на детальные 20" с Y-образными двойными спицами; сглаживание с острыми кромками.
-#   3) Выгрузка в Assets/Resources/Models/X5.bytes (формат GQM1, см. Assets/Scripts/World/Models/ModelFile.cs)
+#      объём; колёса строятся заново (шина, диск со своим рисунком спиц, тормоз, суппорт), салон — кресла, руль,
+#      детали торпеды и дверей; сглаживание с острыми кромками. Отличия машин — в CARS ниже.
+#   3) Выгрузка в Assets/Resources/Models/<Машина>.bytes (формат GQM1, см. Assets/Scripts/World/Models/ModelFile.cs)
 #      и сохранение сцены .blend, чтобы её можно было открыть и покрутить.
 # Запуск:
-#   Blender --background --factory-startup --python x5_build.py -- x5_tree.json X5.bytes x5.blend [camo.png] [decal.png]
+#   Blender --background --factory-startup --python car_build.py -- x5 x5_tree.json X5.bytes x5.blend [camo.png] [decal.png]
+#   PAINT=#b8bcc1 Blender --background --factory-startup --python car_build.py -- a7 a7_tree.json A7.bytes a7.blend
 import bpy, bmesh, gzip, io, json, math, os, struct, sys
 from mathutils import Matrix, Vector
 
 argv = sys.argv[sys.argv.index("--") + 1:]
+car, argv = argv[0], argv[1:]
 tree_path, out_bytes, out_blend = argv[0], argv[1], argv[2]
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gq_materials
 gq_materials.camo_path = argv[3] if len(argv) > 3 else None
 gq_materials.decal_path = argv[4] if len(argv) > 4 else None
+
+# ---------- Отличия машин ----------
+# Колесо: радиус обода R, полуширина HW, радиус шины TR, тормозной диск, рисунок спиц, материалы диска.
+# Салон: высота подушек, ряды кресел, материалы кожи, руль, детали торпеды и дверей.
+CARS = {
+    "x5": dict(
+        R=0.262, HW=0.1475, TR=0.370, disc=0.197, bell=0.115, spokes="y", face="alloy", side="alloy",
+        caliper="caliper", cal_r=(0.128, 0.212), cal_w=0.042,
+        seat_y=0.755, seat_z=-0.35, seat_x=0.38, seat_w=0.54, rear_z=-1.28, rear_xs=(-0.48, 0.0, 0.48), rear_w=0.46, rear_back_w=1.5,
+        seat_old="leather_black", front_cut=(-0.72, 0.0, 0.95), rear_cut=(-1.60, -0.98, 0.92),
+        insert="leather_tan", bolster="leather_black", wheel="m", idrive=True, dash=True,
+        door_z=(0.42, -0.62), door_y=(1.07, 0.62, 0.80), door_x=0.865, door_mat="int_black",
+    ),
+    "a7": dict(
+        R=0.258, HW=0.1275, TR=0.356, disc=0.187, bell=0.110, spokes="v", face="alloy_machined", side="rim_gunmetal",
+        caliper="rim_black", cal_r=(0.122, 0.198), cal_w=0.036,
+        seat_y=0.44, seat_z=-0.42, seat_x=0.37, seat_w=0.52, rear_z=-1.20, back_h=0.88, rear_head=0.58, rear_xs=(-0.46, 0.0, 0.46), rear_w=0.44, rear_back_w=1.42,
+        seat_old="leather_cream", front_cut=(-0.80, -0.05, 0.62), rear_cut=(-1.52, -0.9, 0.60),
+        insert="leather_cream", bolster="leather_cream", piping="int_beige", wheel="audi", idrive=False, dash=False,
+        door_z=(0.30, -0.78), door_y=(0.80, 0.50, 0.60), door_x=0.855, door_mat="int_beige",
+    ),
+}
+C = CARS[car]
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
@@ -173,10 +199,11 @@ def build_rim(me):
     # Колесо строим заново целиком: шина 275/40 R20, диск, тормоз
     bmesh.ops.delete(bm, geom=list(bm.faces), context='FACES')
     bmesh.ops.delete(bm, geom=list(bm.verts), context='VERTS')
-    i_alloy, i_chrome, i_inner, i_black = (mat_index(me, k) for k in ("alloy", "chrome", "rim_inner", "black"))
+    i_alloy, i_chrome, i_inner, i_black = (mat_index(me, k) for k in (C["face"], "chrome", "rim_inner", "black"))
+    i_side = mat_index(me, C["side"])
     i_rubber, i_tread, i_disc = (mat_index(me, k) for k in ("rubber", "tread", "disc"))
-    R, HW = 0.262, 0.1475
-    TR = 0.370
+    R, HW = C["R"], C["HW"]
+    TR = C["TR"]
     face = HW - 0.014
 
     def face_out(f, inside):
@@ -220,7 +247,7 @@ def build_rim(me):
     n_front = len(prof)
     for r, z in reversed(prof[:n_front - nt + 1]):   # зеркально — внутренняя сторона
         prof.append((r, -z))
-    grooves = (-0.072, -0.026, 0.026, 0.072)
+    grooves = tuple(g * HW / 0.1475 for g in (-0.072, -0.026, 0.026, 0.072))
     rings = []
     for k in range(seg):
         a = 2 * math.pi * k / seg
@@ -230,7 +257,7 @@ def build_rim(me):
             if abs(r - TR) < 1e-6:
                 if any(abs(z - g) < 0.007 for g in grooves):
                     rr -= 0.008                                        # продольная канавка
-                elif abs(z) > 0.09 and ((k + (z * 40)) % 6) < 2:
+                elif abs(z) > 0.09 * HW / 0.1475 and ((k + (z * 40)) % 6) < 2:
                     rr -= 0.006                                        # поперечные прорези на плечах
             ring.append(bm.verts.new((rr * math.cos(a), rr * math.sin(a), z)))
         rings.append(ring)
@@ -244,9 +271,10 @@ def build_rim(me):
             face_out(f, ((R + TR) / 2, 0.0))   # наружу от середины сечения шины
 
     # ---- Тормоз: вентилируемый диск Ø 395 мм с перфорацией и тёмным «колоколом» ----
-    lathe([(0.115, -0.022), (0.197, -0.022), (0.197, -0.050), (0.115, -0.050), (0.115, -0.022)], i_disc, 96, inside=(0.156, -0.036))
-    lathe([(0.115, -0.024), (0.072, -0.010), (0.072, 0.040), (0.050, 0.040)], i_inner, 64, inside=(0.0, -0.08))
-    for ring_r, n_holes in ((0.140, 24), (0.160, 24), (0.180, 24)):
+    D, B = C["disc"], C["bell"]
+    lathe([(B, -0.022), (D, -0.022), (D, -0.050), (B, -0.050), (B, -0.022)], i_disc, 96, inside=((B + D) / 2, -0.036))
+    lathe([(B, -0.024), (0.072, -0.010), (0.072, 0.040), (0.050, 0.040)], i_inner, 64, inside=(0.0, -0.08))
+    for ring_r, n_holes in ((B + 0.25 * (D - B), 24), (B + 0.5 * (D - B), 24), (B + 0.75 * (D - B), 24)):
         for k in range(n_holes):
             a = 2 * math.pi * (k + ring_r * 37) / n_holes
             bmesh.ops.create_circle(bm, cap_ends=True, segments=8, radius=0.0042,
@@ -281,9 +309,9 @@ def build_rim(me):
         quads = [(a[0], a[1], b[1], b[0]), (a[1], a[2], b[2], b[1]), (a[2], a[3], b[3], b[2]), (a[3], a[0], b[0], b[3]),
                  (a[3], a[2], a[1], a[0]), (b[0], b[1], b[2], b[3])]
         new_faces = []
-        for q in quads:
+        for qi, q in enumerate(quads):
             f = bm.faces.new(q)
-            f.material_index = i_alloy
+            f.material_index = i_alloy if qi == 0 else i_side   # лицо спицы — точёное, бока — тёмные (у X5 всё одно)
             new_faces.append(f)
         bmesh.ops.recalc_face_normals(bm, faces=new_faces)
         edges = list({e for f in new_faces for e in f.edges})
@@ -291,9 +319,13 @@ def build_rim(me):
 
     for k in range(5):
         a = 2 * math.pi * k / 5 + math.pi / 2
-        spoke(a, a, 0.050, 0.152, 0.066, 0.052, 0.034)              # ствол — литой, широкий
-        for side in (-1, 1):                                          # две ветки к ободу
-            spoke(a, a + side * math.radians(12), 0.138, R - 0.014, 0.040, 0.034, 0.030)
+        if C["spokes"] == "y":
+            spoke(a, a, 0.050, 0.152, 0.066, 0.052, 0.034)              # ствол — литой, широкий
+            for side in (-1, 1):                                          # две ветки к ободу
+                spoke(a, a + side * math.radians(12), 0.138, R - 0.014, 0.040, 0.034, 0.030)
+        else:
+            for side in (-1, 1):                                          # «V»: две спицы расходятся от ступицы к ободу
+                spoke(a + side * math.radians(3.5), a + side * math.radians(11), 0.050, R - 0.014, 0.040, 0.036, 0.032)
         # Гайка
         an = a + math.pi / 5
         c = Vector((0.046 * math.cos(an), 0.046 * math.sin(an), face - 0.006))
@@ -303,7 +335,7 @@ def build_rim(me):
             for f in v.link_faces:
                 f.material_index = i_chrome
     for f in bm.faces:
-        if f.material_index not in (i_alloy, i_chrome, i_inner, i_black):
+        if f.material_index not in (i_alloy, i_side, i_chrome, i_inner, i_black):
             continue
         f.smooth = True
     bm.to_mesh(me)
@@ -319,7 +351,9 @@ def build_caliper(me, side):
     bmesh.ops.delete(bm, geom=list(bm.verts), context='VERTS')
     bm.to_mesh(me)
     bm.free()
-    cal = mat_index(me, "caliper")
+    cal = mat_index(me, C["caliper"])
+    r_in, r_out = C["cal_r"]
+    cw = C["cal_w"]
     disc_x = -0.036 * side                     # диск — внутри от спиц
     def build(b):
         n = 10
@@ -328,7 +362,7 @@ def build_caliper(me, side):
         for i in range(n + 1):
             a = a0 + (a1 - a0) * i / n
             ring = []
-            for (dx, r) in ((-0.042, 0.128), (0.042, 0.128), (0.042, 0.212), (-0.042, 0.212)):
+            for (dx, r) in ((-cw, r_in), (cw, r_in), (cw, r_out), (-cw, r_out)):
                 x = disc_x + dx
                 y, z = r * math.sin(a), r * math.cos(a)
                 ring.append(b.verts.new(ub((x, y, z))))
@@ -404,6 +438,26 @@ def cage(bm, c, size, mat, yaw=0.0, pitch=0.0, cuts=2, shape=None):
         v.co = Vector(ub((x + c[0], y + c[1], z + c[2])))
     bmesh.ops.recalc_face_normals(bm, faces=[f for f in bm.faces])
 
+def torus(bm, c, R, r, mat, seg=24, sides=6):
+    """Тор в плоскости XZ Unity (ось — вверх по Y узла), центр c в координатах Unity."""
+    rings = []
+    for i in range(seg):
+        a = 2 * math.pi * i / seg
+        col = []
+        for j in range(sides):
+            b = 2 * math.pi * j / sides
+            rr = R + r * math.cos(b)
+            col.append(bm.verts.new(ub((c[0] + rr * math.cos(a), c[1] + r * math.sin(b), c[2] + rr * math.sin(a)))))
+        rings.append(col)
+    faces = []
+    for i in range(seg):
+        for j in range(sides):
+            f = bm.faces.new((rings[i][j], rings[(i + 1) % seg][j], rings[(i + 1) % seg][(j + 1) % sides], rings[i][(j + 1) % sides]))
+            f.material_index = mat
+            f.tag = True
+            faces.append(f)
+    bmesh.ops.recalc_face_normals(bm, faces=faces)
+
 def remove_faces(me, keep_fn):
     bm = bmesh.new()
     bm.from_mesh(me)
@@ -423,21 +477,30 @@ def cushion_shape(u, h, w, p):
     return p
 
 def seat_bottom(bm, me, x, z, width):
-    tan, blk = mat_index(me, "leather_tan"), mat_index(me, "leather_black")
-    cage(bm, (x, 0.755, z), (width * 0.56, 0.11, 0.52), tan, shape=cushion_shape)                        # вставка
+    tan, blk = mat_index(me, C["insert"]), mat_index(me, C["bolster"])
+    y = C["seat_y"]
+    cage(bm, (x, y, z), (width * 0.56, 0.11, 0.52), tan, shape=cushion_shape)                        # вставка
     for s in (-1, 1):
-        cage(bm, (x + s * (width * 0.5 - 0.06), 0.785, z - 0.01), (0.12, 0.17, 0.54), blk, yaw=s * 4)     # валики
-    cage(bm, (x, 0.70, z + 0.02), (width, 0.06, 0.56), blk, cuts=1)                                         # основание
+        cage(bm, (x + s * (width * 0.5 - 0.06), y + 0.03, z - 0.01), (0.12, 0.17, 0.54), blk, yaw=s * 4)     # валики
+    cage(bm, (x, y - 0.055, z + 0.02), (width, 0.06, 0.56), blk, cuts=1)                                    # основание
+    if C.get("piping"):                                                                                      # стёжка поперёк вставки
+        pip = mat_index(me, C["piping"])
+        for k in range(4):
+            cage(bm, (x, y + 0.053, z - 0.18 + k * 0.12), (width * 0.5, 0.008, 0.008), pip, cuts=0)
 
 def seat_back(bm, me, width):
     """Спинка в системе узла SeatBack (низ — у шарнира, вверх по y, лицо — +z)."""
-    tan, blk, ch = mat_index(me, "leather_tan"), mat_index(me, "leather_black"), mat_index(me, "chrome")
+    tan, blk, ch = mat_index(me, C["insert"]), mat_index(me, C["bolster"]), mat_index(me, "chrome")
     cage(bm, (0, 0.33, 0.0), (width * 0.56, 0.58, 0.09), tan)
     for s in (-1, 1):
         cage(bm, (s * (width * 0.5 - 0.06), 0.31, 0.02), (0.12, 0.58, 0.16), blk, yaw=-s * 14)
     cage(bm, (0, 0.33, -0.05), (width, 0.66, 0.08), blk, cuts=1)                       # задняя панель
     cage(bm, (0, 0.62, 0.01), (width * 0.9, 0.08, 0.12), blk)                           # плечи
     cage(bm, (0, 0.82, -0.01), (0.27, 0.18, 0.11), blk)                                 # подголовник
+    if C.get("piping"):
+        pip = mat_index(me, C["piping"])
+        for k in range(5):
+            cage(bm, (0, 0.12 + k * 0.1, 0.048), (width * 0.5, 0.008, 0.008), pip, cuts=0)
     for s in (-1, 1):                                                                    # хромированные стойки
         bmesh.ops.create_cone(bm, cap_ends=True, segments=10, radius1=0.006, radius2=0.006, depth=0.08,
                               matrix=Matrix.Translation(Vector(ub((s * 0.07, 0.70, -0.01)))))
@@ -445,37 +508,46 @@ def seat_back(bm, me, width):
         if not f.tag:
             f.tag = True
             f.material_index = ch
+    if C.get("back_h"):                       # у седана спинки ниже — иначе подголовник упирается в крышу
+        for v in bm.verts:
+            v.co.z *= C["back_h"]
 
 def rebuild_seats():
     inter = by_name["Interior"].data
     def keep(f):
         mname = inter.materials[f.material_index].name if f.material_index < len(inter.materials) else ""
-        if mname != "leather_black":
+        if mname != C["seat_old"]:
             return True
         x, y, z = unity_centroid(f)
-        front = -0.72 < z < 0.0 and abs(abs(x) - 0.38) < 0.33 and y < 0.95
-        rear = -1.60 < z < -0.98 and abs(x) < 0.82 and y < 0.92
+        z0, z1, ymax = C["front_cut"]
+        front = z0 < z < z1 and abs(abs(x) - C["seat_x"]) < 0.33 and y < ymax
+        z0, z1, ymax = C["rear_cut"]
+        rear = z0 < z < z1 and abs(x) < 0.82 and y < ymax
         return not (front or rear)
     remove_faces(inter, keep)
-    for x in (-0.38, 0.38):
-        subd_into(inter, lambda bm, x=x: seat_bottom(bm, inter, x, -0.35, 0.54))
+    sx = C["seat_x"]
+    for x in (-sx, sx):
+        subd_into(inter, lambda bm, x=x: seat_bottom(bm, inter, x, C["seat_z"], C["seat_w"]))
     # задний диван: три места
-    for x in (-0.48, 0.0, 0.48):
-        subd_into(inter, lambda bm, x=x: seat_bottom(bm, inter, x, -1.28, 0.46))
+    for x in C["rear_xs"]:
+        subd_into(inter, lambda bm, x=x: seat_bottom(bm, inter, x, C["rear_z"], C["rear_w"]))
     for name in ("SeatBackL", "SeatBackR"):
         me = by_name[name].data
         remove_faces(me, lambda f: False)
-        subd_into(me, lambda bm, me=me: seat_back(bm, me, 0.54))
+        subd_into(me, lambda bm, me=me: seat_back(bm, me, C["seat_w"]))
     rb = by_name["RearBack"].data
     remove_faces(rb, lambda f: False)
     def rear_back(bm):
-        tan, blk = mat_index(rb, "leather_tan"), mat_index(rb, "leather_black")
-        for x in (-0.48, 0.0, 0.48):
+        tan, blk = mat_index(rb, C["insert"]), mat_index(rb, C["bolster"])
+        for x in C["rear_xs"]:
             cage(bm, (x, 0.33, 0.0), (0.26, 0.56, 0.09), tan)
             for s in (-1, 1):
                 cage(bm, (x + s * 0.17, 0.32, 0.015), (0.10, 0.56, 0.13), blk, yaw=-s * 8)
-            cage(bm, (x, 0.76, -0.01), (0.25, 0.15, 0.10), blk)
-        cage(bm, (0, 0.33, -0.05), (1.5, 0.66, 0.08), blk, cuts=1)
+            cage(bm, (x, C.get("rear_head", 0.76), -0.01), (0.25, 0.15, 0.10), blk)
+        cage(bm, (0, 0.33, -0.05), (C["rear_back_w"], 0.66, 0.08), blk, cuts=1)
+        if C.get("back_h"):
+            for v in bm.verts:
+                v.co.z *= C["back_h"]
     subd_into(rb, rear_back)
 
 def rebuild_wheel():
@@ -501,9 +573,10 @@ def rebuild_wheel():
         # снизу (−z в Unity — к коленям) полоска М: голубой, синий, красный
         mat = lth
         d = (a - 270 + 540) % 360 - 180
-        if abs(d) < 2.5: mat = st2
-        elif -7.5 < d < -2.5: mat = st1
-        elif 2.5 < d < 7.5: mat = st3
+        if C["wheel"] == "m":
+            if abs(d) < 2.5: mat = st2
+            elif -7.5 < d < -2.5: mat = st1
+            elif 2.5 < d < 7.5: mat = st3
         for j in range(sides):
             f = bm.faces.new((ring[i][j], ring[(i + 1) % seg][j], ring[(i + 1) % seg][(j + 1) % sides], ring[i][(j + 1) % sides]))
             f.material_index = mat
@@ -523,6 +596,18 @@ def rebuild_wheel():
     tb.free()
     bpy.data.meshes.remove(tmp)
 
+    def parts_audi(bm):
+        """Руль Audi: восьмиугольная подушка с кольцами, горизонтальные спицы с серебристой рамкой, двойная нижняя спица."""
+        cage(bm, (0, 0.022, -0.004), (0.14, 0.06, 0.105), lth, shape=lambda u, h, w, p: Vector((p.x * (1 - 0.18 * max(0, -w)), p.y, p.z)))
+        for s in (-1, 1):
+            cage(bm, (s * 0.115, 0.012, -0.004), (0.11, 0.024, 0.06), blk, cuts=1)          # спица
+            cage(bm, (s * 0.112, 0.026, -0.004), (0.085, 0.004, 0.048), ch, cuts=1)         # серебристая рамка
+            cage(bm, (s * 0.112, 0.029, -0.004), (0.07, 0.004, 0.036), blk, cuts=1)         # кнопки
+            cage(bm, (s * 0.04, 0.008, -0.10), (0.014, 0.02, 0.11), ch, cuts=1, yaw=-s * 12)  # нижняя спица — серебристая «V»
+        cage(bm, (0, -0.15, -0.0), (0.07, 0.30, 0.07), blk, cuts=1)                       # колонка
+        for k in range(4):                                                                  # кольца на подушке
+            torus(bm, ((k - 1.5) * 0.017, 0.054, 0.006), 0.0115, 0.0017, ch)
+
     def parts(bm):
         cage(bm, (0, 0.022, -0.008), (0.135, 0.06, 0.115), lth)                          # подушка
         cage(bm, (0, 0.05, -0.008), (0.10, 0.012, 0.08), blk, cuts=1)                    # накладка
@@ -532,7 +617,7 @@ def rebuild_wheel():
         for s in (-1, 1):
             cage(bm, (s * 0.022, 0.006, -0.12), (0.018, 0.018, 0.12), blk, cuts=1)        # нижняя «двойная» спица
         cage(bm, (0, -0.15, -0.0), (0.07, 0.30, 0.07), blk, cuts=1)                       # колонка
-    subd_into(me, parts)
+    subd_into(me, parts_audi if C["wheel"] == "audi" else parts)
     me.set_sharp_from_angle(angle=math.radians(50))
 
 def add_idrive():
@@ -552,7 +637,7 @@ def add_idrive():
 
 def dark_screens():
     """Экраны щитка и iDrive — почти чёрное стекло (цифры и радио игра рисует поверх светящимся текстом)."""
-    for name in ("ClusterScreen", "RadioScreen"):
+    for name in ("ClusterScreen", "RadioScreen", "ClimateScreen"):
         ob = by_name.get(name)
         if ob is None or ob.type != 'MESH':
             continue
@@ -594,21 +679,25 @@ def door_details():
         me = ob.data
         side = -1 if name.endswith("L") else 1
         front = name.startswith("DoorF")
-        z = 0.42 if front else -0.62
-        ch, grille, blk = (mat_index(me, k) for k in ("chrome", "grille", "int_black"))
+        z = C["door_z"][0] if front else C["door_z"][1]
+        yh, ys, yp = C["door_y"]
+        dx = C["door_x"]
+        ch, grille, blk = (mat_index(me, k) for k in ("chrome", "grille", C["door_mat"]))
         inv = ob.matrix_world.inverted()
         def build(bm):
-            cage(bm, (0.865 * side, 1.07, z + 0.12), (0.02, 0.03, 0.12), ch, cuts=1)             # ручка
-            cage(bm, (0.88 * side, 0.62, z + 0.05), (0.02, 0.17, 0.17), grille, cuts=1)          # динамик
-            cage(bm, (0.875 * side, 0.80, z - 0.05), (0.035, 0.07, 0.38), blk, cuts=1)            # карман
+            cage(bm, (dx * side, yh, z + 0.12), (0.02, 0.03, 0.12), ch, cuts=1)                  # ручка
+            cage(bm, ((dx + 0.015) * side, ys, z + 0.05), (0.02, 0.17, 0.17), grille, cuts=1)     # динамик
+            cage(bm, ((dx + 0.01) * side, yp, z - 0.05), (0.035, 0.07, 0.38), blk, cuts=1)        # карман
             bmesh.ops.transform(bm, matrix=inv, verts=bm.verts[:])
         subd_into(me, build, level=1)
 
 rebuild_seats()
 rebuild_wheel()
-add_idrive()
+if C["idrive"]:
+    add_idrive()
 dark_screens()
-dash_details()
+if C["dash"]:
+    dash_details()
 door_details()
 print("interior rebuilt")
 
