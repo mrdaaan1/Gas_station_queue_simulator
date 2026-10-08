@@ -243,6 +243,9 @@ namespace GasQueue
         /// <summary>Шашлык для водителя готов через CookTime после заказа.</summary>
         public void Serve(HumanRig to) => Speak(fanner, ServeLines[Random.Range(0, ServeLines.Length)], false);
 
+        /// <summary>Реплика Ашота (через общую очередь реплик поваров).</summary>
+        public void Say(string text) => Speak(fanner, text, true);
+
         // ---------- Реплики: говорит один за раз ----------
 
         /// <summary>До какого момента ещё висит реплика одного из поваров.</summary>

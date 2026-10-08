@@ -420,14 +420,27 @@ namespace GasQueue
                 else if (Walker.EatingShashlik) Prompt = "Сначала доешьте этот";
                 else
                 {
-                    Prompt = $"E — шашлык или люля ({ShashlikStand.Price} руб., только наличными; у вас {Cash:0})";
+                    Prompt = shashlikDeal
+                        ? $"E — шашлык или люля (по-братски {ShashlikDealPrice} руб.; у вас {Cash:0})"
+                        : $"E — шашлык или люля ({ShashlikStand.Price} руб., только наличными; у вас {Cash:0})";
                     if (GameInput.InteractPressed)
                     {
-                        if (Cash < ShashlikStand.Price)
+                        if (Cash >= ShashlikPrice) OpenShashlikDialog();
+                        else if (shashlikAsks >= 1 && Cash >= ShashlikDealPrice)
+                        {
+                            // Второй заход: уступают до трёхсот... и сами понимают, что сейчас будет шутка
+                            shashlikDeal = true;
+                            stand.Say("Ладно, ахпер, давай за триста. Только шутить не будем, да?");
+                            ShowMessage("Ашот: «Ладно, ахпер-джан, давай за триста. Только шутить не будем, да? Знаю я вашу присказку про тракториста».", 8f);
+                            OpenShashlikDialog();
+                        }
+                        else
+                        {
+                            shashlikAsks++;
                             ShowMessage(Money >= ShashlikStand.Price
-                                ? "Ашот: «Ара, какая карта, джан? У меня мангал, а не терминал! Наличкой, ахпер!» Банкомат — в магазине на заправке."
+                                ? "Ашот: «Ара, какая карта, джан? У меня мангал, а не терминал! Иди наличку снимай, ахпер!» Банкомат — в магазине на заправке."
                                 : "Ашот: «Вай, брат-джан, денег не хватает... Приходи, мясо подождёт, клянусь мамой».", 7f);
-                        else OpenShashlikDialog();
+                        }
                     }
                 }
             }
@@ -861,14 +874,21 @@ namespace GasQueue
         public int MoneyRecovered { get; private set; }
         public int SeedsBought { get; private set; }
 
+        // Торг у мангала: первый раз без налички — «иди снимай», второй — «ладно, давай за триста»
+        const int ShashlikDealPrice = 300;
+        int shashlikAsks;
+        bool shashlikDeal;
+        public int ShashlikDeals { get; private set; }
+        int ShashlikPrice => shashlikDeal ? ShashlikDealPrice : ShashlikStand.Price;
+
         void OpenShashlikDialog()
         {
             dialogWith = DialogWith.Shashlik;
             DialogOpen = true;
-            DialogTitle = "Ашот: «Что кушать будешь, ахпер-джан?»";
+            DialogTitle = shashlikDeal ? "Ашот: «Триста так триста, джан. Что кушать будешь?»" : "Ашот: «Что кушать будешь, ахпер-джан?»";
             DialogOptions.Clear();
-            DialogOptions.Add($"Шашлык из свинины ({ShashlikStand.Price} руб. наличными)");
-            DialogOptions.Add($"Люля-кебаб ({ShashlikStand.Price} руб. наличными)");
+            DialogOptions.Add($"Шашлык из свинины ({ShashlikPrice} руб. наличными)");
+            DialogOptions.Add($"Люля-кебаб ({ShashlikPrice} руб. наличными)");
             DialogOptions.Add("Уйти");
         }
 
@@ -876,9 +896,10 @@ namespace GasQueue
         {
             var stand = ShashlikStand.Instance;
             CloseDialog();
-            if (stand == null || choice < 1 || choice > 2 || Cash < ShashlikStand.Price) return;
-            Cash -= ShashlikStand.Price;
-            MoneySpent += ShashlikStand.Price;
+            if (stand == null || choice < 1 || choice > 2 || Cash < ShashlikPrice) return;
+            Cash -= ShashlikPrice;
+            MoneySpent += ShashlikPrice;
+            if (shashlikDeal) ShashlikDeals++;
             stand.OrderForPlayer(choice == 2);
         }
 
@@ -927,7 +948,7 @@ namespace GasQueue
             // Первой — ровно столько, сколько не хватает на бензин (если кассир уже назвал сумму),
             // иначе — на шашлык; потом круглая сумма и «всё»
             float needFuel = Mathf.Ceil(FuelQuote - Cash);
-            float needShashlik = ShashlikStand.Price - Cash;
+            float needShashlik = ShashlikPrice - Cash;
             if (!Paid && needFuel > 0f) AddAtmChoice(needFuel, $"Снять {needFuel:0} руб. — сколько не хватает на бензин");
             else if (needShashlik > 0f) AddAtmChoice(needShashlik, $"Снять {needShashlik:0} руб. — на шампур шашлыка");
             else AddAtmChoice(500f, "Снять 500 руб.");
@@ -1526,6 +1547,7 @@ namespace GasQueue
             if (ShashlikEaten >= 1) list.Add("Шашлык в очереди");
             if (DavidychSelfies >= 1) list.Add("Фото с Давидычем");
             if (NozzlesStolen >= 1) list.Add("Отжал пистолет");
+            if (ShashlikDeals >= 1) list.Add("Шашлык за триста");
             if (NozzleOwnersCalmed >= 1) list.Add("Бензин по праву сильного");
             if (PedestriansHit >= 1) list.Add("Кегельбан: сбил пешехода");
             if (PedestriansHit >= 5) list.Add("Гроза тротуаров");
