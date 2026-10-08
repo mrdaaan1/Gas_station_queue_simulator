@@ -273,7 +273,7 @@ namespace GasQueue
             UpdateAtm(dt);
             UpdateAttendant(dt);
             UpdatePlayerFlow();
-            UpdateInteractions();
+            if (!NardyGame.Active) UpdateInteractions(); // пока за нардами — E и прочее не трогаем
         }
 
         public void ShowMessage(string text, float seconds = 6f)
@@ -431,27 +431,9 @@ namespace GasQueue
                 else
                 {
                     Prompt = shashlikDeal
-                        ? $"E — шашлык или люля (по-братски {ShashlikDealPrice} руб.; у вас {Cash:0})"
-                        : $"E — шашлык или люля ({ShashlikStand.Price} руб., только наличными; у вас {Cash:0})";
-                    if (GameInput.InteractPressed)
-                    {
-                        if (Cash >= ShashlikPrice) OpenShashlikDialog();
-                        else if (shashlikAsks >= 1 && Cash >= ShashlikDealPrice)
-                        {
-                            // Второй заход: уступают до трёхсот... и сами понимают, что сейчас будет шутка
-                            shashlikDeal = true;
-                            stand.Say("Ладно, ахпер, давай за триста. Только шутить не будем, да?");
-                            ShowMessage("Ашот: «Ладно, ахпер-джан, давай за триста. Только шутить не будем, да? Знаю я вашу присказку про тракториста».", 8f);
-                            OpenShashlikDialog();
-                        }
-                        else
-                        {
-                            shashlikAsks++;
-                            ShowMessage(Money >= ShashlikStand.Price
-                                ? "Ашот: «Ара, какая карта, джан? У меня мангал, а не терминал! Иди наличку снимай, ахпер!» Банкомат — в магазине на заправке."
-                                : "Ашот: «Вай, брат-джан, денег не хватает... Приходи, мясо подождёт, клянусь мамой».", 7f);
-                        }
-                    }
+                        ? $"E — шашлык, люля (по-братски {ShashlikDealPrice} руб.) или нарды с Гариком"
+                        : $"E — шашлык, люля ({ShashlikStand.Price} руб. наличными) или нарды с Гариком";
+                    if (GameInput.InteractPressed) OpenShashlikDialog();
                 }
             }
             else if (Vector3.Distance(me, CityLayout.AtmFront) < 1.3f)
@@ -921,6 +903,7 @@ namespace GasQueue
             DialogOptions.Clear();
             DialogOptions.Add($"Шашлык из свинины ({ShashlikPrice} руб. наличными)");
             DialogOptions.Add($"Люля-кебаб ({ShashlikPrice} руб. наличными)");
+            DialogOptions.Add("Сыграть с Гариком в нарды (выиграешь — шашлык бесплатно)");
             DialogOptions.Add("Уйти");
         }
 
@@ -928,11 +911,50 @@ namespace GasQueue
         {
             var stand = ShashlikStand.Instance;
             CloseDialog();
-            if (stand == null || choice < 1 || choice > 2 || Cash < ShashlikPrice) return;
+            if (stand == null) return;
+            if (choice == 3) { StartNardy(stand); return; }
+            if (choice < 1 || choice > 2) return;
+            if (Cash < ShashlikPrice)
+            {
+                if (shashlikAsks >= 1 && Cash >= ShashlikDealPrice)
+                {
+                    // Второй заход: уступают до трёхсот... и сами понимают, что сейчас будет шутка
+                    shashlikDeal = true;
+                    stand.Say("Ладно, ахпер, давай за триста. Только шутить не будем, да?");
+                    ShowMessage("Ашот: «Ладно, ахпер-джан, давай за триста. Только шутить не будем, да? Знаю я вашу присказку про тракториста».", 8f);
+                }
+                else
+                {
+                    shashlikAsks++;
+                    ShowMessage(Money >= ShashlikStand.Price
+                        ? "Ашот: «Ара, какая карта, джан? У меня мангал, а не терминал! Иди наличку снимай, ахпер!» Банкомат — в магазине на заправке."
+                        : "Ашот: «Вай, брат-джан, денег не хватает... Приходи, мясо подождёт, клянусь мамой». (Или обыграй Гарика в нарды.)", 7f);
+                    return;
+                }
+            }
             Cash -= ShashlikPrice;
             MoneySpent += ShashlikPrice;
             if (shashlikDeal) ShashlikDeals++;
             stand.OrderForPlayer(choice == 2);
+        }
+
+        // ---------- Нарды с Гариком ----------
+
+        public int NardyWins { get; private set; }
+
+        void StartNardy(ShashlikStand stand)
+        {
+            Walker.Posing = true;
+            stand.Say("Гарик, неси нарды! Ахпер играть хочет!");
+            NardyGame.Open(won =>
+            {
+                if (Walker != null) Walker.Posing = false;
+                if (!won) return;
+                NardyWins++;
+                if (stand == null) return;
+                stand.OrderForPlayer(Random.value < 0.5f);
+                ShowMessage("Выиграли у Гарика в нарды! Ашот жарит вам шашлык бесплатно — «самый лучший».", 8f);
+            });
         }
 
         public int DavidychSelfies { get; private set; }
@@ -1580,6 +1602,7 @@ namespace GasQueue
             if (DavidychSelfies >= 1) list.Add("Фото с Давидычем");
             if (NozzlesStolen >= 1) list.Add("Отжал пистолет");
             if (ShashlikDeals >= 1) list.Add("Шашлык за триста");
+            if (NardyWins >= 1) list.Add("Обыграл армянина в нарды");
             if (NozzleOwnersCalmed >= 1) list.Add("Бензин по праву сильного");
             if (PedestriansHit >= 1) list.Add("Кегельбан: сбил пешехода");
             if (PedestriansHit >= 5) list.Add("Гроза тротуаров");

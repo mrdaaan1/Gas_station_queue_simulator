@@ -92,8 +92,8 @@ namespace GasQueue
             }
 
             // Курсор захватывается обратно кликом (например, после того как его отпустил редактор Unity)
-            if (GameInput.ClickPressed && gm != null && gm.State != GameState.Finished) SetCursorLocked(true);
-            if (!CursorLocked || GameInput.Paused) return;
+            if (GameInput.ClickPressed && gm != null && gm.State != GameState.Finished && !NardyGame.Active) SetCursorLocked(true);
+            if (!CursorLocked || GameInput.Paused || NardyGame.Active) return;
 
             var d = GameInput.MouseDelta * sensitivity;
             if (onFoot)

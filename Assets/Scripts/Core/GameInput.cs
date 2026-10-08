@@ -43,7 +43,8 @@ namespace GasQueue
         public static int DialogChoice =>
             Pressed(KeyCode.Alpha1) || Pressed(KeyCode.Keypad1) ? 1 :
             Pressed(KeyCode.Alpha2) || Pressed(KeyCode.Keypad2) ? 2 :
-            Pressed(KeyCode.Alpha3) || Pressed(KeyCode.Keypad3) ? 3 : 0;
+            Pressed(KeyCode.Alpha3) || Pressed(KeyCode.Keypad3) ? 3 :
+            Pressed(KeyCode.Alpha4) || Pressed(KeyCode.Keypad4) ? 4 : 0;
 
         /// <summary>Пока открыта пауза, игра не получает нажатий (кроме Esc и мыши для меню).</summary>
         public static bool Paused;
@@ -112,9 +113,11 @@ namespace GasQueue
                 case KeyCode.Alpha1: return kb.digit1Key;
                 case KeyCode.Alpha2: return kb.digit2Key;
                 case KeyCode.Alpha3: return kb.digit3Key;
+                case KeyCode.Alpha4: return kb.digit4Key;
                 case KeyCode.Keypad1: return kb.numpad1Key;
                 case KeyCode.Keypad2: return kb.numpad2Key;
                 case KeyCode.Keypad3: return kb.numpad3Key;
+                case KeyCode.Keypad4: return kb.numpad4Key;
                 default: return null;
             }
         }
