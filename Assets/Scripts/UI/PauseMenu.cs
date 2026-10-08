@@ -29,7 +29,10 @@ namespace GasQueue
         {
             if (MainMenu.IsOpen) return;
             if (GameManager.Instance == null || GameManager.Instance.State == GameState.Finished) return;
-            if (GameInput.PausePressed) SetOpen(!IsOpen);
+            if (!GameInput.PausePressed) return;
+            // За нардами Esc — встать из-за доски, а не пауза
+            if (!IsOpen && NardyGame.Active) { NardyGame.Quit(); return; }
+            SetOpen(!IsOpen);
         }
 
         void SetOpen(bool open)

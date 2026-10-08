@@ -8,8 +8,9 @@ namespace GasQueue
     /// <summary>
     /// Длинные нарды с Гариком у мангала (правила — <see cref="Board"/>). Игрок — белые, Гарик — чёрные.
     /// Доска рисуется кодом (дерево, 24 «треугольника»), шашки и кубики — IMGUI.
-    /// Управление: «Бросить кубики» (или Пробел), щелчок по своей шашке — подсвечиваются куда можно, щелчок туда — ход;
-    /// выбросить с доски — щелчок по лотку справа. Пока играете, жизнь на заправке идёт своим чередом.
+    /// При открытии — экран правил. Управление: Пробел или большая кнопка на доске — бросить кубики, щелчок по своей
+    /// шашке (жёлтая подсветка) → щелчок по зелёному кружку — ход; выбросить — лоток справа; ПКМ — отменить выбор;
+    /// Esc или «Выйти» — встать из-за доски (Esc ловит <see cref="PauseMenu"/>). Пока играете, жизнь на заправке идёт.
     /// </summary>
     public class NardyGame : MonoBehaviour
     {
@@ -33,6 +34,7 @@ namespace GasQueue
         float sayTime;
         int openW, openB;
         bool playerWon;
+        bool showRules = true;              // правила при открытии, потом — по кнопке
 
         static Texture2D boardTex, whiteTex, blackTex, dotTex, pixel, glowTex;
 
@@ -61,6 +63,18 @@ namespace GasQueue
             GameManager.Instance?.CameraRig?.SetCursorLocked(false);
         }
 
+        /// <summary>Встать из-за доски (Esc / «Выйти»). Недоигранная партия — проигрыш.</summary>
+        public static void Quit()
+        {
+            if (instance == null) return;
+            if (instance.phase != Phase.Over)
+            {
+                instance.playerWon = false;
+                GameManager.Instance?.ShowMessage("Встали из-за нард. Гарик: «Э, ахпер, куда? Приходи отыграться!»", 5f);
+            }
+            instance.Close();
+        }
+
         void OnDestroy()
         {
             if (instance == this) instance = null;
@@ -87,6 +101,14 @@ namespace GasQueue
         void Update()
         {
             float dt = Time.unscaledDeltaTime;
+            // Курсор всегда свободен (после паузы его снова захватывает камера — тогда по доске не щёлкнуть)
+            if (!GameInput.Paused && Cursor.lockState != CursorLockMode.None)
+                GameManager.Instance?.CameraRig?.SetCursorLocked(false);
+            if (showRules)
+            {
+                if (GameInput.JumpPressed) showRules = false;
+                return;
+            }
             timer -= dt;
             switch (phase)
             {
@@ -103,6 +125,9 @@ namespace GasQueue
                     break;
                 case Phase.PlayerMove:
                     if (allowed.Count == 0 && timer <= 0f) EndPlayerTurn();
+                    break;
+                case Phase.Over:
+                    if (GameInput.JumpPressed) Close();
                     break;
                 case Phase.AiThink:
                     if (timer > 0f) break;
@@ -140,8 +165,8 @@ namespace GasQueue
             dice = d1 == d2 ? new List<int> { d1, d1, d1, d1 } : new List<int> { d1, d2 };
             headUsed = 0;
             headLimit = board.HeadLimit(Board.White, d1, d2);
-            selected = -1;
             allowed = board.AllowedMoves(Board.White, dice, headUsed, headLimit);
+            selected = AutoSelect();
             phase = Phase.PlayerMove;
             Say("Гарик", RollName(d1, d2) + (d1 == d2 && rnd.NextDouble() < 0.6 ? " " + GarikGood[rnd.Next(GarikGood.Length)] : ""));
             if (allowed.Count == 0)
@@ -159,6 +184,7 @@ namespace GasQueue
             selected = -1;
             if (board.Won(Board.White)) { GameOver(true); return; }
             allowed = board.AllowedMoves(Board.White, dice, headUsed, headLimit);
+            selected = AutoSelect();
             if (allowed.Count == 0) { timer = 0.4f; }
         }
 
@@ -207,10 +233,12 @@ namespace GasQueue
 
         void Layout()
         {
-            float sh = Screen.height, sw = Screen.width;
-            float h = Mathf.Min(sh * 0.78f, sw * 0.5f);
+            float sh = Screen.height, sw = Screen.width, k = K;
+            // Сверху полоса с «Выйти», снизу — подсказки
+            float top = 62f * k, bottom = 108f * k;
+            float h = Mathf.Min(sh - top - bottom - 8f * k, sw * 0.5f);
             float w = h * 1.5f;
-            boardRect = new Rect((sw - w) / 2f, (sh - h) / 2f - sh * 0.03f, w, h);
+            boardRect = new Rect((sw - w) / 2f, top, w, h);
             float frame = h * 0.05f;
             inner = new Rect(boardRect.x + frame, boardRect.y + frame, boardRect.width - frame * 2f, boardRect.height - frame * 2f);
             barW = inner.width * 0.05f;
@@ -273,7 +301,7 @@ namespace GasQueue
                 bool isSel = selected >= 0 && Board.Abs(Board.White, selected) == abs;
                 if (movable.Contains(abs) && !isSel)
                 {
-                    GUI.color = new Color(1f, 0.85f, 0.3f, 0.18f);
+                    GUI.color = new Color(1f, 0.85f, 0.3f, 0.22f + 0.12f * Mathf.Sin(Time.unscaledTime * 5f));
                     GUI.DrawTexture(new Rect(x - colW / 2f, top ? inner.y : inner.yMax - pointH, colW, pointH), pixel);
                 }
                 if (isSel)
@@ -312,7 +340,17 @@ namespace GasQueue
 
             DrawDice();
             DrawPanel();
-            HandleClicks(canOff);
+            if (showRules)
+            {
+                DrawTopBar();
+                DrawRules();
+            }
+            else
+            {
+                DrawCenterButton();
+                DrawTopBar();
+                HandleClicks(canOff);
+            }
             GUI.color = Color.white;
         }
 
@@ -330,7 +368,7 @@ namespace GasQueue
                 GUI.DrawTexture(row, pixel);
             }
             GUI.color = Color.white;
-            Label(new Rect(rect.x, player == Board.White ? rect.yMax - 22 : rect.y + 2, rect.width, 20), player == Board.White ? "вы" : "Гарик", new Color(1f, 0.9f, 0.7f), 13, TextAnchor.MiddleCenter);
+            Label(new Rect(rect.x, player == Board.White ? rect.yMax - 40 : rect.y + 2, rect.width, 38), player == Board.White ? "лоток\nваш" : "лоток\nГарика", new Color(1f, 0.9f, 0.7f), 13 * K, TextAnchor.MiddleCenter);
         }
 
         void DrawDice()
@@ -365,42 +403,139 @@ namespace GasQueue
             GUI.color = Color.white;
         }
 
-        void DrawPanel()
+        float K => Screen.height / 720f;
+
+        /// <summary>Кнопка, которая срабатывает сразу по нажатию мыши (GUI.Button ждёт отпускания и иногда «съедается»).</summary>
+        bool Btn(Rect r, string text, Color bg, float size)
         {
-            var bar = new Rect(boardRect.x, boardRect.yMax + 8f, boardRect.width, 64f);
-            GUI.color = new Color(0f, 0f, 0f, 0.7f);
+            var e = Event.current;
+            bool hover = r.Contains(e.mousePosition);
+            GUI.color = new Color(0f, 0f, 0f, 0.6f);
+            GUI.DrawTexture(new Rect(r.x - 2, r.y - 2, r.width + 4, r.height + 4), pixel);
+            GUI.color = hover ? Color.Lerp(bg, Color.white, 0.25f) : bg;
+            GUI.DrawTexture(r, pixel);
+            GUI.color = Color.white;
+            Label(r, text, Color.white, size, TextAnchor.MiddleCenter);
+            if (e.type == EventType.MouseDown && e.button == 0 && hover)
+            {
+                e.Use();
+                return true;
+            }
+            return false;
+        }
+
+        static readonly Color Green = new Color(0.16f, 0.55f, 0.22f), Red = new Color(0.62f, 0.14f, 0.12f), Gray = new Color(0.3f, 0.3f, 0.32f);
+
+        /// <summary>Верхняя полоса: заголовок и всегда видимые «Правила» и «Выйти».</summary>
+        void DrawTopBar()
+        {
+            float k = K;
+            var bar = new Rect(0, 0, Screen.width, 54f * k);
+            GUI.color = new Color(0f, 0f, 0f, 0.75f);
             GUI.DrawTexture(bar, pixel);
             GUI.color = Color.white;
-            Label(new Rect(bar.x + 12, bar.y + 4, bar.width - 330, 26), sayWho + ": «" + say + "»", new Color(1f, 0.88f, 0.45f), 17, TextAnchor.MiddleLeft);
+            Label(new Rect(16f * k, 0, Screen.width * 0.5f, bar.height), "НАРДЫ С ГАРИКОМ  ·  вы — белые, Гарик — чёрные", new Color(1f, 0.88f, 0.45f), 20f * k, TextAnchor.MiddleLeft);
+            var exit = new Rect(Screen.width - 220f * k, 8f * k, 204f * k, 38f * k);
+            var help = new Rect(exit.x - 170f * k, exit.y, 156f * k, exit.height);
+            if (Btn(exit, "Выйти  [Esc]", Red, 18f * k)) Quit();
+            else if (Btn(help, "Правила", Gray, 18f * k)) showRules = !showRules;
+        }
+
+        void DrawPanel()
+        {
+            float k = K;
+            var bar = new Rect(boardRect.x, boardRect.yMax + 8f * k, boardRect.width, 92f * k);
+            GUI.color = new Color(0f, 0f, 0f, 0.75f);
+            GUI.DrawTexture(bar, pixel);
+            GUI.color = Color.white;
+            Label(new Rect(bar.x + 14f * k, bar.y + 6f * k, bar.width - 28f * k, 30f * k), sayWho + ": «" + say + "»", new Color(1f, 0.88f, 0.45f), 19f * k, TextAnchor.MiddleLeft);
             string status = phase switch
             {
-                Phase.Opening => "Розыгрыш первого хода...",
-                Phase.PlayerRoll => "Ваш ход: бросьте кубики (Пробел)",
-                Phase.PlayerMove => allowed.Count > 0 ? "Щёлкните свою шашку, потом — куда ходить" + (board.AllHome(Board.White) ? " (выбросить — лоток справа)" : "") : "Ходов нет",
-                Phase.Over => playerWon ? "Вы выиграли! Шашлык бесплатно." : "Гарик выиграл.",
+                Phase.Opening => "Бросаем по кубику: у кого больше — тот ходит первым...",
+                Phase.PlayerRoll => "ВАШ ХОД: нажмите ПРОБЕЛ (или большую кнопку на доске), чтобы бросить кубики",
+                Phase.PlayerMove => allowed.Count == 0 ? "Ходов нет — ход переходит Гарику"
+                    : selected < 0 ? "Щёлкните свою шашку с ЖЁЛТОЙ подсветкой. Осталось сыграть: " + string.Join(", ", dice)
+                    : "Щёлкните ЗЕЛЁНЫЙ кружок — шашка пойдёт туда" + (CanBearOffSelected() ? " (или ЛОТОК СПРАВА — выбросить)" : "") + ". Правая кнопка — отменить",
+                Phase.Over => playerWon ? "Вы выиграли! Шашлык — бесплатно." : "Партия окончена.",
                 _ => "Ходит Гарик...",
             };
-            Label(new Rect(bar.x + 12, bar.y + 32, bar.width - 330, 24), status + $"   ·   до конца: вы {board.Pips(Board.White)}, Гарик {board.Pips(Board.Black)}", new Color(0.85f, 0.85f, 0.85f), 14, TextAnchor.MiddleLeft);
+            Label(new Rect(bar.x + 14f * k, bar.y + 38f * k, bar.width - 28f * k, 24f * k), status, Color.white, 16f * k, TextAnchor.MiddleLeft);
+            Label(new Rect(bar.x + 14f * k, bar.y + 64f * k, bar.width - 28f * k, 22f * k),
+                $"Ходите по кругу: нижний ряд — влево, верхний — вправо. Дом — верх справа.   Осталось пройти: вы {board.Pips(Board.White)}, Гарик {board.Pips(Board.Black)}",
+                new Color(0.75f, 0.75f, 0.75f), 13f * k, TextAnchor.MiddleLeft);
+        }
 
-            var b1 = new Rect(bar.xMax - 310, bar.y + 10, 170, 44);
-            var b2 = new Rect(bar.xMax - 130, bar.y + 10, 120, 44);
-            if (phase == Phase.PlayerRoll && GUI.Button(b1, "Бросить кубики")) RollForPlayer();
-            if (phase == Phase.Over)
+        bool CanBearOffSelected()
+        {
+            foreach (var m in allowed) if (m.From == selected && m.To == 24) return true;
+            return false;
+        }
+
+        /// <summary>Крупная кнопка посреди доски: бросить кубики / встать после партии.</summary>
+        void DrawCenterButton()
+        {
+            float k = K;
+            float pulse = 0.85f + 0.15f * Mathf.Sin(Time.unscaledTime * 5f);
+            var r = new Rect(inner.center.x - 170f * k, inner.center.y - 34f * k, 340f * k, 68f * k);
+            if (phase == Phase.PlayerRoll)
             {
-                if (GUI.Button(b2, "Встать")) Close();
+                if (Btn(r, "БРОСИТЬ КУБИКИ  [Пробел]", Green * pulse, 22f * k)) RollForPlayer();
             }
-            else if (GUI.Button(b2, "Сдаться"))
+            else if (phase == Phase.Over)
             {
-                playerWon = false;
-                Say("Гарик", "Сдаёшься? Эх, ахпер... Приходи ещё!");
-                phase = Phase.Over;
+                if (Btn(r, playerWon ? "Забрать шашлык  [Пробел]" : "Встать из-за доски  [Пробел]", playerWon ? Green : Gray, 22f * k)) Close();
             }
+        }
+
+        /// <summary>Правила и управление поверх доски. Показываются при открытии, потом — по кнопке «Правила».</summary>
+        void DrawRules()
+        {
+            float k = K;
+            float w = Mathf.Min(Screen.width - 40f, 820f * k), h = 560f * k;
+            var r = new Rect((Screen.width - w) / 2f, 64f * k + (Screen.height - 64f * k - h) / 2f, w, h);
+            GUI.color = new Color(0f, 0f, 0f, 0.6f);
+            GUI.DrawTexture(new Rect(0, 54f * k, Screen.width, Screen.height), pixel);
+            GUI.color = new Color(0.1f, 0.07f, 0.05f, 0.97f);
+            GUI.DrawTexture(r, pixel);
+            GUI.color = new Color(0.55f, 0.35f, 0.15f);
+            GUI.DrawTexture(new Rect(r.x, r.y, r.width, 4f * k), pixel);
+            GUI.color = Color.white;
+            float x = r.x + 28f * k, y = r.y + 16f * k, tw = r.width - 56f * k;
+            Label(new Rect(x, y, tw, 36f * k), "КАК ИГРАТЬ В НАРДЫ", new Color(1f, 0.85f, 0.4f), 26f * k, TextAnchor.MiddleLeft);
+            y += 44f * k;
+            string[] lines =
+            {
+                "УПРАВЛЕНИЕ",
+                "•  ПРОБЕЛ (или зелёная кнопка) — бросить кубики.",
+                "•  Щёлкните свою белую шашку с жёлтой подсветкой, потом зелёный кружок — туда она и пойдёт.",
+                "•  Правая кнопка мыши — отменить выбор. Esc или «Выйти» — встать из-за доски.",
+                "",
+                "ПРАВИЛА (длинные нарды)",
+                "•  У каждого 15 шашек. Ваши белые стоят стопкой внизу справа — это «голова».",
+                "•  Ходите по кругу: по нижнему ряду влево, потом по верхнему вправо. Дом — верх справа.",
+                "•  Каждый кубик — ход одной шашки на столько лунок. Можно одной шашкой оба. Дубль — 4 хода.",
+                "•  На лунку с шашкой Гарика ставить нельзя. Бить нельзя.",
+                "•  С головы — одна шашка за ход (в самый первый ход при 6-6, 4-4, 3-3 — две).",
+                "•  Когда все 15 дома — выбрасывайте их в лоток справа от доски.",
+                "•  Кто первым выбросил все 15 — победил. Выиграете — шашлык бесплатно!",
+                "•  Если ходить некуда — ход пропускается сам. Подсказки — внизу под доской.",
+            };
+            foreach (var l in lines)
+            {
+                bool head = l == "УПРАВЛЕНИЕ" || l.StartsWith("ПРАВИЛА");
+                Label(new Rect(x, y, tw, 26f * k), l, head ? new Color(1f, 0.85f, 0.4f) : new Color(0.92f, 0.9f, 0.85f), (head ? 18f : 16f) * k, TextAnchor.MiddleLeft);
+                y += (l.Length == 0 ? 10f : 28f) * k;
+            }
+            var ok = new Rect(r.center.x - 160f * k, r.yMax - 70f * k, 320f * k, 54f * k);
+            if (Btn(ok, "Понятно, играем!  [Пробел]", Green, 20f * k)) showRules = false;
         }
 
         void HandleClicks(bool canOff)
         {
             var e = Event.current;
-            if (e.type != EventType.MouseDown || e.button != 0 || phase != Phase.PlayerMove) return;
+            if (e.type != EventType.MouseDown || phase != Phase.PlayerMove) return;
+            if (e.button == 1) { selected = AutoSelect(); e.Use(); return; }
+            if (e.button != 0) return;
             var p = e.mousePosition;
             if (canOff && trayW.Contains(p))
             {
@@ -417,8 +552,20 @@ namespace GasQueue
             }
             bool hasMoves = false;
             foreach (var m in allowed) if (m.From == rel) hasMoves = true;
-            selected = hasMoves ? rel : -1;
+            selected = hasMoves ? rel : AutoSelect();
             e.Use();
+        }
+
+        /// <summary>Если ходить может только одна шашка — сразу выбрать её.</summary>
+        int AutoSelect()
+        {
+            int from = -1;
+            foreach (var m in allowed)
+            {
+                if (from >= 0 && m.From != from) return -1;
+                from = m.From;
+            }
+            return from;
         }
 
         /// <summary>Выбрасываем по возможности точным кубиком, а не большим.</summary>
