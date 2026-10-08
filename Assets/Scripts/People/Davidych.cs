@@ -206,7 +206,7 @@ namespace GasQueue
     {
         const int Reps = 30;
         const float RepTime = 1.25f;
-        const float ParkZ = 10f;
+        const float ParkZ = -4f;
 
         enum Step { Waiting, Driving, Parked, ToSpot, Squatting, Selfie, ToCar, Leaving }
 
@@ -337,26 +337,26 @@ namespace GasQueue
             }
         }
 
-        // Маршруты: A — по левому ряду мимо очереди, через пустую правую полосу (между въездом и выездом) на тротуар;
-        // B — со встречки на левый тротуар напротив. Встаёт там, где нет столбов и деревьев (Z ≈ 10).
+        // Маршруты: A — по левому ряду мимо очереди, через пустую правую полосу (за въездом) на тротуар у колонок;
+        // B — со встречки на левый тротуар напротив. Встаёт ближе к очереди (Z ≈ −4), между фонарями (Z −10 и 26).
         static LanePath InA() => new LanePath("DavidychInA", 17f, new[]
         {
-            CityLayout.P(CityLayout.LaneLeft, CityLayout.RoadStartZ), CityLayout.P(CityLayout.LaneLeft, -30f), CityLayout.P(CityLayout.LaneMiddle, -16f),
-            CityLayout.P(CityLayout.LaneQueue, -4f), CityLayout.P(11.4f, 4.5f), CityLayout.P(12.2f, ParkZ),
+            CityLayout.P(CityLayout.LaneLeft, CityLayout.RoadStartZ), CityLayout.P(CityLayout.LaneLeft, -34f), CityLayout.P(CityLayout.LaneMiddle, -24f),
+            CityLayout.P(8.6f, -15f), CityLayout.P(9.4f, -10f), CityLayout.P(11.4f, -7.2f), CityLayout.P(12.2f, ParkZ),
         });
         static LanePath OutA() => new LanePath("DavidychOutA", 15f, new[]
         {
-            CityLayout.P(12.2f, ParkZ), CityLayout.P(11.2f, 17f), CityLayout.P(8f, 24f), CityLayout.P(CityLayout.LaneMiddle, 33f),
-            CityLayout.P(CityLayout.LaneLeft, 46f), CityLayout.P(CityLayout.LaneLeft, CityLayout.RoadEndZ),
+            CityLayout.P(12.2f, ParkZ), CityLayout.P(11.2f, 3f), CityLayout.P(8f, 10f), CityLayout.P(CityLayout.LaneMiddle, 19f),
+            CityLayout.P(CityLayout.LaneLeft, 32f), CityLayout.P(CityLayout.LaneLeft, CityLayout.RoadEndZ),
         });
         static LanePath InB() => new LanePath("DavidychInB", 17f, new[]
         {
-            CityLayout.P(-1.75f, CityLayout.RoadEndZ), CityLayout.P(-1.75f, 40f), CityLayout.P(-5.25f, 30f), CityLayout.P(-8.75f, 21f),
-            CityLayout.P(-11.4f, 15.5f), CityLayout.P(-12.2f, ParkZ),
+            CityLayout.P(-1.75f, CityLayout.RoadEndZ), CityLayout.P(-1.75f, 26f), CityLayout.P(-5.25f, 16f), CityLayout.P(-8.75f, 7f),
+            CityLayout.P(-11.4f, 1.5f), CityLayout.P(-12.2f, ParkZ),
         });
         static LanePath OutB() => new LanePath("DavidychOutB", 15f, new[]
         {
-            CityLayout.P(-12.2f, ParkZ), CityLayout.P(-11.2f, 3f), CityLayout.P(-8.75f, -5f), CityLayout.P(-8.75f, CityLayout.RoadStartZ),
+            CityLayout.P(-12.2f, ParkZ), CityLayout.P(-11.2f, -11f), CityLayout.P(-8.75f, -19f), CityLayout.P(-8.75f, CityLayout.RoadStartZ),
         });
 
         void Update()

@@ -11,10 +11,10 @@ public static class Stall { static NpcCar car; static float t0=-1, next; public 
   } }
 public static class Dav { static NpcCar car; static int phase; static float t0=-1, parkedAt; static bool sideA=true; public static int Visits;
   static Vector3 P(float x,float z)=>CityLayout.P(x,z);
-  static LanePath InA()=>new LanePath("DavInA",17f,new[]{P(1.75f,CityLayout.RoadStartZ),P(1.75f,-30f),P(5.25f,-16f),P(8.75f,-4f),P(11.4f,4.5f),P(12.2f,10f)});
-  static LanePath OutA()=>new LanePath("DavOutA",15f,new[]{P(12.2f,10f),P(11.2f,17f),P(8f,24f),P(5.25f,33f),P(1.75f,46f),P(1.75f,CityLayout.RoadEndZ)});
-  static LanePath InB()=>new LanePath("DavInB",17f,new[]{P(-1.75f,CityLayout.RoadEndZ),P(-1.75f,40f),P(-5.25f,30f),P(-8.75f,21f),P(-11.4f,15.5f),P(-12.2f,10f)});
-  static LanePath OutB()=>new LanePath("DavOutB",15f,new[]{P(-12.2f,10f),P(-11.2f,3f),P(-8.75f,-5f),P(-8.75f,CityLayout.RoadStartZ)});
+  static LanePath InA()=>new LanePath("DavInA",17f,new[]{P(1.75f,CityLayout.RoadStartZ),P(1.75f,-34f),P(5.25f,-24f),P(8.6f,-15f),P(9.4f,-10f),P(11.4f,-7.2f),P(12.2f,-4f)});
+  static LanePath OutA()=>new LanePath("DavOutA",15f,new[]{P(12.2f,-4f),P(11.2f,3f),P(8f,10f),P(5.25f,19f),P(1.75f,32f),P(1.75f,CityLayout.RoadEndZ)});
+  static LanePath InB()=>new LanePath("DavInB",17f,new[]{P(-1.75f,CityLayout.RoadEndZ),P(-1.75f,26f),P(-5.25f,16f),P(-8.75f,7f),P(-11.4f,1.5f),P(-12.2f,-4f)});
+  static LanePath OutB()=>new LanePath("DavOutB",15f,new[]{P(-12.2f,-4f),P(-11.2f,-11f),P(-8.75f,-19f),P(-8.75f,CityLayout.RoadStartZ)});
   public static void Tick(TrafficManager tr){
     if(phase==0 && Time.time>t0+20){ var path=sideA?InA():InB(); float s=sideA?path.Project(P(1.75f,Mathf.Clamp(tr.Player.Position.z-70f,CityLayout.RoadStartZ+20f,-80f)),out _):path.Project(P(-1.75f,300f),out _); var at=path.PointAt(s); if(!tr.AreaClear(at,sideA?3.2f:10f)) return; if(sideA && !tr.LaneClearNear(tr.LeftPath,tr.LeftPath.Project(at,out _),25f)) return; var v=CarFactory.Build("DAVIDYCH",Color.white,CarModel.Vaz2107,false); v.length=4.88f; v.width=1.96f; car=tr.SpawnScripted(v,path,s,true); phase=1; t0=Time.time; GameManager.Log($"DAV spawn side={(sideA?"A":"B")} z={car.Position.z:F0}"); }
     else if(phase==1){ if(car==null||car.destroyed){GameManager.Log("DAV lost");phase=0;return;} if(car.Parked){ phase=2; parkedAt=Time.time; GameManager.Log($"DAV parked after {Time.time-t0:F0}s at ({car.Position.x:F1},{car.Position.z:F1})"); } else if(Time.time-t0>90 && Mathf.Repeat(Time.time,10f)<Time.deltaTime) GameManager.Log($"DAV slow: pos=({car.Position.x:F1},{car.Position.z:F1}) v={car.Speed:F1} by={(car.BlockedBy==null?"-":car.BlockedBy.gameObject.name)}"); }
